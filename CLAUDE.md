@@ -77,8 +77,11 @@ Branches: `main` = released and safe. `feature/...` = work meant to ship (README
   a build that uses it must raise the loader's end word to 0x60f99800 as that branch does.
 - **Calling convention:** `call f,[regs],N` writes the return address at `(0,sp)` and overwrites MDR (details in
   `research/NOTES.md`, "Picture-mode sliders").
-- **Test order:** build → emulator (`tools/emulator/session_ed1.mjs`) → package for the owner → camera test by the
-  owner → only then release. The owner flashes; you only prepare files.
+- **Test order (owner, 2026-11-14):** build → emulator (`tools/emulator/session_ed1.mjs`; the project session runs it
+  until it passes) → cad's review → package for the owner → the owner's real-world camera test → only then done,
+  released or closed. Nothing goes to cad for review before it has passed the emulator; nothing skips the camera test
+  after that; **nothing counts as done until it passes the owner's in-camera test.** The owner flashes; Claude
+  sessions only prepare files.
 
 ## Delivering to the camera card
 
@@ -124,6 +127,11 @@ camera-tested package byte for byte (`SHA256SUMS`). Update `CHANGELOG.md` (its s
   commits on that branch and reports back to cad. **A test build goes on the owner's card only after cad has reviewed
   it and told the session it is cleared** (naming the package's sha256). Project sessions don't merge into `main`,
   release or push, and leave the main checkout on `main`. Sessions the owner starts by hand follow the same rules.
+- **Standing helpers** (set up by cad): a roadmap session keeps the owner's private roadmap (kept outside the repo; not
+  `ROADMAP.md`) up to date from what cad passes on and from the repo; a scheduled GitHub monitor reads new issues,
+  feature requests and pull requests, writes a private digest with triage and draft replies, and reports to cad.
+  Neither changes the repo or anything on GitHub. A pull request that touches firmware gets cad's full review, then
+  the emulator and the owner's camera test, before it is merged.
 
 ## Keeping the record
 
