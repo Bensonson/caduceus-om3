@@ -9541,7 +9541,7 @@ lg_y:                             /* `call lg_y,[],0`: d0 != 0 -> "yes", else "n
 lg_st:                            /* `call lg_st,[d2,d3],12`: d0 = a save result -> its number and meaning */
  mov d0,d2
  LGD
- cmp 5,d2
+ cmp 2,d2
  bcc 1f
  asl2 d2
  mov lg_stt,a0
@@ -9604,7 +9604,7 @@ lg_d:                             /* `call lg_d,[d2,d3],12`: d0 -> unsigned deci
 lg_p10:
  .long 1000000000, 100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1
 lg_stt:
- .long lg_s0, lg_s1, lg_s2, lg_s3, lg_s4
+ .long lg_s0, lg_s1
 lg_n:                             /* events so far this power-on */
  .long 0
 lg_w:                             /* CADLOG.TXT writes this power-on */
@@ -9768,12 +9768,6 @@ lg_s0:
  .asciz " (none yet)"
 lg_s1:
  .asciz " (saved)"
-lg_s2:
- .asciz " (no memory)"
-lg_s3:
- .asciz " (BUNDLES.NEW write failed)"
-lg_s4:
- .asciz " (BUNDLES.BIN write failed)"
 
 /* ---------------------------------------------------------------- v0.27 Creative Dial mapping (feature/v0.27-buttons)
  * The dial sets sid 897 (the picture-mode family) through the facade SetValue (camera dl8 + om-emu trace, 2026-11-10):
