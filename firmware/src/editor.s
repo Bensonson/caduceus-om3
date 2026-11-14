@@ -2837,12 +2837,8 @@ vf_tab:
  .long 54, VFB, 55, VFB + 1, 56, VFB + 2, 64, VFB + 3
 bw_tab:
  .long 54, BWB, 55, BWB + 1, 56, BWB + 2, 64, BWB + 3
-bk_tab:
- .long 54, BKB, 55, BKB + 1, 56, BKB + 2, 64, BKB + 3
 wh_tab:
  .long 54, WHB, 55, WHB + 1, 56, WHB + 2, 64, WHB + 3
-ab_tab:
- .long 54, ABB, 55, ABB + 1, 56, ABB + 2, 64, ABB + 3
 gm_tab:
  .long 54, GMB, 55, GMB + 1, 56, GMB + 2, 64, GMB + 3
 wg_tab:

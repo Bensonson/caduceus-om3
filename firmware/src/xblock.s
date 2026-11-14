@@ -971,9 +971,6 @@ xb_wl:                            /* a0 = S (ft8b: the builder's (4,sp)) */
  movm (sp),[d2,d3,a2,a3]
  rets
 
-xb_sv:                            /* `calls` from pf_save: (0,sp) = return */
- rets
-
 /* ---- fg1 (fast-grain log 1, 2026-11-08): how the Grainy Film Art Filter gets its grain, with and without an Art
  * Effect, next to a COLOR still and a MONO still (research; adapted from gl2d/gl8). GLOG.BIN = header 48 B ('GLG2',
  * total, marks, current mark, changed flag, selector calls, records, 0, four slot pointers) + 4 slots of LB_SLOT,
