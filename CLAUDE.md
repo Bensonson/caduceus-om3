@@ -106,9 +106,8 @@ camera-tested package byte for byte (`SHA256SUMS`). Update `CHANGELOG.md` (its s
 - **The main chat** ("Caduceus OM3"; the owner calls it **cad**) is the owner's long-running manager session. It
   manages, reviews and releases; it does not do project work itself:
   - starts one session per project (a feature, an experiment, a piece of research) with a brief, and **chooses its
-    model**: the strongest available model (cad's own) for anything that changes firmware, decides what goes on a
-    camera, or researches firmware internals; a cheaper model only for docs, the web pages, issue reply drafts or
-    mechanical work (copying and checking files). It keeps a status list of every session: what it is on, its model,
+    model**: whichever cad judges best for getting that task done well (owner, 2026-11-14), weighing how hard the
+    task is and what a mistake would cost on a camera. It keeps a status list of every session: what it is on, its model,
     its branch and folder, what it waits for;
   - passes each session's results to the owner and the owner's decisions to the session;
   - **reviews everything the project sessions do, critically.** This firmware goes on other people's cameras. A
