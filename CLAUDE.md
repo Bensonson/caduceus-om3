@@ -107,7 +107,8 @@ camera-tested package byte for byte (`SHA256SUMS`). Update `CHANGELOG.md` (its s
   manages, reviews and releases; it does not do project work itself:
   - starts one session per project (a feature, an experiment, a piece of research) with a brief, and **chooses its
     model**: whichever cad judges best for getting that task done well (owner, 2026-11-14), weighing how hard the
-    task is and what a mistake would cost on a camera. It keeps a status list of every session: what it is on, its model,
+    task is and what a mistake would cost on a camera, **but never Fable**: only cad itself runs on Fable, the most
+    expensive model. It keeps a status list of every session: what it is on, its model,
     its branch and folder, what it waits for;
   - passes each session's results to the owner and the owner's decisions to the session;
   - **reviews everything the project sessions do, critically.** This firmware goes on other people's cameras. A
