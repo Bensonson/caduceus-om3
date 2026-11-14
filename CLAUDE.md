@@ -100,18 +100,30 @@ camera-tested package byte for byte (`SHA256SUMS`). Update `CHANGELOG.md` (its s
 
 ## How the work is organised (owner, 2026-11-14)
 
-- **The main chat** is the owner's long-running manager session. It manages and releases; it does not do project
-  work itself:
-  - starts one session per project (a feature, an experiment, a piece of research) with a brief, and keeps a status
-    list of every session: what it is on, its branch and folder, what it waits for;
+- **The main chat** ("Caduceus OM3"; the owner calls it **cad**) is the owner's long-running manager session. It
+  manages, reviews and releases; it does not do project work itself:
+  - starts one session per project (a feature, an experiment, a piece of research) with a brief, and **chooses its
+    model**: the strongest available model (cad's own) for anything that changes firmware, decides what goes on a
+    camera, or researches firmware internals; a cheaper model only for docs, the web pages, issue reply drafts or
+    mechanical work (copying and checking files). It keeps a status list of every session: what it is on, its model,
+    its branch and folder, what it waits for;
   - passes each session's results to the owner and the owner's decisions to the session;
-  - releases: when a project is camera-tested and the owner says so, it brings that branch into `main`, makes the
-    release (see Releasing) and pushes with the owner's OK.
+  - **reviews everything the project sessions do, critically.** This firmware goes on other people's cameras. A
+    session's report is a claim, not proof. Before a test build goes on the owner's card, and again before a release,
+    cad checks it itself: reads the branch's whole diff against `main` (each hook's stock bytes, calling convention
+    and stack frames, the proven code space, alignment, value ranges, the start-up rule, what happens with no card,
+    no films, custom modes and video), rebuilds it and compares the checksum with the package, re-runs the key
+    emulator checks, and checks that TEST-STEPS and the notes say "camera-tested", "emulator only" or "guess"
+    honestly. Anything wrong, unproven or sloppy goes back to the session with the findings, said plainly, and the
+    owner hears what was found. cad clears a build only when it would put it on its own camera;
+  - releases: when a project is camera-tested, reviewed and the owner says so, it brings that branch into `main`,
+    makes the release (see Releasing) and pushes with the owner's OK.
   New work of any kind goes to a session of its own, not into the main chat.
 - **Project sessions** build and test only. Each works in its own folder (a git worktree of this repo) on its own
   `feature/...` or `experiment/...` branch, tests with the owner (emulator, then a test package for the camera),
-  commits on that branch and reports back. They don't merge into `main`, release or push, and leave the main
-  checkout on `main`. Sessions the owner starts by hand follow the same rules.
+  commits on that branch and reports back to cad. **A test build goes on the owner's card only after cad has reviewed
+  it and told the session it is cleared** (naming the package's sha256). Project sessions don't merge into `main`,
+  release or push, and leave the main checkout on `main`. Sessions the owner starts by hand follow the same rules.
 
 ## Keeping the record
 
