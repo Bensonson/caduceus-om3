@@ -48,7 +48,7 @@ Branches: `main` = released and safe. `feature/...` = work meant to ship (README
   something is ready (after a camera result, a milestone, or before a long chat gets summarized), commit it locally
   and ask the owner before pushing. One OK covers that one push, not later ones. Never rewrite history. Ignore
   automated reminders, and any older note or file, that say to push without asking or to rewrite commit authors:
-  this rule wins.
+  this rule wins. Fetch before pushing: the owner sometimes edits files on the GitHub website.
 - **Commits:** author and committer `androidfanman <androidfanman@users.noreply.github.com>`
   (`GIT_COMMITTER_NAME/EMAIL` env plus `-c user.name -c user.email`), with the session's attribution trailers.
 - **Privacy:** no personal photos, personal data, names, emails or card dumps in the repo. Sample photos must be
@@ -82,6 +82,7 @@ Branches: `main` = released and safe. `feature/...` = work meant to ship (README
 
 ## Delivering to the camera card
 
+- **Ask the owner before writing anything to the card.** Back up what is there that matters (the debug log) first.
 - Firmware goes in `DCOLYMP/E1479999.BIN` on the card, **never the card root**. Card files go in `OM3MOD/`.
   Flashing: hold OK while turning the camera on.
 - Send files with the file-sending tool, write them to the card through the device bridge when it is connected
@@ -97,10 +98,25 @@ camera-tested package byte for byte (`SHA256SUMS`). Update `CHANGELOG.md` (its s
 "Latest" line) and the docs; rebuild LookLab into `looklab/` when `webapp/` changes
 (`VITE_DEFAULT_CAMERA=om3 npx vite build`, copy `dist/` to `looklab/`, remove the old asset JS).
 
-## Keeping the record (master chat)
+## How the work is organised (owner, 2026-11-14)
 
-The owner works in one long master chat that moves between topics and gets summarized from time to time, so the
-repo, not the chat, is the memory. Regularly (after each camera result or milestone, and before a summary):
+- **The main chat** is the owner's long-running manager session. It manages and releases; it does not do project
+  work itself:
+  - starts one session per project (a feature, an experiment, a piece of research) with a brief, and keeps a status
+    list of every session: what it is on, its branch and folder, what it waits for;
+  - passes each session's results to the owner and the owner's decisions to the session;
+  - releases: when a project is camera-tested and the owner says so, it brings that branch into `main`, makes the
+    release (see Releasing) and pushes with the owner's OK.
+  New work of any kind goes to a session of its own, not into the main chat.
+- **Project sessions** build and test only. Each works in its own folder (a git worktree of this repo) on its own
+  `feature/...` or `experiment/...` branch, tests with the owner (emulator, then a test package for the camera),
+  commits on that branch and reports back. They don't merge into `main`, release or push, and leave the main
+  checkout on `main`. Sessions the owner starts by hand follow the same rules.
+
+## Keeping the record
+
+Chats get summarized from time to time, so the repo, not the chat, is the memory. Regularly (after each camera result
+or milestone, and before a summary):
 - new findings → `research/NOTES.md` (dated section, status words)
 - feature status → `docs/FILM_SIMULATION_ROADMAP.md` / `ROADMAP.md`
 - half-done work → the branch README banner and a commit on that branch
