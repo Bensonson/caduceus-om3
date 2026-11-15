@@ -495,38 +495,45 @@ cv_load:
 9:
  ret [d2,d3,a2,a3],20
 
-/* cv_hdr: `call cv_hdr,[d2,d3,a2,a3],20` (before ub_wr's / ss_wr's locked write), d0 = the films block's generation
- * the record goes with. */
+/* cv_hdr: `call cv_hdr,[d2,d3,a2,a3],20` before ub_wr's / ss_wr's locked write (interrupts on), d0 = the films
+ * block's generation the record goes with, a0 = that save's own buffer (CV_WRK + CW_SU / CW_SS): cv_ram packed into
+ * it, its header and CRC, as the record will be in M. Test 1b..3 did this inside the locked write (212,851
+ * instructions with interrupts off; test 3 froze the camera once: research/NOTES.md). Uses d0, d1, a0, a1. */
 cv_hdr:
- mov d0,(cv_gw)
+ mov a0,a2
+ mov d0,(12,a2)
+ mov CV_MAGIC,d0
+ mov d0,(a2)
+ mov 2,d0
+ movhu d0,(4,a2)
+ mov CV_MLEN,d0
+ movhu d0,(6,a2)
+ mov a2,a0
+ add 16,a0
+ mov cv_ram + 16,a1
+ call cv_pk,[d2,d3],12
+ mov -1,d0
+ mov a2,a0
+ add 12,a0
+ mov CV_MLEN - 12,d1
+ call sd_crc,[d2,d3],12
+ not d0
+ mov d0,(8,a2)
  ret [d2,d3,a2,a3],20
 
-/* cv_put: `call cv_put,[d2],8` inside ub_wr's / ss_wr's locked write (the camera not saving M; no other task between,
- * so its pack and CRC need no buffer of their own): cv_ram packed into M, its header and CRC, then the other alias.
- * Uses d0, d1, a0, a1; keeps d3 (the callers' lock state). */
+/* cv_put: `call cv_put,[d2],8` inside ub_wr's / ss_wr's locked write (the camera not saving M), a1 = the buffer cv_hdr
+ * made: copied into M, both aliases (word copies only, as the films block's own). Uses d0, d1, a0, a1; keeps d3 (the
+ * callers' lock state). */
 cv_put:
  movbu (cv_ok),d0                 /* never before the record was read this power-on (it would be overwritten flat) */
  cmp 0,d0
  beq 9f
- mov CV_C + 16,a0
- mov cv_ram + 16,a1
- call cv_pk,[d2,d3],12
- mov CV_MAGIC,d0
- mov d0,(CV_C)
- mov 2,d0
- movhu d0,(CV_C + 4)
- mov CV_MLEN,d0
- movhu d0,(CV_C + 6)
- mov (cv_gw),d0
- mov d0,(CV_C + 12)
- mov -1,d0
- mov CV_C + 12,a0
- mov CV_MLEN - 12,d1
- call sd_crc,[d2,d3],12
- not d0
- mov d0,(CV_C + 8)
+ mov a1,d2
+ mov CV_C,a0
+ mov CV_MLEN,d1
+ call ub_cpy,[],0
  mov CV_U,a0
- mov CV_C,a1
+ mov d2,a1
  mov CV_MLEN,d1
  call ub_cpy,[],0
  mov (cv_nw),d0
@@ -602,8 +609,6 @@ cv_pp:
  .long 0, 0, 0
 cv_nw:
  .long 0
-cv_gw:
- .long 0
 cv_pb:
  .space 3 * 64
  .balign 4
@@ -646,7 +651,15 @@ cv_v0:
  .set CW_HI, 1800
  .set CW_ROW, 3600                /* one row of palette indices */
  .set CW_ST, 4096                 /* the stream */
- .set CW_END, 0x8000              /* ... up to here */
+ .set CW_END, 0x6000              /* ... up to here (2b: was 0x8000; the largest seen in om-emu is ~13 KB) */
+ .set CW_SU, 0x6000               /* 2b: the curves record packed for the films save (ub_wr), and for the custom */
+ .set CW_SS, 0x7000               /* modes' save (ss_wr): 3,348 B each, made before the locked write (cv_hdr) */
+ .if CV_WRK + CW_SU - CV_STU
+ .error "CV_STU (editor.s) is not CV_WRK + CW_SU"
+ .endif
+ .if CV_WRK + CW_SS - CV_STS
+ .error "CV_STS (editor.s) is not CV_WRK + CW_SS"
+ .endif
  .set CW_LG, 0x8000               /* test 2: the dials' legend (rgbpics.legend, 2 bits a pixel; build.py writes it
                                    * into the image there, loaded at start-up with the rest of section 6) */
  .set LG_W, 176                   /* its size (build.py checks it against rgbpics.legend) and place in the picture */

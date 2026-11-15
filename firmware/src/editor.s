@@ -12861,6 +12861,8 @@ hl_open:
  * were 16 with four registers saved, so each call overwrote a saved register; harmless for their callers in f1). */
 .section .ext12,"ax"
  .set UB_C, 0x6295a700             /* M image 0x62920700 + 0x3A000 */
+ .set CV_STU, 0xa0fa9000           /* rgb-curves 2b: the curves record's buffers for ub_wr / ss_wr (rgbcurves.inc CW_SU / */
+ .set CV_STS, 0xa0faa000           /* CW_SS in its work area; checked there) */
  .set UB_U, 0xa295a700
  .set UB_DIRTY, 0xa32bfb32
  .set UB_BUSY, 0xa32a9904
@@ -13248,7 +13250,8 @@ ub_wr:                            /* ub_put's write, with ub_run held */
  call sd_crc,[d2,d3],12
  not d0
  mov d0,(ub_stg + 8)
- mov (ub_stg + 12),d0             /* rgb-curves: the curves record goes with this block */
+ mov (ub_stg + 12),d0             /* rgb-curves: the curves record goes with this block (packed here, before LOCK) */
+ mov CV_STU,a0
  call cv_hdr,[d2,d3,a2,a3],20
  clr d0                           /* into M with dispatch held, only while the camera is not saving it */
  call LOCK,[d2],8
@@ -13264,6 +13267,7 @@ ub_wr:                            /* ub_put's write, with ub_run held */
  mov ub_stg,a1
  mov UB_LEN,d1
  call ub_cpy,[],0
+ mov CV_STU,a1                    /* rgb-curves 2b: only a copy with interrupts off */
  call cv_put,[d2],8
  mov 1,d0
  movbu d0,(UB_DIRTY)              /* M changed: the camera saves it at the next return to shooting or power-off */
@@ -14793,6 +14797,7 @@ ss_wr:
  not d0
  mov d0,(ss_ram + 8)
  mov (ub_gen),d0                  /* rgb-curves: the curves record (the sets' curves), with the block in M now */
+ mov CV_STS,a0
  call cv_hdr,[d2,d3,a2,a3],20
  clr d0
  call LOCK,[d2],8
@@ -14808,6 +14813,7 @@ ss_wr:
  mov ss_ram,a1
  mov SS_LEN,d1
  call ub_cpy,[],0
+ mov CV_STS,a1                    /* rgb-curves 2b: only a copy with interrupts off */
  call cv_put,[d2],8
  mov 1,d0
  movbu d0,(UB_DIRTY)              /* M changed: the camera saves it at the next return to shooting or power-off */

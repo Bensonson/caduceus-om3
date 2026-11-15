@@ -4473,4 +4473,12 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     way (it does not depend on +-7 or on the doubled values).
   - Fix, if the owner wants one: pack and checksum into a buffer before LOCK and copy only inside it (~1.7k
     instructions), as ub_wr does with ub_stg. Not built (owner: test 2 is the line).
+- **Test 2b (owner: "Build the fix"; emulator only):** test 2's code (restored, e2b5961: rebuilds 34ba622e) plus the save
+  fix only. `cv_hdr` (before LOCK, interrupts on) packs the record, its header and CRC into a buffer of its own in the
+  work area (CW_SU 0x6000 for ub_wr, CW_SS 0x7000 for ss_wr, as ub_stg / ss_ram are the blocks' own; the page's
+  picture keeps 0x1000..0x6000, 20 KB, the largest seen ~13 KB); `cv_put` (inside LOCK) only copies it to M's two
+  aliases. om-emu: with interrupts off 10,062 instructions (test 2: 213,131; v0.29.5's own two block copies there:
+  11,740); cv_hdr 208,100 with interrupts on. The record after the same edits is byte-identical to test 2's; it reloads
+  after a power cycle; ss_wr's path (ncall) writes a valid record (CRC, both aliases). 14 screens incl. the RGB page
+  (edits in R / G / B, a reset) pixel-identical to test 2. No loader-word change; ext12 260,176 / 262,144.
 
