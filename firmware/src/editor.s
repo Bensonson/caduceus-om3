@@ -9098,22 +9098,34 @@ fl_stw:
  jmp stw_back
 
 
-/* ---------------------------------------------------------------- v0.27 debug log (feature/debug-log)
+/* ---------------------------------------------------------------- debug log (v0.27; the report redone in dl2, 2026-11-15)
  * Off unless the card holds OM3MOD/DEBUG.TXT (any content) (checked once, at the first gated half-press of a power-on).
- * When on, every shutter button event (half-press, release; after the editor's save) rewrites OM3MOD/CADLOG.TXT, a plain text report: the build,
- * counters, the picture mode, which card files are loaded, the last save result, and the last 32 half-presses.
- * Lives in ext12 (section 6 +256 KiB, camera-proven GX3, 2026-11-10); its variables are in the same loaded RAM
- * (power-on: all 0). Stores: its own variables and buffer, its own frames. Reads P (PVAL) and tg_ptr only. */
+ * When on, every shutter button event (half-press, release; after the editor's save) rewrites OM3MOD/CADLOG.TXT, a
+ * plain text report of a fixed 5120 B (the camera's fopen "w" does not truncate): the build; START-UP (the settings
+ * block, where the films came from, what loaded, the card files against this firmware); NOW (shooting mode, picture
+ * mode and film, the film on each COLOR, the films with changes); SAVES; CUSTOM MODES (each mode's films, picture mode,
+ * Save Settings and own copy, the counters, the last 8 mode changes); the last 32 events, newest first (so a full
+ * report loses the oldest). Lives in ext12 (section 6 +256 KiB, camera-proven GX3, 2026-11-10); its variables are in
+ * the same loaded RAM (power-on: all 0). Stores: its own variables and buffer, its own frames. Reads only: P (PVAL), the
+ * getter (sget), tg_ptr, the films-block / custom-mode / per-mode variables, the mode's code (rc_in + 24) and the mode
+ * dial / photo-movie-S&Q switch bytes (0xa32d9d0c / d). No settings writes, nothing at start-up. */
 .section .ext12,"ax"
  .macro LGS s                     /* append the string at \s (uses d0, a0, a1) */
  mov \s,a0
  call lg_s,[],0
  .endm
- .macro LGD                       /* append d0 in decimal (uses d0, d1, a0, a1) */
+ .macro LGD                       /* append d0 in decimal (uses d0, d1, a0, a1, MDR) */
  call lg_d,[d2,d3],12
  .endm
  .macro LGY                       /* append "yes" (d0 != 0) or "no" */
  call lg_y,[],0
+ .endm
+ .macro LGT col                   /* spaces up to column \col of the line begun by LGN (uses d0, d1, a0, a1) */
+ mov \col,d0
+ call lg_tab,[],0
+ .endm
+ .macro LGN                       /* CR LF; the next line starts (uses d0, a0, a1) */
+ call lg_nl,[],0
  .endm
 lg_pr:                            /* jmp from pr_ed, pr_hook's frame: as `call ed_trig; jmp trig_resume` there */
  call lg_pre,[d2,d3,a2,a3],36
@@ -9178,7 +9190,7 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  movbu d0,(lg_on)
  call lg_chk,[d2,d3,a2,a3],40     /* dl6: the card files' presence and header checksums, once */
 2:
- mov (lg_n),d2                    /* the event: number, picture mode, edits waiting, save result after */
+ mov (lg_n),d2                    /* the event (lg_ring) */
  inc d2
  mov d2,(lg_n)
  mov d2,d1
@@ -9190,9 +9202,12 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  mov 111,d0
  call sget,[],4                   /* d0 = the picture mode setting (keeps d2/d3/a2/a3) */
  mov d0,(4,a3)
- mov 897,d0                       /* v0.27 research: the active picture-mode family (the Creative Dial) -> +12 */
+ mov 897,d0                       /* v0.27 research: the active picture-mode family (the Creative Dial) */
  call sget,[],4
- mov d0,(12,a3)
+ movhu d0,(12,a3)
+ call lg_mode,[],0                /* dl2: the shooting mode */
+ movbu d0,(14,a3)
+ movbu d1,(15,a3)
  mov (4,a3),d0
  call fl_k,[],0                   /* dl5 (camera dl3: a film reads as its COLOR, 54): COLOR k, and its look n -> */
  movbu d0,(11,a3)                 /* +11 k (255 = not a COLOR), +10 film 5k + n (1..20, 0 = none), as fl_get */
@@ -9222,12 +9237,76 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  PVAL 3f
  movbu (STATUS,a2),d0
  movbu d0,(9,a3)
+ movbu (lg_dty),d0                /* dl2: edits saved at shutter events (ed_trig had them waiting) */
+ cmp 1,d0
+ bne 3f
+ mov (lg_ns),d0
+ inc d0
+ mov d0,(lg_ns)
 3:
  mov (lg_w),d0
  inc d0
  mov d0,(lg_w)
  mov lg_buf,a0                    /* the text */
  mov a0,(lg_cur)
+ mov a0,(lg_ls)
+ call lg_top,[d2,d3,a2,a3],24     /* the build, START-UP */
+ call lg_now,[d2,d3,a2,a3],24     /* NOW */
+ call lg_svt,[d2,d3,a2,a3],24     /* SAVES */
+ call cm_txt,[d2,d3,a2,a3],24     /* CUSTOM MODES */
+ call lg_evt,[d2,d3,a2,a3],24     /* the last 32 events, newest first */
+ mov (lg_cur),a0                  /* camera: fopen "w" does not truncate (dl3, 2026-11-10): always the same length, */
+ mov lg_bend,a1                   /* spaces after the text, CR LF last */
+ add -2,a1
+ mov 32,d0
+11:
+ cmp a1,a0                        /* a0 - a1 */
+ bcc 12f
+ mov a0,d1
+ and 3,d1
+ beq 14f
+ movbu d0,(a0)
+ inc a0
+ bra 11b
+14:
+ mov 0x20202020,d0                /* dl2: whole words */
+15:
+ mov a0,d1
+ add 4,d1
+ cmp a1,d1                        /* d1 - a1 */
+ bhi 16f
+ mov d0,(a0)
+ inc4 a0
+ bra 15b
+16:
+ cmp a1,a0
+ bcc 12f
+ movbu d0,(a0)
+ inc a0
+ bra 16b
+12:
+ mov 13,d0
+ movbu d0,(a1)
+ mov 10,d0
+ movbu d0,(1,a1)
+ mov lg_plog,a0                   /* CADLOG.TXT */
+ mov lg_mw,a1
+ call fopen,[],4
+ cmp 0,a0
+ beq lg_out
+ mov a0,(4,sp)
+ mov (4,sp),a1
+ mov lg_bend - lg_buf,d1
+ mov 1,d0
+ mov lg_buf,a0
+ call fwrite,[d2,d3,a2,a3],24
+ mov (4,sp),a0
+ call fclose,[d2,a2,a3],16
+lg_out:
+ ret [d2,d3,a2,a3],40
+
+/* lg_top: `call lg_top,[d2,d3,a2,a3],24`: the build, the counters, START-UP and the card files. */
+lg_top:
  LGS lg_t1
  LGS lg_ver
  LGS lg_t2
@@ -9237,30 +9316,40 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  mov (lg_w),d0
  LGD
  LGS lg_t4
- mov (4,a3),d0
- LGD
- movbu (11,a3),d2
- cmp 4,d2
- bcc 4f
- LGS lg_t5
- mov d2,d0
- inc d0
- LGD
- movbu (10,a3),d2
- cmp 0,d2
- beq 4f
- LGS lg_t5b
- mov d2,d0
- LGD
-4:
- LGS lg_d0                        /* the Creative Dial's family */
- mov (12,a3),d0
- call lg_fm,[d2,d3],12
- LGS lg_t6
  PVAL 5f
  LGS lg_found
+ LGS lg_u1                        /* the films: from where */
+ movbu (ub_st),d0
+ cmp 0,d0
+ bne 1f
+ LGS lg_u0
+ bra 2f
+1:
+ movbu (ub_src),d0
+ asl2 d0
+ mov lg_srt,a0
+ add d0,a0
+ mov (a0),a0
+ call lg_s,[],0
+ LGS lg_u2
+ movbu (ub_ok0),d0
+ cmp 0,d0
+ bne 3f
+ LGS lg_u3
+ bra 2f
+3:
+ LGS lg_u4
+ mov (ub_gen0),d0
+ LGD
+2:
  LGS lg_k1
  mov (LPTR,a2),d0
+ LGY
+ LGS lg_k5
+ mov (TORG,a2),d0
+ LGY
+ LGS lg_k4
+ mov (tg_ptr),d0
  LGY
  LGS lg_k2
  mov (XPTR,a2),d0
@@ -9268,29 +9357,9 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  LGS lg_k3
  mov (GPTR,a2),d0
  LGY
- LGS lg_k4
- mov (tg_ptr),d0
- LGY
- LGS lg_k5
- mov (TORG,a2),d0
- LGY
  LGS lg_k6
  mov (NPTR,a2),d0
  LGY
- LGS lg_k7
- mov (EMARK,a2),d1
- clr d0
- cmp EMAGIC,d1
- bne 6f
- mov 1,d0
-6:
- LGY
- LGS lg_k8
- movbu (DIRTY,a2),d0
- LGY
- LGS lg_k9
- movbu (STATUS,a2),d0
- call lg_st,[d2,d3],12
  bra 7f
 5:
  LGS lg_miss
@@ -9328,7 +9397,7 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  mov lg_ft,a3
  mov LG_NF,d3
 20:
- LGS lg_nl
+ LGS lg_c6
  mov (a3),a0
  add 10,a0                        /* the name after C:\OM3MOD\ */
  call lg_s,[],0
@@ -9354,80 +9423,486 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) t
  add -1,d3
  cmp 0,d3
  bne 20b
- call ub_txt,[d2,d3,a2,a3],24     /* films in camera memory: the block's state */
- LGS lg_t7                        /* the last 32 events, oldest first */
+ ret [d2,d3,a2,a3],24
+
+/* lg_now: `call lg_now,[d2,d3,a2,a3],24`: NOW: the shooting mode (and a custom mode's Save Settings), the picture mode
+ * and its film, the film on each COLOR, the films with changes (fl_fch: the camera's '*'), the editor. */
+lg_now:
+ LGS lg_w0
+ call lg_mode,[],0
+ mov d0,d2
+ mov d1,d3
+ call lg_mn,[d2,d3],12
+ LGS lg_w1
+ mov d2,d0
+ LGD
+ LGS lg_w2
+ mov d3,d0
+ and 15,d0
+ LGD
+ LGS lg_w3
+ mov d3,d0
+ lsr 4,d0
+ LGD
+ LGS lg_k0
+ cmp 53,d2                        /* a photo custom mode: its Save Settings (1880..1884) */
+ bcs 1f
+ cmp 58,d2
+ bcc 1f
+ LGS lg_w4
+ mov d2,d0
+ add 1880 - 53,d0
+ call sget,[],4
+ call lg_rh,[d2,d3],12
+1:
+ call lg_gp,[d3],8                /* a2 = P or 0 */
+ LGS lg_w5
+ mov 111,d0
+ call sget,[],4
+ mov d0,d2
+ call fl_k,[],0
+ mov d0,d3
+ cmp 0,d3
+ blt 4f
+ LGS lg_col
+ mov d3,d0
+ inc d0
+ LGD
+ mov lg_cm,a3
+ mov d3,d0
+ call lg_kf,[d2,d3,a3],16
+ bra 5f
+4:
+ LGS lg_pmn
+ mov d2,d0
+ LGD
+5:
+ LGS lg_w6
+ mov d2,d0
+ LGD
+ LGS lg_w7
+ mov 897,d0
+ call sget,[],4
+ call lg_fm,[d2,d3],12
+ cmp 0,a2
+ beq 9f
+ mov (LPTR,a2),d0
+ cmp 0,d0
+ bne 6f
+ LGS lg_w8                        /* no films */
+ bra 8f
+6:
+ clr d2                           /* COLOR 1..4 */
+7:
+ LGS lg_w9
+ mov d2,d0
+ inc d0
+ LGD
+ LGS lg_c3
+ mov 0,a3
+ mov d2,d0
+ call lg_kf,[d2,d3,a3],16
+ cmp 0,d0
+ bge 71f
+ LGS lg_wa
+71:
+ inc d2
+ cmp 4,d2
+ bcs 7b
+ LGS lg_wb                        /* the films with changes (lg_chg) */
+ clr d2
+ clr d3
+72:
+ mov d2,d0
+ call lg_chg,[d2,d3,a2,a3],24
+ cmp 0,d0
+ beq 74f
+ cmp 0,d3
+ beq 73f
+ LGS lg_cm
+73:
+ inc d3
+ mov d2,d0
+ inc d0
+ LGD
+74:
+ inc d2
+ cmp 20,d2
+ bcs 72b
+ cmp 0,d3
+ bne 8f
+ LGS lg_none
+8:
+ LGS lg_k7
+ mov (EMARK,a2),d1
+ clr d0
+ cmp EMAGIC,d1
+ bne 81f
+ mov 1,d0
+81:
+ LGY
+9:
+ ret [d2,d3,a2,a3],24
+
+/* lg_svt: `call lg_svt,[d2,d3,a2,a3],24`: SAVES. */
+lg_svt:
+ call lg_gp,[d3],8
+ LGS lg_x0
+ cmp 0,a2
+ beq 1f
+ movbu (DIRTY,a2),d0
+ LGY
+ LGS lg_k9
+ movbu (STATUS,a2),d0
+ call lg_st,[d2,d3],12
+ bra 2f
+1:
+ LGS lg_nb
+2:
+ LGS lg_x1
+ mov (lg_ns),d0
+ LGD
+ LGS lg_x2
+ mov (ub_nw),d0
+ LGD
+ LGS lg_x3
+ mov (ub_gen),d0
+ LGD
+ LGS lg_x4
+ movbu (ub_pend),d0
+ LGY
+ LGS lg_x5
+ movbu (UB_DIRTY),d0
+ LGD
+ LGS lg_k0
+ LGS lg_x6
+ mov (cm_nw),d0
+ LGD
+ LGS lg_x7
+ movbu (cm_pend),d0
+ LGY
+ LGS lg_x8
+ mov (ss_nw),d0
+ LGD
+ LGS lg_x9
+ movbu (ss_dirty),d0
+ LGY
+ LGS lg_xa
+ mov (rc_n),d0
+ LGD
+ LGS lg_xb
+ mov (rc_w),d0
+ LGD
+ LGS lg_xc
+ movbu (rc_pend),d0
+ LGY
+ ret [d2,d3,a2,a3],24
+
+/* cm_txt: `call cm_txt,[d2,d3,a2,a3],24`: CUSTOM MODES: a row per group (P / A / S / M / B, C1..C5): Save Settings,
+ * its films (OM3C), its picture mode choice, its own copy (OM3S); then the counters and the last 8 mode changes. */
+cm_txt:
+ LGS cm_s1
+ movbu (cm_v0),d0
+ LGY
+ LGS cm_s2
+ movbu (ss_v0),d0
+ LGY
+ LGS lg_k0
+ LGN
+ LGS cm_s3
+ mov 5,d2                         /* P group first, then C1..C5 */
+1:
+ LGN
+ mov d2,d0
+ call lg_gn,[d2,d3],12
+ LGT 11
+ cmp 5,d2
+ bne 2f
+ LGS lg_dash
+ mov cm_ram + CM_P,a3
+ mov cm_ram + CM_PM,a2
+ bra 3f
+2:
+ mov d2,d0
+ add 1880,d0
+ call sget,[],4
+ call lg_rh,[d2,d3],12
+ mov d2,d0
+ asl2 d0
+ mov cm_ram + CM_S,a3
+ add d0,a3
+ mov cm_ram + CM_SPM,a2
+ add d2,a2
+3:
+ LGT 26
+ mov 0x80,d1                      /* the group's flag: bit n (Cn+1), bit 7 the P group */
+ cmp 5,d2
+ beq 32f
+ mov 1,d1
+ asl d2,d1
+32:
+ movbu (cm_ram + CM_FL),d0
+ and d1,d0
+ bne 4f
+ mov cm_s4,a0                     /* no films of ours kept */
+ cmp 5,d2
+ bne 31f
+ mov cm_s5,a0
+31:
+ call lg_s,[],0
+ LGT 46
+ LGS lg_dash
+ bra 6f
+4:
+ clr d3
+5:
+ cmp 0,d3
+ beq 51f
+ LGS lg_sp
+51:
+ mov a3,a0
+ add d3,a0
+ movbu (a0),d1
+ mov d3,d0
+ call lg_lk,[d2,d3],12
+ inc d3
+ cmp 4,d3
+ bcs 5b
+ LGT 46
+ movbu (a2),d0
+ call lg_ch,[d2,d3],12
+6:
+ LGT 59
+ mov 1,d1                         /* the per-mode set */
+ asl d2,d1
+ mov lg_kept,a0
+ movbu (ss_ram + 12),d0
+ and d1,d0
+ bne 7f
+ mov cm_s6,a0
+ movbu (ss_ram + 13),d0
+ and d1,d0
+ bne 7f
+ mov cm_s7,a0
+7:
+ call lg_s,[],0
+ cmp 5,d2
+ bne 8f
+ clr d2
+ bra 1b
+8:
+ inc d2
+ cmp 5,d2
+ bcs 1b
+ LGS cm_s8                        /* now */
+ movbu (cm_ram + CM_LAST),d0
+ call lg_gn,[d2,d3],12
+ movbu (cm_code),d2               /* the code, or 0xc0 | the mode dial's position */
+ mov cm_s9,a0
+ cmp 0xc0,d2
+ bcs 60f
+ mov cm_s9b,a0
+ and 15,d2
+60:
+ call lg_s,[],0
+ mov d2,d0
+ LGD
+ LGS cm_sa
+ movbu (ss_cur),d0
+ call lg_gn,[d2,d3],12
+ movbu (ss_ph),d2                 /* the code, or 0xc0 | the photo / movie / S&Q switch */
+ mov cm_sb,a0
+ cmp 0xc0,d2
+ bcs 61f
+ mov cm_sbb,a0
+ and 15,d2
+61:
+ call lg_s,[],0
+ mov d2,d0
+ LGD
+ LGS lg_k0
+ LGS cm_sc                        /* counters */
+ mov (cm_na),d0
+ LGD
+ LGS cm_sd
+ mov (cm_sw),d0
+ LGD
+ LGS cm_se
+ mov (cm_pms),d0
+ LGD
+ LGS ss_s6
+ mov (ss_ntr),d0
+ LGD
+ LGS ss_s7
+ mov (ss_nl),d0
+ LGD
+ LGS ss_s8
+ mov (ss_ng),d0
+ LGD
+ LGS ss_s9
+ mov (ss_np),d0
+ LGD
+ LGS ss_s11
+ mov (ss_nab),d0
+ LGD
+ LGS ss_s14
+ mov (ss_ne),d0
+ LGD
+ LGS ss_s12
+ mov (ss_nm),d0
+ LGD
+ mov (ss_nm),d0
+ cmp 0,d0
+ beq 9f
+ LGS ss_s13                       /* ss_ml: set << 24 | k << 16 | id */
+ mov (ss_ml),d0
+ lsr 24,d0
+ call lg_gn,[d2,d3],12
+ LGS ss_s15
+ mov (ss_ml),d0
+ lsr 16,d0
+ and 255,d0
+ inc d0
+ LGD
+ LGS ss_s16
+ mov (ss_ml),d0
+ and 0xffff,d0
+ LGD
+ LGS lg_k0
+9:
+ LGS cm_sf                        /* rc_tr: the last 8 cm_go runs, newest first */
+ clr d2
+10:
+ movbu (rc_ti),d0
+ sub d2,d0
+ add -1,d0
+ and 7,d0
+ asl2 d0
+ mov rc_tr,a3
+ add d0,a3
+ mov (a3),d0
+ cmp 0,d0
+ beq 19f
+ LGN
+ LGS cm_sg                        /* "  after event N" (the low 8 bits kept: the nearest number) */
+ movbu (a3),d1
+ mov (lg_n),d0
+ sub d1,d0
+ and 255,d0
+ mov (lg_n),d1
+ sub d0,d1
+ mov d1,d0
+ LGD
+ LGS lg_c3
+ movbu (1,a3),d0                  /* the code, or 0xc0 | the mode dial's position */
+ cmp 0xc0,d0
+ bcs 11f
+ and 15,d0
+ mov d0,d1
+ or 0x20,d1
+ clr d0
+ call lg_mn,[d2,d3],12
+ LGS cm_sh
+ movbu (1,a3),d0
+ and 15,d0
+ LGD
+ bra 12f
+11:
+ mov 0x2f,d1
+ call lg_mn,[d2,d3],12
+ LGS lg_w1b
+ movbu (1,a3),d0
+ LGD
+12:
+ LGS cm_si
+ movbu (2,a3),d0
+ and 0x7f,d0
+ call lg_gn,[d2,d3],12
+ movbu (2,a3),d0
+ btst 0x80,d0
+ beq 13f
+ LGS cm_sj
+13:
+ LGS cm_sk
+ movbu (3,a3),d0
+ and 0x7f,d0
+ LGD
+ movbu (3,a3),d0
+ btst 0x80,d0
+ beq 19f
+ LGS cm_sl
+19:
+ inc d2
+ cmp 8,d2
+ bcs 10b
+ ret [d2,d3,a2,a3],24
+
+/* lg_evt: `call lg_evt,[d2,d3,a2,a3],24`: the last 32 events (lg_ring), newest first. */
+lg_evt:
+ LGS lg_t7
+ LGN
+ LGS lg_e0
  mov (lg_n),d2
  clr d3
  cmp 33,d2
- bcs 8f
+ bcs 1f
  mov d2,d3
  add -32,d3
-8:
- inc d3
-9:
- cmp d3,d2
- bcs 10f
- mov d3,d1
+1:
+ cmp d3,d2                        /* d2 - d3 */
+ bls 9f
+ mov d2,d1
  and 31,d1
  asl 4,d1
  mov lg_ring,a3
  add d1,a3
+ LGN
  LGS lg_e1
  mov (a3),d0
  LGD
- LGS lg_e2
+ LGT 6
+ movbu (14,a3),d0
+ movbu (15,a3),d1
+ call lg_mn,[d2,d3],12
+ LGT 15
+ movbu (11,a3),d0
+ cmp 4,d0
+ bcs 2f
+ LGS lg_pmn
  mov (4,a3),d0
+ LGD
+ bra 3f
+2:
+ LGS lg_col
+ movbu (11,a3),d0
+ inc d0
  LGD
  movbu (10,a3),d0
  cmp 0,d0
- beq 14f
- LGS lg_t5b
+ beq 3f
+ LGS lg_film
  movbu (10,a3),d0
  LGD
-14:
- LGS lg_d1
- mov (12,a3),d0
+3:
+ LGT 32
+ movhu (12,a3),d0
  call lg_fm,[d2,d3],12
- LGS lg_e3
+ LGT 38
  movbu (8,a3),d0
  LGY
- LGS lg_e4
+ LGT 44
  movbu (9,a3),d0
- call lg_st,[d2,d3],12
- LGS lg_nl
- inc d3
- bra 9b
-10:
- mov (lg_cur),a0                  /* camera: fopen "w" does not truncate (dl3, 2026-11-10): always the same length, */
- mov lg_bend,a1                   /* spaces after the text, CR LF last */
- add -2,a1
- mov 32,d0
-11:
- cmp a1,a0                        /* a0 - a1 */
- bcc 12f
- movbu d0,(a0)
- inc a0
- bra 11b
-12:
- mov 13,d0
- movbu d0,(a1)
- mov 10,d0
- movbu d0,(1,a1)
- mov lg_plog,a0                   /* CADLOG.TXT */
- mov lg_mw,a1
- call fopen,[],4
- cmp 0,a0
- beq lg_out
- mov a0,(4,sp)
- mov (4,sp),a1
- mov lg_bend - lg_buf,d1
- mov 1,d0
- mov lg_buf,a0
- call fwrite,[d2,d3,a2,a3],24
- mov (4,sp),a0
- call fclose,[d2,a2,a3],16
-lg_out:
- ret [d2,d3,a2,a3],40
+ cmp 255,d0
+ bne 4f
+ LGS lg_dash
+ bra 5f
+4:
+ LGD
+5:
+ add -1,d2
+ bra 1b
+9:
+ ret [d2,d3,a2,a3],24
 
 lg_chk:                           /* `call lg_chk,[d2,d3,a2,a3],40`: each lg_ft file -> found 1 missing / 2 there, and
                                    * its header's CRC word (+8). Frame: (0) call slot, (4) handle */
@@ -9541,12 +10016,376 @@ lg_vd:                            /* `call lg_vd,[],0`: a3 = lg_ft row, a2 = P o
  clr d0
 9:
  ret [],0
-lg_s:                             /* `call lg_s,[],0`: a0 = string -> appended (stops near the buffer's end) */
- mov (lg_cur),a1
+
+/* lg_mode: `call lg_mode,[],0` -> d0 the mode's code (the settings object +24 behind the manager's handle: P 1, A 2,
+ * S 3, M 4, B 62, C1..C5 53..57, video / S&Q 10 (om-emu); 0 not known yet), d1 the mode dial's position (0 S, 1 A, 2 P,
+ * 3..7 C5..C1, 8 B, 9 M) | the photo / movie / S&Q switch (2 / 1 / 0) << 4. Reads only. Uses d0, d1, a0. */
+lg_mode:
+ movbu (0xa32d9d0d),d1
+ asl 4,d1
+ movbu (0xa32d9d0c),d0
+ and 15,d0
+ or d0,d1
+ clr d0
+ mov (rc_in),a0
+ cmp 0,a0
+ beq 1f
+ movbu (24,a0),d0
 1:
- mov lg_bend,d0
- cmp a1,d0                        /* d0 - a1 */
+ ret [],0
+
+/* lg_mn: `call lg_mn,[d2,d3],12`: d0 = a mode's code, d1 = as lg_mode -> its name: from the code when it names one,
+ * else from the mode dial's position; " video" / " S&Q" after it by the switch. */
+lg_mn:
+ mov d0,d2
+ mov d1,d3
+ cmp 53,d2
+ bcs 1f
+ cmp 58,d2
+ bcc 1f
+ LGS lg_mC
+ mov d2,d0
+ add -52,d0
+ LGD
+ bra 5f
+1:
+ cmp 1,d2
+ bcs 3f
+ cmp 5,d2
+ bcc 2f
+ mov d2,d0
+ add -1,d0
+ asl2 d0
+ mov lg_cpt,a0
+ add d0,a0
+ mov (a0),a0
+ call lg_s,[],0
+ bra 5f
+2:
+ cmp 62,d2
+ bne 3f
+ LGS lg_mB
+ bra 5f
+3:
+ mov d3,d0
+ and 15,d0
+ cmp 10,d0
+ bcc 4f
+ asl2 d0
+ mov lg_dpt,a0
+ add d0,a0
+ mov (a0),a0
+ call lg_s,[],0
+ bra 5f
+4:
+ cmp 10,d2
+ bne 41f
+ LGS lg_mvq
+ bra 6f
+41:
+ LGS lg_q
+5:
+ mov d3,d0
+ lsr 4,d0
+ cmp 1,d0
+ bne 51f
+ LGS lg_mv
+ bra 6f
+51:
+ cmp 0,d0
+ bne 6f
+ LGS lg_mq
+6:
+ ret [d2,d3],12
+
+/* lg_gn: `call lg_gn,[d2,d3],12`: d0 = a group (0..4 C1..C5, 5 P / A / S / M / B, else none) -> its name. */
+lg_gn:
+ cmp 5,d0
+ bcs 1f
+ bne 2f
+ LGS lg_gP
+ bra 9f
+2:
+ LGS lg_gx
+ bra 9f
+1:
+ mov d0,d2
+ LGS lg_mC
+ mov d2,d0
+ inc d0
+ LGD
+9:
+ ret [d2,d3],12
+
+/* lg_rh: `call lg_rh,[d2,d3],12`: d0 = a custom mode's Save Settings (1880 + n) -> Reset / Hold (else the number). */
+lg_rh:
+ cmp 0,d0
+ bne 1f
+ LGS lg_rst
+ bra 9f
+1:
+ cmp 1,d0
+ bne 2f
+ LGS lg_hld
+ bra 9f
+2:
+ LGD
+9:
+ ret [d2,d3],12
+
+/* lg_lk: `call lg_lk,[d2,d3],12`: d0 = COLOR k, d1 = a look (LIDX: 1..5 film 5k + n, 0 its own) -> the film's number,
+ * "own", or "-". */
+lg_lk:
+ extb d1
+ cmp 0,d1
+ bne 1f
+ LGS lg_own
+ bra 9f
+1:
+ cmp 1,d1
+ blt 2f
+ cmp 5,d1
+ bgt 2f
+ mov d0,d2
+ asl2 d2
+ add d0,d2
+ add d1,d2
+ mov d2,d0
+ LGD
+ bra 9f
+2:
+ LGS lg_dash
+9:
+ ret [d2,d3],12
+
+/* lg_ch: `call lg_ch,[d2,d3],12`: d0 = a group's choice (OM3C: the 901 value, FV0 + j film j, 54 / 55 / 56 / 64
+ * COLOR k's own, 0 none) -> "FILM n", "COLOR k", "-" (else the number). */
+lg_ch:
+ mov d0,d2
+ cmp 0,d2
+ bne 1f
+ LGS lg_dash
+ bra 9f
+1:
+ mov d2,d0
+ add -FV0,d0
+ cmp 20,d0
+ bcc 2f
+ mov d0,d3
+ LGS lg_film0
+ mov d3,d0
+ inc d0
+ LGD
+ bra 9f
+2:
+ mov d2,d0
+ call fl_k,[],0
+ cmp 0,d0
+ blt 3f
+ mov d0,d3
+ LGS lg_col
+ mov d3,d0
+ inc d0
+ LGD
+ bra 9f
+3:
+ mov d2,d0
+ LGD
+9:
+ ret [d2,d3],12
+
+/* lg_kf: `call lg_kf,[d2,d3,a3],16`: d0 = COLOR k, a2 = P or 0, a3 = a string to put first (0: none) -> when COLOR k
+ * holds a film (LIDX 1..5): a3's string, "FILM n" and its name (LOOKS +1312 + 16 j); d0 = the film j, else -1. */
+lg_kf:
+ mov d0,d2
+ mov -1,d3
+ cmp 0,a2
+ beq 9f
+ mov (LPTR,a2),d0
+ cmp 0,d0
+ beq 9f
+ mov a2,a0
+ add d2,a0
+ movbu (LIDX,a0),d1
+ extb d1
+ cmp 1,d1
+ blt 9f
+ cmp 5,d1
+ bgt 9f
+ mov d2,d3
+ asl2 d3
+ add d2,d3
+ add d1,d3
+ add -1,d3                        /* j = 5k + n - 1 */
+ cmp 0,a3
+ beq 1f
+ mov a3,a0
+ call lg_s,[],0
+1:
+ LGS lg_film0
+ mov d3,d0
+ inc d0
+ LGD
+ mov (LPTR,a2),a0
+ mov d3,d0
+ asl 4,d0
+ add d0,a0
+ add 1312,a0
+ movbu (a0),d0
+ cmp 0,d0
+ beq 9f
+ mov (lg_cur),a1
+ cmp lg_bend,a1
+ bcc 9f
+ mov 32,d0
+ movbu d0,(a1)
+ inc a1
+ mov 16,d1
+2:
+ movbu (a0),d0
+ cmp 0,d0
+ beq 3f
+ cmp 32,d0                        /* printable ASCII only */
+ bcs 21f
+ cmp 127,d0
+ bcc 21f
+ movbu d0,(a1)
+ inc a1
+21:
+ inc a0
+ add -1,d1
+ bne 2b
+3:
+ mov a1,(lg_cur)
+9:
+ mov d3,d0
+ ret [d2,d3,a3],16
+
+/* lg_chg: `call lg_chg,[d2,d3,a2,a3],24`, a2 = P (films in), d0 = film j -> d0 1 when it is changed from how it was
+ * built, as fl_fch (the camera's '*'): a film on its COLOR k -> fl_live (the camera's values now), else lg_fc (its
+ * saved changes). fl_live reads the camera's 18 settings (up to ~11k instructions when nothing differs), so one COLOR
+ * per write is asked again (k = lg_w & 3) and the others give their last answer for the same film (at most 3 events
+ * old); a film newly on a COLOR is asked at once. */
+lg_chg:
+ mov d0,a3
+ clr d2
+ mov d0,d1
+1:
+ cmp 5,d1
  bcs 2f
+ add -5,d1
+ inc d2
+ bra 1b
+2:
+ inc d1                           /* n; d2 = k */
+ mov a2,a0
+ add d2,a0
+ movbu (LIDX,a0),d0
+ extb d0
+ cmp d1,d0
+ beq 3f
+ mov a3,d0
+ call lg_fc,[d2,d3],12
+ ret [d2,d3,a2,a3],24
+3:
+ mov lg_lv,a0
+ add d2,a0
+ movbu (a0),d0
+ mov a3,d1
+ inc d1
+ cmp d1,d0
+ bne 4f
+ mov (lg_w),d0
+ and 3,d0
+ cmp d2,d0
+ beq 4f
+ mov lg_lr,a0
+ add d2,a0
+ movbu (a0),d0
+ ret [d2,d3,a2,a3],24
+4:
+ call fl_live,[d2,d3,a2,a3],24
+ mov lg_lr,a0
+ add d2,a0
+ movbu d0,(a0)
+ mov lg_lv,a0
+ add d2,a0
+ mov a3,d1
+ inc d1
+ movbu d1,(a0)
+ ret [d2,d3,a2,a3],24
+
+/* lg_fc: `call lg_fc,[d2,d3],12`, a2 = P, d0 = film j -> d0 1 when its saved changes (EDITS record j, valid) differ
+ * from the film as built in bytes 0..62: fl_fch's own test for a film not on its COLOR, by words when aligned. */
+lg_fc:
+ mov (TORG,a2),a1
+ cmp 0,a1
+ beq 8f
+ add TWO,a1
+ mov 1,d1
+ asl d0,d1
+ mov (12,a1),d2
+ and d1,d2
+ beq 8f
+ mov d0,d1
+ asl 6,d1
+ mov d0,d2
+ asl2 d2
+ add d2,d1
+ add 16,d1
+ add d1,a1                        /* its saved changes */
+ asl 6,d0
+ mov (LPTR,a2),a0
+ add d0,a0
+ add 32,a0                        /* as built */
+ mov 63,d3
+ mov a0,d0
+ mov a1,d1
+ or d1,d0
+ and 3,d0
+ bne 5f
+ mov 15,d3                        /* bytes 0..59 by words, then 60..62 */
+1:
+ mov (a0),d0
+ mov (a1),d1
+ cmp d1,d0
+ bne 7f
+ inc4 a0
+ inc4 a1
+ add -1,d3
+ bne 1b
+ mov 3,d3
+5:
+ movbu (a0),d0
+ movbu (a1),d1
+ cmp d1,d0
+ bne 7f
+ inc a0
+ inc a1
+ add -1,d3
+ bne 5b
+8:
+ clr d0
+ ret [d2,d3],12
+7:
+ mov 1,d0
+ ret [d2,d3],12
+
+/* lg_gp: `call lg_gp,[d3],8` -> a2 = P (the settings block), or 0. */
+lg_gp:
+ PVAL 1f
+ ret [d3],8
+1:
+ mov 0,a2
+ ret [d3],8
+
+lg_s:                             /* `call lg_s,[],0`: a0 = string -> appended; nothing once lg_cur is at the buffer's
+                                   * end, so a full report never creeps into lg_pon / lg_plog (a string begun before it
+                                   * may run into lg_bend's 256 B: the longest is 117 B) */
+ mov (lg_cur),a1
+ cmp lg_bend,a1
+ bcc 2f
+1:
  movbu (a0),d0
  cmp 0,d0
  beq 2f
@@ -9555,6 +10394,42 @@ lg_s:                             /* `call lg_s,[],0`: a0 = string -> appended (
  inc a1
  bra 1b
 2:
+ mov a1,(lg_cur)
+ ret [],0
+lg_nl:                            /* `call lg_nl,[],0`: CR LF, and the next line starts (uses d0, a0, a1) */
+ mov (lg_cur),a1
+ cmp lg_bend,a1
+ bcc 1f
+ mov 13,d0
+ movbu d0,(a1)
+ mov 10,d0
+ movbu d0,(1,a1)
+ add 2,a1
+ mov a1,(lg_cur)
+1:
+ mov a1,(lg_ls)
+ ret [],0
+lg_tab:                           /* `call lg_tab,[],0`: d0 = a column -> spaces up to it in the line, at least one (uses
+                                   * d0, d1, a0, a1) */
+ mov (lg_ls),a0
+ add d0,a0
+ cmp lg_bend,a0
+ bls 1f
+ mov lg_bend,a0
+1:
+ mov (lg_cur),a1
+ mov 32,d0
+ cmp lg_bend,a1
+ bcc 3f
+ movbu d0,(a1)
+ inc a1
+2:
+ cmp a0,a1                        /* a1 - a0 */
+ bcc 3f
+ movbu d0,(a1)
+ inc a1
+ bra 2b
+3:
  mov a1,(lg_cur)
  ret [],0
 lg_h:                             /* `call lg_h,[],0`: d0 -> 8 hex digits (uses d0, d1, a0, a1) */
@@ -9614,51 +10489,53 @@ lg_fm:                            /* `call lg_fm,[d2,d3],12`: d0 = a sid-897 fam
  mov (4,a0),a0
  call lg_s,[],0
  ret [d2,d3],12
-lg_d:                             /* `call lg_d,[d2,d3],12`: d0 -> unsigned decimal */
+lg_d:                             /* `call lg_d,[d2,d3],12`: d0 -> unsigned decimal (dl2: by divu; uses d0, d1, a0, a1,
+                                   * MDR) */
  mov (lg_cur),a1
- mov lg_bend,d1
- cmp a1,d1
- bcs 5f
- mov lg_p10,a0
- clr d3                           /* a digit seen */
+ cmp lg_bend,a1
+ bhi 5f
+ mov lg_dg + 12,a0                /* the digits, last first */
+ mov 10,d2
 1:
- mov (a0),d1
- clr d2
-2:
- cmp d1,d0                        /* d0 - d1 */
- bcs 3f
- sub d1,d0
- inc d2
- bra 2b
-3:
- or d2,d3
- cmp 1,d1
- beq 4f
- cmp 0,d3
- beq 6f
-4:
- add 48,d2
- movbu d2,(a1)
- inc a1
-6:
- inc4 a0
- cmp 1,d1
+ clr d1
+ mov d1,mdr
+ divu d2,d0
+ mov mdr,d1
+ add 48,d1
+ add -1,a0
+ movbu d1,(a0)
+ cmp 0,d0
  bne 1b
+2:
+ movbu (a0),d1
+ movbu d1,(a1)
+ inc a0
+ inc a1
+ cmp lg_dg + 12,a0
+ bcs 2b
  mov a1,(lg_cur)
 5:
  ret [d2,d3],12
 
  .balign 4
-lg_p10:
- .long 1000000000, 100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1
 lg_stt:
  .long lg_s0, lg_s1
 lg_n:                             /* events so far this power-on */
  .long 0
 lg_w:                             /* CADLOG.TXT writes this power-on */
  .long 0
+lg_ns:                            /* dl2: saves at shutter events (edits waiting before ed_trig, settings block there) */
+ .long 0
 lg_cur:
  .long 0
+lg_ls:                            /* dl2: where the line began (lg_nl), for lg_tab */
+ .long 0
+lg_dg:
+ .space 12
+lg_lv:                            /* dl2: per COLOR k, the film j + 1 that lg_lr[k] answers for (0: none yet) */
+ .space 4
+lg_lr:                            /* dl2: per COLOR k, fl_live's last answer */
+ .space 4
 lg_on:
  .byte 0
 lg_dty:
@@ -9677,16 +10554,24 @@ lg_fmt:                           /* sid 897 family -> name */
  .long 901, lg_n1, 988, lg_n2, 899, lg_n3, 900, lg_n4, 898, lg_n5, 0
 lg_vt:
  .long lg_v0, lg_v1, lg_v2, lg_v3, lg_v4, lg_v5, lg_v6, lg_v7, lg_v8, lg_v9, lg_v10, lg_v11
+lg_srt:                           /* ub_src: where the films came from */
+ .long lg_r0, lg_r1, lg_r2, lg_r3
+lg_cpt:                           /* mode codes 1..4 */
+ .long lg_mP, lg_mA, lg_mS, lg_mM
+lg_dpt:                           /* the mode dial's positions 0..9 */
+ .long lg_mS, lg_mA, lg_mP, lg_mC5, lg_mC4, lg_mC3, lg_mC2, lg_mC1, lg_mB, lg_mM
 lg_hdr:
  .space 16
  .balign 16
 lg_ring:                          /* 32 x {u32 number, u32 picture mode, u8 edits waiting, u8 save result (255 = no P),
-                                   * u8 film 1..20 (0 = none), u8 COLOR k (255 = none)} */
+                                   * u8 film 1..20 (0 = none), u8 COLOR k (255 = none), u16 the Creative Dial's family
+                                   * (897), u8 the mode's code, u8 the mode dial's position | the switch << 4 (lg_mode)} */
  .space 32 * 16
 lg_buf:
  .space 5120
-lg_bend:                          /* lg_s / lg_d stop 64 bytes before the end */
- .space 64
+lg_bend:                          /* lg_s / lg_d / lg_kf / lg_h / lg_nl / lg_tab write nothing once at lg_bend; one
+                                   * begun before it may run on, at most 117 B (lg_s's longest string) */
+ .space 256
 lg_pon:
  .asciz "C:\\OM3MOD\\DEBUG.TXT"
 lg_plog:
@@ -9699,23 +10584,47 @@ lg_mw:
 lg_t1:
  .asciz "Caduceus for OM-3 debug log\r\nBuild: "
 lg_t2:
- .asciz "\r\nShutter button events since power-on: "
+ .asciz "\r\nWritten at shutter button event "
 lg_t3:
- .asciz "\r\nLog file writes (this one included): "
+ .asciz " (a half-press and its release count one each); log writes this power-on: "
 lg_t4:
- .asciz "\r\nPicture mode setting: "
-lg_t5:
- .asciz " = COLOR "
-lg_t5b:
- .asciz ", FILM "
-lg_t6:
- .asciz "\r\n\r\nSettings block: "
+ .asciz "\r\n\r\nSTART-UP (this power-on)\r\nSettings block: "
 lg_found:
  .asciz "found"
 lg_miss:
  .asciz "missing (state "
 lg_k0:
  .asciz ")"
+lg_u1:
+ .asciz "\r\nFilms: "
+lg_u0:
+ .asciz "not read yet (the first half-press loads them)"
+lg_r0:
+ .asciz "from the camera's memory"
+lg_r1:
+ .asciz "from the card (films the camera never had)"
+lg_r2:
+ .asciz "from the card (first time: nothing in the camera yet)"
+lg_r3:
+ .asciz "none (no films on the card or in the camera)"
+lg_u2:
+ .asciz "; films block in camera memory at power-on: "
+lg_u3:
+ .asciz "none or not valid"
+lg_u4:
+ .asciz "valid, generation "
+lg_k1:
+ .asciz "\r\nLoaded: films (LOOKS) "
+lg_k5:
+ .asciz ", film changes and pictures (EDITS) "
+lg_k4:
+ .asciz ", TONES "
+lg_k2:
+ .asciz "\r\nLoaded: GUIDES code block "
+lg_k3:
+ .asciz ", guide pictures "
+lg_k6:
+ .asciz ", NAMES.BIN (optional) "
 lg_f0:
  .asciz "C:\\OM3MOD\\GUIDES.BIN"
 lg_f1:
@@ -9728,10 +10637,6 @@ lg_f4:
  .asciz "C:\\OM3MOD\\EDITS.BIN"
 lg_f5:
  .asciz "C:\\OM3MOD\\BUNDLES.BIN"
-lg_d0:
- .asciz "\r\nCreative Dial family: "
-lg_d1:
- .asciz "  dial "
 lg_n1:
  .asciz "COLOR"
 lg_n2:
@@ -9741,13 +10646,15 @@ lg_n3:
 lg_n4:
  .asciz "CRT"
 lg_n5:
- .asciz "898 (8-value family, not a dial position)"
+ .asciz "898 (not a dial position)"
 lg_c0:
- .asciz "\r\n\r\nCard files: "
+ .asciz "\r\nCard files: "
 lg_c1:
  .asciz "all match this firmware"
 lg_c2:
  .asciz "MISMATCH - see the lines marked MISMATCH or MISSING"
+lg_c6:
+ .asciz "\r\n  "
 lg_c3:
  .asciz ": "
 lg_c4:
@@ -9778,36 +10685,156 @@ lg_v10:
  .asciz "on the card (the camera takes only films it never had)"
 lg_v11:
  .asciz "on the card, not used (kept in the camera's memory)"
-lg_k1:
- .asciz "\r\nLOOKS.BIN looks loaded: "
-lg_k2:
- .asciz "\r\nGUIDES.BIN code block loaded: "
-lg_k3:
- .asciz "\r\nGUIDES.BIN guide pictures loaded: "
-lg_k4:
- .asciz "\r\nTONES.BIN loaded: "
-lg_k5:
- .asciz "\r\nEDITS.BIN and film pictures loaded: "
-lg_k6:
- .asciz "\r\nNAMES.BIN loaded (optional): "
+lg_w0:
+ .asciz "\r\n\r\nNOW\r\nShooting mode: "
+lg_w1:
+ .asciz " (mode code "
+lg_w1b:
+ .asciz " (code "
+lg_w2:
+ .asciz ", mode dial position "
+lg_w3:
+ .asciz ", photo / movie / S&Q switch "
+lg_w4:
+ .asciz "; Save Settings: "
+lg_w5:
+ .asciz "\r\nPicture mode: "
+lg_col:
+ .asciz "COLOR "
+lg_cm:
+ .asciz ", "
+lg_pmn:
+ .asciz "picture mode "
+lg_w6:
+ .asciz " (setting 111 = "
+lg_w7:
+ .asciz "); Creative Dial: "
+lg_w8:
+ .asciz "\r\nCOLOR 1-4: no films loaded"
+lg_w9:
+ .asciz "\r\nCOLOR "
+lg_wa:
+ .asciz "its own settings, no film"
+lg_wb:
+ .asciz "\r\nFilms with changes (a * in the camera): "
+lg_none:
+ .asciz "none"
 lg_k7:
  .asciz "\r\nEditor opened since power-on: "
-lg_k8:
- .asciz "\r\nEdits waiting to be saved: "
+lg_x0:
+ .asciz "\r\n\r\nSAVES (this power-on)\r\nEdits waiting to be saved: "
 lg_k9:
- .asciz "\r\nLast save result: "
+ .asciz "; last save result: "
+lg_nb:
+ .asciz "- (no settings block)"
+lg_x1:
+ .asciz "; saves at shutter events: "
+lg_x2:
+ .asciz "\r\nFilms block in camera memory: writes "
+lg_x3:
+ .asciz ", generation now "
+lg_x4:
+ .asciz "; held back for the camera's own save: "
+lg_x5:
+ .asciz " (its changed byte: "
+lg_x6:
+ .asciz "\r\nCustom-mode record (OM3C): writes "
+lg_x7:
+ .asciz ", held back: "
+lg_x8:
+ .asciz "; per-mode record (OM3S): writes "
+lg_x9:
+ .asciz ", not written yet: "
+lg_xa:
+ .asciz "\r\nFilms put back after a shooting-mode change: "
+lg_xb:
+ .asciz " (camera settings written: "
+lg_xc:
+ .asciz "); waiting for the next screen event: "
+cm_s1:
+ .asciz "\r\n\r\nCUSTOM MODES (records valid at the first look: custom modes "
+cm_s2:
+ .asciz ", per-mode settings "
+cm_s3:
+ .asciz "Mode       Save Settings  Films on COLOR 1-4  Picture mode Own copy"
+cm_s4:
+ .asciz "not assigned"
+cm_s5:
+ .asciz "not kept yet"
+cm_s6:
+ .asciz "to build from the films"
+cm_s7:
+ .asciz "not yet"
+lg_kept:
+ .asciz "kept"
+lg_dash:
+ .asciz "-"
+lg_sp:
+ .asciz " "
+lg_own:
+ .asciz "own"
+cm_s8:
+ .asciz "\r\nNow: group "
+cm_s9:
+ .asciz " (last look: mode code "
+cm_s9b:
+ .asciz " (last look: mode dial position "
+cm_sa:
+ .asciz "); per-mode set "
+cm_sb:
+ .asciz " (photo check: mode code "
+cm_sbb:
+ .asciz " (photo check: switch position "
+cm_sc:
+ .asciz "\r\nThis power-on: Assigns "
+cm_sd:
+ .asciz ", films switched "
+cm_se:
+ .asciz ", picture modes set "
+ss_s6:
+ .asciz "\r\nPer-mode settings: entries on the camera's own values "
+ss_s7:
+ .asciz ", sets made "
+ss_s8:
+ .asciz ", COLOR rows put back "
+ss_s9:
+ .asciz ", sets saved "
+ss_s11:
+ .asciz ", built from the films "
+ss_s14:
+ .asciz ", film changes swapped in "
+ss_s12:
+ .asciz "\r\nCamera COLOR values that differed from a Reset custom mode's own: "
+ss_s13:
+ .asciz " (last: set "
+ss_s15:
+ .asciz ", COLOR "
+ss_s16:
+ .asciz ", setting "
+cm_sf:
+ .asciz "\r\nLast shooting-mode changes (newest first):"
+cm_sg:
+ .asciz "  after event "
+cm_sh:
+ .asciz " (dial position "
+cm_si:
+ .asciz ") -> "
+cm_sj:
+ .asciz ", first look after the films loaded"
+cm_sk:
+ .asciz ", films switched "
+cm_sl:
+ .asciz ", picture mode set"
 lg_t7:
- .asciz "\r\n\r\nLast 32 shutter button events (half-press and release), oldest first:\r\n"
+ .asciz "\r\n\r\nLAST 32 SHUTTER BUTTON EVENTS (newest first; Edits = edits waiting, Save = last save result: 0 none yet, 1 saved)"
+lg_e0:
+ .asciz "#     Mode     Picture mode     Dial  Edits Save"
 lg_e1:
  .asciz "#"
-lg_e2:
- .asciz "  picture mode "
-lg_e3:
- .asciz "  edits waiting "
-lg_e4:
- .asciz "  save result "
-lg_nl:
- .asciz "\r\n"
+lg_film:
+ .asciz " FILM "
+lg_film0:
+ .asciz "FILM "
 lg_yes:
  .asciz "yes"
 lg_no:
@@ -9816,6 +10843,44 @@ lg_s0:
  .asciz " (none yet)"
 lg_s1:
  .asciz " (saved)"
+lg_mC:
+ .asciz "C"
+lg_mP:
+ .asciz "P"
+lg_mA:
+ .asciz "A"
+lg_mS:
+ .asciz "S"
+lg_mM:
+ .asciz "M"
+lg_mB:
+ .asciz "B"
+lg_mC1:
+ .asciz "C1"
+lg_mC2:
+ .asciz "C2"
+lg_mC3:
+ .asciz "C3"
+lg_mC4:
+ .asciz "C4"
+lg_mC5:
+ .asciz "C5"
+lg_mv:
+ .asciz " video"
+lg_mq:
+ .asciz " S&Q"
+lg_mvq:
+ .asciz "video / S&Q"
+lg_q:
+ .asciz "?"
+lg_gP:
+ .asciz "P/A/S/M/B"
+lg_gx:
+ .asciz "none"
+lg_rst:
+ .asciz "Reset"
+lg_hld:
+ .asciz "Hold"
 
 /* ---------------------------------------------------------------- v0.27 Creative Dial mapping (feature/v0.27-buttons)
  * The dial sets sid 897 (the picture-mode family) through the facade SetValue (camera dl8 + om-emu trace, 2026-11-10):
@@ -13319,52 +14384,6 @@ ub_try:                           /* `call ub_try,[d2,d3,a2,a3],36` from lg_pr a
 9:
  ret [d2,d3,a2,a3],36
 
-ub_txt:                           /* `call ub_txt,[d2,d3,a2,a3],24`: CADLOG.TXT lines */
- LGS ub_s1
- movbu (ub_st),d0
- cmp 0,d0
- bne 1f
- LGS ub_s0
- bra 9f
-1:
- movbu (ub_ok0),d0
- LGY
- movbu (ub_ok0),d0
- cmp 0,d0
- beq 2f
- LGS ub_s2
- mov (ub_gen0),d0
- LGD
-2:
- LGS ub_s3
- movbu (ub_src),d0
- asl2 d0
- mov ub_srt,a0
- add d0,a0
- mov (a0),a0
- call lg_s,[],0
- LGS ub_s4
- mov (ub_nw),d0
- LGD
- LGS ub_s5
- mov (ub_gen),d0
- LGD
- LGS ub_s6
- movbu (ub_pend),d0
- LGY
- LGS ub_s7
- movbu (UB_DIRTY),d0
- LGD
- LGS rc_s1                        /* v0.30-dev k1 (#41) */
- mov (rc_n),d0
- LGD
- LGS rc_s2
- mov (rc_w),d0
- LGD
- LGS rc_s3
- call cm_txt,[d2,d3,a2,a3],24     /* k2 */
-9:
- ret [d2,d3,a2,a3],24
 
  .balign 4
 ub_cid:
@@ -13375,8 +14394,6 @@ ub_gen:
  .long 0
 ub_nw:
  .long 0
-ub_srt:
- .long ub_r0, ub_r1, ub_r2, ub_r3
 ub_st:
  .byte 0
 ub_ok:
@@ -13396,30 +14413,7 @@ ub_run:
  .balign 4
 ub_stg:
  .space UB_LEN
-ub_s1:
- .asciz "\r\n\r\nFilms in camera memory: a valid block at power-on: "
-ub_s0:
- .asciz "not read yet (the first half-press loads it)"
-ub_s2:
- .asciz ", generation "
-ub_s3:
- .asciz "\r\nFilms from: "
-ub_r0:
- .asciz "the camera"
-ub_r1:
- .asciz "the card (films the camera never had)"
-ub_r2:
- .asciz "the card (first time: nothing in the camera yet)"
-ub_r3:
- .asciz "nowhere (no films on the card or in the camera)"
-ub_s4:
- .asciz "\r\nBlock written this power-on: "
-ub_s5:
- .asciz " times, generation now "
-ub_s6:
- .asciz "\r\nA write waiting for the camera's own save: "
-ub_s7:
- .asciz "; the camera's changed byte: "
+
  .balign 4
 
 
@@ -13792,12 +14786,6 @@ rc_w:
  .long 0
 rc_pend:
  .byte 0
-rc_s1:
- .asciz "\r\nFilms put back after a shooting-mode change: "
-rc_s2:
- .asciz " (camera settings written: "
-rc_s3:
- .asciz ")"
 
 /* ---- Custom modes keep their own films (v0.30-dev k2, #41, owner 2026-11-14: "film saved with Assign"). Assign
  * (Shooting menu 1 > Custom Mode > Cn > Assign > Set) calls the facade's entry 18 (vtable word 0x60e574bc, stock
@@ -14338,47 +15326,6 @@ cm_wr:                            /* `call cm_wr,[d2,d3,a2,a3],20`: cm_ram -> M 
 9:
  ret [d2,d3,a2,a3],20
 
-cm_txt:                           /* `call cm_txt,[d2,d3,a2,a3],24`: CADLOG.TXT lines */
- LGS cm_s1
- movbu (cm_v0),d0
- LGY
- LGS cm_s2
- movbu (cm_ram + CM_FL),d0
- and 0x1f,d0
- LGD
- LGS cm_s3
- movbu (cm_ram + CM_LAST),d0
- LGD
- LGS cm_s4
- movbu (cm_code),d0
- LGD
- LGS cm_s5
- mov (cm_na),d0
- LGD
- LGS cm_s6
- mov (cm_sw),d0
- LGD
- LGS cm_s7
- mov (cm_nw),d0
- LGD
- LGS cm_s8
- mov (cm_pms),d0
- LGD
- LGS cm_s9
- clr d2
-1:
- mov d2,d0
- asl2 d0
- mov rc_tr,a0
- add d0,a0
- mov (a0),d0
- call lg_h,[],0
- LGS bt_sp
- inc d2
- cmp 8,d2
- bcs 1b
- call ss_txt,[d2,d3,a2,a3],24     /* p1 */
- ret [d2,d3,a2,a3],24
 
  .balign 4
 cm_na:
@@ -14418,26 +15365,6 @@ rc_tr:                            /* k4: the last 8 cm_go runs {shutter events &
  .balign 4
 cm_pms:
  .long 0
-cm_s1:
- .asciz "\r\nCustom modes: a valid record at the first look: "
-cm_s2:
- .asciz "; films assigned (C1 = 1, C2 = 2, C3 = 4, C4 = 8, C5 = 16): "
-cm_s3:
- .asciz "\r\nCustom modes: group now (C1..C5 = 0..4, P / A / S / M = 5): "
-cm_s4:
- .asciz ", mode code "
-cm_s5:
- .asciz "; Assigns this power-on: "
-cm_s6:
- .asciz ", films switched: "
-cm_s7:
- .asciz ", record writes: "
-cm_s8:
- .asciz ", picture modes set: "
-cm_s9:
- .asciz "\r\nCustom modes, last switches (switched | 0x80 picture mode, group | 0x80 first, code, shutter events): "
-bt_sp:
- .asciz " "
 
 cm_hp:                            /* k4..k6: `call cm_hp,[d2,d3,a2,a3],24` from lg_pr (every shutter event with the
                                    * films in, HLS_EVENT task): the group now keeps its films and choice when it keeps its
@@ -15370,51 +16297,6 @@ ss_rst:
  movbu d0,(ss_dirty)
  ret [d2,d3,a2,a3],20
 
-/* ss_txt: `call ss_txt,[d2,d3,a2,a3],24`: CADLOG.TXT lines */
-ss_txt:
- LGS ss_s1
- movbu (ss_v0),d0
- LGY
- LGS ss_s2
- movbu (ss_ram + 12),d0
- LGD
- LGS ss_s3
- movbu (ss_ram + 13),d0
- LGD
- LGS ss_s4
- movbu (ss_cur),d0
- LGD
- LGS ss_s5
- movbu (ss_ph),d0
- LGD
- LGS ss_s6
- mov (ss_ntr),d0
- LGD
- LGS ss_s7
- mov (ss_nl),d0
- LGD
- LGS ss_s8
- mov (ss_ng),d0
- LGD
- LGS ss_s9
- mov (ss_np),d0
- LGD
- LGS ss_s10
- mov (ss_nw),d0
- LGD
- LGS ss_s11
- mov (ss_nab),d0
- LGD
- LGS ss_s14
- mov (ss_ne),d0
- LGD
- LGS ss_s12
- mov (ss_nm),d0
- LGD
- LGS ss_s13
- mov (ss_ml),d0
- call lg_h,[],0
- ret [d2,d3,a2,a3],24
 
  .balign 4
 ss_ram:
@@ -15461,34 +16343,6 @@ ss_mvp:
  .byte 0
 rc_ab:
  .byte 0
-ss_s1:
- .asciz "\r\nPer-mode settings (p1): a valid record at the first look: "
-ss_s2:
- .asciz "; sets kept (C1 = 1 .. C5 = 16, P group = 32): "
-ss_s3:
- .asciz "; to build from the films (Assign > Reset): "
-ss_s4:
- .asciz "\r\nPer-mode settings: set now (0..4 C1..C5, 5 P group, 255 none): "
-ss_s5:
- .asciz ", photo check (mode code, or 192 + switch): "
-ss_s6:
- .asciz "\r\nPer-mode settings: entries on the camera's own values: "
-ss_s7:
- .asciz ", sets made: "
-ss_s8:
- .asciz ", COLOR rows put back: "
-ss_s9:
- .asciz ", sets saved: "
-ss_s10:
- .asciz ", record writes: "
-ss_s11:
- .asciz ", built from the films: "
-ss_s12:
- .asciz "\r\nPer-mode settings: camera COLOR values that differed from a Reset custom mode's own: "
-ss_s13:
- .asciz " (last: set, COLOR, id): "
-ss_s14:
- .asciz ", film changes swapped in: "
  .balign 2
 
 /* gd_s11 (moved here from ext10 for room): the Saturation / WB / Glow guide pictures, as before */

@@ -4386,3 +4386,40 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   VERSION "v0.29.5 (per-mode settings, tested)" (same length as p2's; byte diff: only the name, the code-block tag, the
   built-in GUIDES CRC). `releases/v0.29.5`: patch.json (175 runs, 342,144 bytes), extras as v0.29.4. `patch.py` makes
   01ea3d14….
+
+## Debug log dl8: the report redone (2026-11-15; emulator only, camera test pending)
+Branch `feature/debug-log` (from main v0.29.5, c209b69), VERSION "v0.29.6-dev (debug log, dl8)". Owner (via cad): a
+clearer, complete `CADLOG.TXT` (lines had been added piecemeal, some as hex words and internal codes).
+- **Layout:** one writer, `lg_write` -> `lg_top` (build, START-UP, card files), `lg_now` (NOW), `lg_svt` (SAVES),
+  `cm_txt` (CUSTOM MODES, rewritten), `lg_evt` (the last 32 events, **newest first**); `ub_txt` / `ss_txt` and their
+  strings are gone. Still a fixed 5120 B (same fopen / fwrite / fclose, same bytes on the card). Newest first, so a full
+  report loses the oldest events; the fullest emulator case (all custom modes filled, 8 mode changes) is 4827 B with all
+  32 events.
+- **New facts, all read only:** the shooting mode now and per event (`lg_mode`: the code at rc_in + 24, the mode dial's
+  position 0xa32d9d0c, the photo / movie / S&Q switch 0xa32d9d0d; not cm_gnow, which writes cm_code); a custom mode's
+  Save Settings (sget 1880 + n); the film on each COLOR with its name (LOOKS +1312 + 16 j); the films with changes; each
+  group's films, choice and own copy (OM3C / OM3S); saves at shutter events (`lg_ns`); cm_pend, ss_dirty, rc_pend;
+  rc_tr and ss_ml decoded. Ring entry +12 is now u16 family, +14 the code, +15 dial position | switch << 4. Nothing of
+  the old report dropped (picture mode numbers 54 / 55 / 56 / 64 now read as COLOR 1..4).
+- **Mode codes (om-emu):** P 1, A 2, S 3, M 4, **B 62** (cm_gnow then goes by the dial position: P group, as intended),
+  C1..C5 53..57, video and S&Q 10. Camera logs so far showed P, A, C1..C5 and a 62 (k4); S / M / B emulator only.
+- **Films with changes:** the same answer as fl_fch (the camera's '*'), but fl_live (a film on its COLOR: the camera's
+  18 values through sget) costs up to ~16k instructions when nothing differs. `lg_chg` asks one COLOR per write
+  (lg_w & 3) and keeps the others' last answer for the same film (at most 3 events old; a film newly on a COLOR is asked
+  at once); a film not on its COLOR uses `lg_fc` (fl_fch's saved-record test, by words).
+- **Cost** (om-emu instructions from lg_write to its ret, same scripts, v0.29.5 -> dl8): P with an edit, Assign C1 and
+  dial turns, 43 events: average 210,800 -> 194,700, longest 223,711 -> 204,184; video / S&Q, 11 events: 194,159 ->
+  189,218, longest 199,322 -> 204,845 (one write +7.7k: the live check with nothing changed); power-on in C1: 191,774 ->
+  185,569; no films: 190,543 -> 180,834. First write of a power-on (with the card-file check): ~568.9k -> ~566k. The
+  card part (fopen, fwrite of 5120 B, fclose, ~92.5k) is unchanged. lg_d by divu, the padding by words.
+- **Settings manager calls** over the whole P run: 153, identical in ids, values and order on v0.29.5 and dl8: no
+  settings writes, nothing different before the first half-press.
+- **Bug found on the way** (a throwaway 1 KB-buffer build): past the buffer's end the first lg_s still wrote one
+  character per call, so a long enough report crept over lg_pon / lg_plog and the next fopen failed (no log). lg_s now
+  writes nothing once at lg_bend; the pad after it is 256 B (the longest string is 117 B). That variant writes 1024 B
+  ending in CR LF at every event. (v0.29.5's lg_s checked every character: no such bug there.)
+- Stack: lg_now -> lg_chg -> fl_live -> fl_isdef -> sget runs ~96 B deeper in the HLS_EVENT task than v0.29.5's
+  deepest log path. Only the camera can say if that matters (no sign in om-emu).
+- Emulator cases (scripts: video-sharp's s41v.mjs): P, a power-on in C1, video / S&Q, no films (stock NV, no
+  LOOKS.BIN), settings block missing (STATE poked 0xFFFF), every custom mode filled (cm_ram / ss_ram poked, emulator
+  only). All read right; the "missing" case prints the card files with "not checked" and skips NOW's film lines.

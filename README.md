@@ -1,3 +1,8 @@
+> [!NOTE]
+> **Branch `feature/debug-log`: test build dl8, waiting for the owner's camera test** (from v0.29.5). A clearer,
+> complete debug log (`CADLOG.TXT`): START-UP, NOW, SAVES, CUSTOM MODES and the last 32 events, newest first; see
+> `debug-log/README.md`. Emulator only so far; details in `research/NOTES.md`, "Debug log dl8".
+
 <h1 align="center">Caduceus for OM-3</h1>
 
 
