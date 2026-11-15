@@ -4367,3 +4367,7 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
 - Package p1: `E1479999.BIN` e5dfded3… (VERSION "v0.29.5-dev (per-mode settings, p1)"), go-back v0.29.4 757e2d39….
   Emulator: Hold (C1 keeps its own change over the dial and a power-off; P never shows it); go-back to v0.29.4 starts
   normally with the films and changes of the last mode.
+- **Camera (owner, 2026-11-15, p1 e5dfded3…): "It all worked"** (camera-tested): the owner's scenario (Assign C1, other
+  modes, a film reset in P: C1 keeps its copy), P keeping its own changes, video, start-up. CADLOG (as reported by the
+  main chat): 35 events, saves 1, sets saved 8, 0 differences in Reset custom modes. Not camera-tested: Assign > Reset
+  (not handled, see above), every row besides those the owner changed.
