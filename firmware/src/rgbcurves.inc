@@ -1,10 +1,13 @@
 /* ------------------------------------------------------------------ per-film R / G / B tone curves (feature/rgb-curves)
- * Each COLOR k has three curves (red, green, blue), 6 points each at input 0 / 10 / 25 / 50 / 75 / 100 % of the gamma
- * tables' 12-bit output, an offset -7..+7 of CV_STEP each (research/rgbcurves/model.py is the exact model). st_run
+ * Each COLOR k has three curves (red, green, blue), 5 points each at input 0 / 25 / 50 / 75 / 100 % of the gamma
+ * tables' 12-bit output (test 4, the owner's choice: on the page grid's quarter lines), an offset -7..+7 of CV_STEP
+ * each (research/rgbcurves/model.py is the exact model). A curve keeps 6 values, as tests 1..2b had 6 points
+ * (0 / 10 / 25 / 50 / 75 / 100 %): the points are values 0, 2, 3, 4, 5; value 1 (the old 10 % point) is unused, kept
+ * 0 (cv_load clears it), so the record and slots keep their layout. st_run
  * (split toning's pass over the job's R / G / B tables, camera-tested since v0.26) adds the curve's delta D(t) to each
  * entry of its channel, with split toning's own delta, then its clamp and running max. All zero = no work.
  * Values (cv_ram; record 'OM3R' at M + 0x3B100, which older firmware never reads, holds them packed):
- *   a slot = 26 bytes: its curves (R 6, G 6, B 6, -7..+7), then 8 bytes kept for a per-film colour matrix (owner via
+ *   a slot = 26 bytes: its curves (R 6, G 6, B 6 values, -7..+7), then 8 bytes kept for a per-film colour matrix (owner via
  *   the research lab, 2026-11-15: room now, so the record need not change again; zero, nothing reads them yet)
  *   +16 live[4]: COLOR k's slot now, as COLOR k's slot is its other rows now
  *   +120 ed[24]: EDITS record r's (film j, COLOR k's own 20 + k), kept and used with that record
@@ -44,16 +47,21 @@ cv_any:
  bne 1b
  ret [d2],8
 
-/* cv_prm: `call cv_prm,[d2,d3,a2,a3],64`, a0 = a channel's 6 offsets (s8), a1 = its 16-word block: Y[6] (offset x
- * CV_STEP), A[5] (+24), B[5] (+44): each segment's Hermite tangent terms h m_i, h m_i+1 (>> 12). Tangents: the
- * harmonic mean of the two slopes (0 when they differ in sign or one is 0), the end ones the end slopes. Locals
- * (4..23) the slopes dQ[5] (Q12), (24..47) the tangents m[6]. Uses d0, d1, a0, a1, MDR. */
+/* cv_prm: `call cv_prm,[d2,d3,a2,a3],64`, a0 = a channel's 6 values (s8; its points are values 0, 2, 3, 4, 5), a1 =
+ * its 16-word block: Y[5] (offset x CV_STEP), A[4] (+24), B[4] (+44): each segment's Hermite tangent terms h m_i,
+ * h m_i+1 (>> 12). Tangents: the harmonic mean of the two slopes (0 when they differ in sign or one is 0), the end
+ * ones the end slopes. Locals (4..19) the slopes dQ[4] (Q12), (24..43) the tangents m[5]. Uses d0, d1, a0, a1, MDR. */
 cv_prm:
  mov a0,a2
  mov a1,a3
  clr d2
 1:
- movbu (d2,a2),d0
+ mov d2,d1                        /* point i -> value i, but value 1 is unused: 0, 2, 3, 4, 5 */
+ cmp 0,d1
+ beq 9f
+ inc d1
+9:
+ movbu (d1,a2),d0
  extb d0
  cmp -7,d0
  bge 2f
@@ -69,13 +77,13 @@ cv_prm:
  asl2 d1
  mov d0,(d1,a3)                   /* Y[i] */
  inc d2
- cmp 6,d2
+ cmp 5,d2
  bne 1b
  mov a3,a0
  mov cv_h,a1
  mov sp,a2
  add 4,a2
- mov 5,d2
+ mov 4,d2
 4:
  mov (4,a0),d0
  mov (a0),d1
@@ -92,11 +100,11 @@ cv_prm:
  bne 4b
  mov (4,sp),d0
  mov d0,(24,sp)                   /* m[0] = dQ[0] */
- mov (20,sp),d0
- mov d0,(44,sp)                   /* m[5] = dQ[4] */
+ mov (16,sp),d0
+ mov d0,(40,sp)                   /* m[4] = dQ[3] */
  mov sp,a2
  add 4,a2
- mov 4,d3
+ mov 3,d3
 5:
  mov (a2),d0                      /* a = dQ[i - 1] */
  mov (4,a2),d1                    /* b = dQ[i] */
@@ -127,7 +135,7 @@ cv_prm:
  add 24,a2
  mov a3,a0
  add 24,a0
- mov 5,d3
+ mov 4,d3
 8:
  mov (a1),d1
  mov (a2),d0
@@ -151,25 +159,14 @@ cv_d:
  mov a0,(4,sp)
  mov a1,(8,sp)
  mov d1,a2
- cmp 410,d0
- bcc 1f
- clr d2
- clr d3
- bra 3f
-1:
- cmp 1024,d0
- bcc 2f
- mov 1,d2
- mov 410,d3
- bra 3f
-2:
  mov d0,d2
- lsr 10,d2
- inc d2                           /* i = 1 + (t >> 10) */
+ lsr 10,d2                        /* i = t >> 10 (test 4: 4 even segments), at most 3 */
+ cmp 3,d2
+ bls 1f
+ mov 3,d2
+1:
  mov d2,d3
- add -1,d3
  asl 10,d3                        /* X[i] */
-3:
  sub d3,d0                        /* x */
  mov d2,d1
  asl2 d1
@@ -485,6 +482,16 @@ cv_load:
  mov cv_ram + 16,a0
  mov CV_C + 16,a1
  call cv_upk,[d2,d3],12
+ mov cv_ram + 16,a0               /* test 4: value 1 of each curve (tests 1..2b's 10 % point) unused: cleared */
+ mov CV_NE,d1
+ clr d0
+7:
+ movbu d0,(1,a0)
+ movbu d0,(7,a0)
+ movbu d0,(13,a0)
+ add CV_ESZ,a0
+ add -1,d1
+ bne 7b
  mov 1,d0
  movbu d0,(cv_v0)
  bra 9f
@@ -601,10 +608,10 @@ cv_upk:
  ret [d2,d3],12
 
  .balign 4
-cv_h:
- .long 410, 614, 1024, 1024, 1024
-cv_inv:
- .long 40920, 27324, 16384, 16384, 16384
+cv_h:                             /* the segments' widths (test 4: 0 / 25 / 50 / 75 / 100 %) */
+ .long 1024, 1024, 1024, 1024
+cv_inv:                           /* 2^24 / h */
+ .long 16384, 16384, 16384, 16384
 cv_pp:
  .long 0, 0, 0
 cv_nw:
@@ -627,7 +634,7 @@ cv_v0:
  * change too, cv_gx). While it is on, the page's reads of COLOR k's H&S settings (976 + 3k Hi, 977 Mid, 978 Sh) and
  * of its INFO setting 2191 are ours, and their writes leave the camera's values as they are (cv_sv):
  *   Sh (the rear dial, the left header slot) = the offset -7..+7 of the selected point of the selected colour
- *   Hi (the front dial, the right header slot) = the selected point 1..6
+ *   Hi (the front dial, the right header slot) = the selected point 1..5
  *   Mid = CV_MIDV 0 (the middle slot), 2191 reads 886 (the Sh / Hi mode; the camera sets it on entering the row).
  * Reads are ours only for the page's own callers (cv_get / cv_dflt: return addresses below), so the H&S row's left
  * cell and the '*' checks keep reading the camera's values. The dials and INFO are handled in cv_ev (the camera's dial
@@ -660,12 +667,6 @@ cv_v0:
  .if CV_WRK + CW_SS - CV_STS
  .error "CV_STS (editor.s) is not CV_WRK + CW_SS"
  .endif
- .set CW_LG, 0x8000               /* test 2: the dials' legend (rgbpics.legend, 2 bits a pixel; build.py writes it
-                                   * into the image there, loaded at start-up with the rest of section 6) */
- .set LG_W, 176                   /* its size (build.py checks it against rgbpics.legend) and place in the picture */
- .set LG_H, 40
- .set LG_X, 6
- .set LG_Y, 4
 
 /* cv_case: the column's update switch for RG_IT (as H&S's case 0x611d04e5; d0 free there) */
 cv_case:
@@ -735,7 +736,7 @@ cv_val:
  mov d2,(cv_k)
  cmp 0,d1
  bne 3f
- movbu (cv_p),d0                  /* Hi: the point 1..6 */
+ movbu (cv_p),d0                  /* Hi: the point 1..5 */
  inc d0
  bra 9f
 3:
@@ -752,6 +753,10 @@ cv_val:
  asl 1,d1
  add d1,d3
  movbu (cv_p),d1
+ cmp 0,d1
+ beq 5f
+ inc d1                           /* point -> value: 0, 2, 3, 4, 5 */
+5:
  add d1,d3
  mov cv_ram + CV_LV,a0
  movbu (d3,a0),d0
@@ -962,9 +967,9 @@ cv_ev:
  bge 32f
  clr d2
 32:
- cmp 5,d2
+ cmp 4,d2                         /* test 4: 5 points */
  ble 33f
- mov 5,d2
+ mov 4,d2
 33:
  movbu d2,(cv_p)
  jmp 80f
@@ -979,6 +984,10 @@ cv_ev:
  add d2,d0
  add d0,d0
  movbu (cv_p),d2
+ cmp 0,d2
+ beq 43f
+ inc d2                           /* point -> value: 0, 2, 3, 4, 5 */
+43:
  add d2,d0
  add d0,a0
  movbu (a0),d2
@@ -1184,7 +1193,7 @@ cv_pic:
 /* cv_draw: `call cv_draw,[d2,d3,a2,a3],128`: COLOR cv_k's three curves as a 300 x 300 OSD type-11 picture (the curve
  * layer's palette: white 14, black 2, grey 20, cv_col) at
  * CV_WRK + CW_ST, cv_desc's size and payload. Each column's span of each curve (lo / hi: this and the last column's
- * rows, 3 px for the selected colour), then row by row: the diagonal, the other two, the selected one, its 6 points
+ * rows, 3 px for the selected colour), then row by row: the diagonal, the other two, the selected one, its 5 points
  * (the selected one white, bigger: radius 8, else 5), runs packed five 12-bit tokens a 64-bit word. Locals: (4) k, (8) c, (12) p,
  * (16) y / x, (20) write pointer, (24) / (28) the word being packed, (32) tokens in it, (36) channel, (40) last row,
  * (44) live[k], (48..59) points' rows (u16), (60) colour, (64) the row's x, (68) run start, (72) half width,
@@ -1321,6 +1330,10 @@ cv_draw:
  add d0,d1
  add d1,d1
  add d2,d1
+ cmp 0,d2
+ beq 201f
+ inc d1                           /* point -> value: 0, 2, 3, 4, 5 */
+201:
  mov (44,sp),a0
  movbu (d1,a0),d0
  extb d0
@@ -1351,7 +1364,7 @@ cv_draw:
  add d0,d0
  movhu d1,(d0,a0)
  inc d2
- cmp 6,d2
+ cmp 5,d2
  bcs 20b
  mov CV_WRK + CW_ST,a0            /* 3. the stream: its header, then row by row */
  mov 0x0b12b12b,d0                /* 300 x 300, type 11 */
@@ -1513,37 +1526,8 @@ cv_draw:
  mov (88,sp),d0
  inc d0
  mov d0,(88,sp)
- cmp 6,d0
+ cmp 5,d0
  bcs 40b
- mov (16,sp),d0                   /* test 2: the dials' legend, top left (its clear pixels leave the row) */
- add -LG_Y,d0
- cmp LG_H,d0
- bcc 45f
- mov LG_W / 4,d1
- mul d1,d0
- mov CV_WRK + CW_LG,a1
- add d0,a1
- mov CV_WRK + CW_ROW + LG_X,a0
- mov cv_lgc,a2
- mov LG_W / 4,d3
-46:
- movbu (a1),d0
- mov 4,d2
-47:
- mov d0,d1
- and 3,d1
- beq 48f
- movbu (d1,a2),d1
- movbu d1,(a0)
-48:
- inc a0
- lsr 2,d0
- add -1,d2
- bne 47b
- inc a1
- add -1,d3
- bne 46b
-45:
  mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
  clr d3
 50:
@@ -1655,13 +1639,10 @@ cv_col:                           /* per colour: dim, bright. The curve layer ha
                                    * whole screens; 27..30 changed nothing on 29 screens in om-emu) */
  .byte 6, 4, 8, 9, 30, 29
  .balign 4
-cv_px:
- .long 0, 30, 75, 150, 224, 299
-cv_lgc:                           /* the legend's 2-bit values: clear, black edge, white, soft grey */
- .byte 0, 2, 14, 15
- .balign 4
+cv_px:                            /* the 5 points' columns and inputs (test 4: the grid's quarter lines) */
+ .long 0, 75, 150, 224, 299
 cv_h0:
- .long 0, 410, 1024, 2048, 3072, 4095
+ .long 0, 1024, 2048, 3072, 4095
 cv_pd:
  .space 64
 cv_on:

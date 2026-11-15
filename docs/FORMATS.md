@@ -72,12 +72,13 @@ copies on a card are ignored).
 
 ## The RGB curves record (feature/rgb-curves, not released)
 
-Per COLOR / film R / G / B tone curves (6 points each, offsets −7..+7) are kept in a record of their own in the same
+Per COLOR / film R / G / B tone curves (5 points each at 0 / 25 / 50 / 75 / 100 %, offsets −7..+7) are kept in a record of their own in the same
 store, at image offset 0x3B100 (3,348 bytes), so no file above changes and older firmware never reads it:
 `OM3R` | u16 version 2 | u16 length 3348 | CRC-32 of bytes 12.. | u32 the films block's generation when written (the
 record is used only with that block: a block saved by older firmware leaves every curve flat) | at 16: 196 slots of 17
 bytes: COLOR 1–4's slots now (4), EDITS record r's (24), then the same 28 for each per-mode set as `OM3S` (6). A slot
-= its 18 curve values (red 6, green 6, blue 6) two to a byte, low nibble first, then 8 bytes kept for a per-film colour
+= its 18 curve values (red 6, green 6, blue 6) two to a byte, low nibble first (a curve's points are its values 0, 2,
+3, 4, 5; value 1 was test 1–2b's 10 % point and is 0 since test 4), then 8 bytes kept for a per-film colour
 matrix (zero; nothing reads them yet). Not in LOOKS.BIN, EDITS.BIN or the photo code yet.
 
 ## EDITS.BIN (1648 bytes, v0.24)

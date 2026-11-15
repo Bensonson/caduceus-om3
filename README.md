@@ -1,6 +1,6 @@
 > **Branch `feature/rgb-curves` (work in progress, not released):** per-film R / G / B tone curves, edited on the
-> camera (a new RGB row in Picture Mode). Test build 1 (2026-11-15) is emulator-checked only; it waits for the owner's
-> camera test. Details: `research/NOTES.md`, "Per-film R / G / B tone curves: build".
+> camera (a new RGB row in Picture Mode). Test 2b is camera-tested (2026-11-15); test 4 (5 even points, no text on the
+> grid) is emulator-checked only and waits for the owner's camera test. Details: `research/NOTES.md`, "Per-film R / G / B tone curves: build".
 
 <h1 align="center">Caduceus for OM-3</h1>
 

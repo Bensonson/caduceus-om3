@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Per-film R / G / B tone curves (feature/rgb-curves): the exact integer model of the firmware's cv_prm / cv_d.
 
-Each channel has 6 points at input 0 / 10 / 25 / 50 / 75 / 100 % of the gamma tables' 12-bit output (X below), each
-an offset v of -7..+7 steps of STEP (48 = 1.2 % of full scale). The curve's delta D(t) is a monotone-preserving
+Each channel has 5 points at input 0 / 25 / 50 / 75 / 100 % of the gamma tables' 12-bit output (X below; test 4,
+owner's choice: on the page grid's quarter lines), each an offset of -7..+7 steps of STEP (48 = 1.2 % of full scale).
+They are kept as 6 values, as tests 1..2b had 6 points (0 / 10 / 25 / 50 / 75 / 100 %): the points are values
+0, 2, 3, 4, 5 (PTS), value 1 (the old 10 % point) is unused and always 0. The curve's delta D(t) is a monotone-preserving
 cubic (Hermite, tangents by the harmonic mean, as Fritsch-Butland), evaluated on every table entry t (0..4095):
 t' = t + D(t), then st_run's clamp and running max. All zero = stock (no work). Firmware and this model must agree
 bit for bit (integer ops, truncating division as the CPU's `div`, arithmetic shifts as `asr`).
 
 usage: python3 model.py            print D at a few inputs for example curves
 """
-X = [0, 410, 1024, 2048, 3072, 4096]
-H = [X[i + 1] - X[i] for i in range(5)]
+X = [0, 1024, 2048, 3072, 4096]
+PTS = [0, 2, 3, 4, 5]                               # the 5 points' places among a channel's 6 kept values
+H = [X[i + 1] - X[i] for i in range(4)]
 INV = [(1 << 24) // h for h in H]                   # Q12 reciprocal: s = x * INV >> 12
 STEP = 48
 
@@ -19,22 +22,20 @@ def tdiv(a, b):                                     # C / mn10300 `div`: truncat
     return q if (a >= 0) == (b > 0) else -q
 
 def prm(v):
-    """6 offsets -7..7 -> (Y[6], A[5], B[5]) as the firmware's 16-word block"""
-    Y = [x * STEP for x in v]
-    d = [tdiv((Y[i + 1] - Y[i]) << 12, H[i]) for i in range(5)]
-    m = [d[0]] + [0] * 4 + [d[4]]
-    for i in range(1, 5):
+    """a channel's 6 kept values (offsets -7..7; value 1 unused) -> (Y[5], A[4], B[4]) as the firmware's block"""
+    Y = [max(-7, min(7, v[j])) * STEP for j in PTS]
+    d = [tdiv((Y[i + 1] - Y[i]) << 12, H[i]) for i in range(4)]
+    m = [d[0]] + [0] * 3 + [d[3]]
+    for i in range(1, 4):
         a, b = d[i - 1], d[i]
         m[i] = 0 if a == 0 or b == 0 or (a < 0) != (b < 0) else tdiv(2 * a * b, a + b)
-    A = [(H[i] * m[i]) >> 12 for i in range(5)]
-    B = [(H[i] * m[i + 1]) >> 12 for i in range(5)]
+    A = [(H[i] * m[i]) >> 12 for i in range(4)]
+    B = [(H[i] * m[i + 1]) >> 12 for i in range(4)]
     return Y, A, B
 
 def d_at(p, t):
     Y, A, B = p
-    if t < 410: i = 0
-    elif t < 1024: i = 1
-    else: i = 1 + (t >> 10)
+    i = min(3, t >> 10)
     s = ((t - X[i]) * INV[i]) >> 12
     s2 = (s * s) >> 12
     s3 = (s2 * s) >> 12
@@ -55,6 +56,6 @@ def bend(table, v):
     return out
 
 if __name__ == '__main__':
-    for v in ([0, 0, 0, 0, 0, 0], [7, 0, 0, 0, 0, 0], [0, 0, 0, 7, 0, 0], [0, 1, 2, 3, 4, 5], [-7, 7, -7, 7, -7, 7]):
+    for v in ([0, 0, 0, 0, 0, 0], [7, 0, 0, 0, 0, 0], [0, 0, 0, 7, 0, 0], [0, 0, 2, 3, 4, 5], [-7, 0, 7, -7, 7, -7]):
         p = prm(v)
-        print(v, [d_at(p, t) for t in (0, 205, 410, 700, 1024, 1500, 2048, 2600, 3072, 3600, 4095)])
+        print(v, [d_at(p, t) for t in (0, 512, 1024, 1500, 2048, 2600, 3072, 3600, 4095)])

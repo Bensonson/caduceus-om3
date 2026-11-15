@@ -4483,4 +4483,19 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   (edits in R / G / B, a reset) pixel-identical to test 2. No loader-word change; ext12 260,176 / 262,144.
 - **Test 2b camera (owner, 2026-11-15): "Looking good!"** No freeze or reboot (debug log: 37 shutter events, saves
   fine). Camera-tested: the RGB page as test 2, with the curves record packed before the locked save.
+- **Test 4 (cad for the owner, 2026-11-15; emulator only), built on 2b (its save and step 48 kept).** Owner: "we dont
+  need the text on the grid anymore"; 5 even points 0 / 25 / 50 / 75 / 100 % (front dial 1..5).
+  - The dials' legend removed (its bitmap at 0x60fab000, the blit, build.py's step), as test 3 did.
+  - Engine: 4 even segments (cv_h 4 x 1024, cv_inv 4 x 16384; cv_d i = t >> 10, at most 3); cv_prm takes a curve's
+    values 0, 2, 3, 4, 5 as the 5 points (same block offsets). The record and slots keep their layout (6 values a
+    curve, OM3R v2, 3,348 B): value 1, tests 1..2b's 10 % point, is unused; cv_load clears it in every slot after
+    reading the record, so curves set with 2b keep points 1, 3, 4, 5, 6 as the new 1..5 and lose the 10 % one.
+    model.py updated (X, PTS); om-emu ncall bit-exact with it on 4 cases (incl. a value 1 alone: no change) and with
+    split toning; split toning alone still identical to v0.29.5.
+  - Page: front dial clamps to points 0..4; rear dial, Sh value and drawing map point -> value (0, 2, 3, 4, 5); points
+    drawn at columns 0 / 75 / 150 / 224 / 299 (ncall of cv_ev: every step lands on the right value, never value 1).
+  - Storage (om-emu): a 2b record with value 1 set in R / G / B -> test 4 at the first half-press has the other values,
+    value 1 zero, nothing before; test 4 saves and reloads after a power cycle; 2b reads test 4's record.
+  - Interrupts off per save 10,062 instructions (as 2b). 14 screens vs 2b: identical except the RGB page's curve
+    picture (no legend, 5 points).
 
