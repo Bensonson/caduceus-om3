@@ -70,6 +70,15 @@ are read only when the camera's block is empty or invalid (the first start). Blo
 `GUIDES.BIN`, `LABELS.BIN` and `TONES.BIN` are built into the firmware from v0.29 (the formats below are unchanged;
 copies on a card are ignored).
 
+## The RGB curves record (feature/rgb-curves, not released)
+
+Per COLOR / film R / G / B tone curves (6 points each, offsets −7..+7) are kept in a record of their own in the same
+store, at image offset 0x3B100 (3,544 bytes), so no file above changes and older firmware never reads it:
+`OM3R` | u16 version 1 | u16 length 3544 | CRC-32 of bytes 12.. | u32 the films block's generation when written (the
+record is used only with that block: a block saved by older firmware leaves every curve flat) | at 16: COLOR 1–4's
+curves now (4 × 18 bytes: red 6, green 6, blue 6) | at 88: the curves of EDITS record r (24 × 18) | at 520: per-mode
+sets as `OM3S` (6 × {4 × 18, 24 × 18}). Not in LOOKS.BIN, EDITS.BIN or the photo code yet.
+
 ## EDITS.BIN (1648 bytes, v0.24)
 
 Written by the camera only (at the half-press save, when something changed); the changes you make to each film and

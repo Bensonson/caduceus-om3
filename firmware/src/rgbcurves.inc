@@ -368,6 +368,32 @@ cv_zk:
  bne 1b
  ret [d2],8
 
+/* cv_kset: `call cv_kset,[d2,d3,a2,a3],20`, d2 = k -> d0 1 when COLOR k has a curve point set (fl_live: the film's
+ * '*'). cv_jset: the same for EDITS record d0's saved curves (fl_fch). Use d0, d1, a0, MDR. */
+cv_kset:
+ mov d2,d0
+ call cv_lk,[],0
+ bra 1f
+cv_jset:
+ mov 18,d1
+ mul d1,d0
+ mov cv_ram + CV_ED,a0
+ add d0,a0
+1:
+ mov 18,d1
+2:
+ movbu (a0),d0
+ cmp 0,d0
+ bne 3f
+ inc a0
+ add -1,d1
+ bne 2b
+ clr d0
+ ret [d2,d3,a2,a3],20
+3:
+ mov 1,d0
+ ret [d2,d3,a2,a3],20
+
 /* cv_sput: `call cv_sput,[d2,d3,a2,a3],20` (ss_put), d0 = a set: the set's live[4] and ed[24] <- ours; ss_chg = 1
  * when any byte differed (so the set is written). Uses d0, d1, a0, a1, MDR. */
 cv_sput:
@@ -520,3 +546,1032 @@ cv_ok:
 cv_v0:
  .byte 0
  .balign 4
+
+/* ------------------------------------------------------------------ the RGB page (mockup B, owner 2026-11-15)
+ * Row RG_IT under the Highlight & Shadow row. It is the camera's H&S row in all of the column's switches (so the
+ * camera shows its curve page and runs its dials), except: its left cell is ours ("RGB", lc_rg), and its update case
+ * (cv_case) marks our page on (cv_on; H&S's own case, cv_hs, and every other row, cv_pu, mark it off; any GUI state
+ * change too, cv_gx). While it is on, the page's reads of COLOR k's H&S settings (976 + 3k Hi, 977 Mid, 978 Sh) and
+ * of its INFO setting 2191 are ours, and their writes leave the camera's values as they are (cv_sv):
+ *   Sh (the rear dial, the left header slot) = the offset -7..+7 of the selected point of the selected colour
+ *   Hi (the front dial, the right header slot) = the selected point 1..6
+ *   Mid = CV_MIDV 0 (the middle slot), 2191 reads 886 (the Sh / Hi mode; the camera sets it on entering the row).
+ * Reads are ours only for the page's own callers (cv_get / cv_dflt: return addresses below), so the H&S row's left
+ * cell and the '*' checks keep reading the camera's values. The dials and INFO are handled in cv_ev (the camera's dial
+ * handler keeps its own running value, so its writes are not used).
+ * Pictures while on (cv_ic): the curve halves 4147..4176 clear, the middle curves 4177..4206 our picture of the three
+ * curves (cv_draw, drawn when anything changed), the header labels "Sh" 4208 -> R / G / B, "Hi" 4207 -> "Pt", "Mid"
+ * 4331 clear, the guides 16247 / 16248 -> "Color [INFO]" (firmware/rgbpics.py). */
+ .set CV_MIDV, 0                  /* a value in -7..+7: the middle curve's object (our picture) shows only then (om-emu) */
+ .set HS_GSH, 0x612881f2          /* the page's reads (0x61288159): GetValue Hi / Sh / Mid return here */
+ .set HS_GHI, 0x612881de
+ .set HS_GMD, 0x61288206
+ .set HS_DSH, 0x61288230          /* its GetDefault reads */
+ .set HS_DHI, 0x6128821b
+ .set HS_DMD, 0x61288245
+ .set HS_DIAL, 0x611b43ad         /* the dial handler's read before its write */
+ .set CVI0, 0x7f60                /* our picture ids (cv_ent order, rgbpics.py; 0x7f60.. is free) */
+ .set CVI_N, 7
+ .set CVI_CELL, CVI0 + 6
+ .set CV_WRK, 0xa0fa3000          /* the drawing's work area (uncached), after the built-in files; build.py loads it */
+ .set CW_LO, 0                    /* u16 lo[3][300], hi[3][300]: each curve's rows at each column */
+ .set CW_HI, 1800
+ .set CW_ROW, 3600                /* one row of palette indices */
+ .set CW_ST, 4096                 /* the stream */
+ .set CW_END, 0x9000
+
+/* cv_case: the column's update switch for RG_IT (as H&S's case 0x611d04e5; d0 free there) */
+cv_case:
+ mov 1,d0
+ mov d0,(cv_on)
+ mov (cv_gen),d0
+ inc d0
+ mov d0,(cv_gen)
+ jmp HS_CASE
+cv_hs:                            /* ... and for the H&S row itself */
+ clr d0
+ mov d0,(cv_on)
+ jmp HS_CASE
+
+/* cv_pu <- .hook_pu (the screen update's end, (4,sp) -> the current item): another row -> off; then pu_hook */
+cv_pu:
+ mov (4,sp),a0
+ movhu (a0),d0
+ cmp RG_IT,d0
+ beq 1f
+ mov 0,a0
+ mov a0,(cv_on)
+1:
+ jmp pu_hook
+
+/* cv_gx <- .hook_gx (d0 = the next GUI state; a0, a1, d1 free): any state change -> off; then gx_map */
+cv_gx:
+ mov d0,d1
+ exthu d1
+ cmp 0,d1
+ beq 1f
+ mov 0,a1
+ mov a1,(cv_on)
+1:
+ jmp gx_map
+
+/* lc_rg: the column's left-cell switch for RG_IT (as lc_bw, then lch_back's pick with our one-option list) */
+lc_rg:
+ mov (20,sp),a3
+ mov 1,d0
+ add d1,a3
+ movbu d0,(a3)
+ inc4 a3
+ mov rg_l1,a1
+ mov 1,d1
+ mov a3,(4,sp)
+ mov (36,sp),a0
+ clr d0
+ call LC_PICK,[d2,d3,a2,a3],24
+ jmp LC_DONE
+ .balign 4
+rg_l1:
+ .long 0
+ .short 3, CVI_CELL
+ .long 0x6154b480
+
+/* cv_val: `call cv_val,[d2,d3],12`, d1 = id - 976 (0..11) -> d0 = our value for it; cv_k = k. Uses d0, d1, a0. */
+cv_val:
+ clr d2
+1:
+ cmp 3,d1
+ bcs 2f
+ add -3,d1
+ inc d2
+ bra 1b
+2:
+ mov d2,(cv_k)
+ cmp 0,d1
+ bne 3f
+ movbu (cv_p),d0                  /* Hi: the point 1..6 */
+ inc d0
+ bra 9f
+3:
+ cmp 1,d1
+ bne 4f
+ mov CV_MIDV,d0
+ bra 9f
+4:
+ mov 18,d3                        /* Sh: the offset */
+ mul d2,d3
+ movbu (cv_c),d1
+ asl 1,d1
+ add d1,d3
+ asl 1,d1
+ add d1,d3
+ movbu (cv_p),d1
+ add d1,d3
+ mov cv_ram + CV_LV,a0
+ movbu (d3,a0),d0
+ extb d0
+9:
+ ret [d2,d3],12
+
+/* cv_get <- facade GetValue word 0x60e57480 (CALLS: d0 id, a0 facade, a1 out, MDR return); else sl_get */
+cv_get:
+ cmp 0,a1
+ beq 9f
+ mov (cv_on),d1
+ cmp 0,d1
+ beq 9f
+ cmp 2191,d0
+ bne 1f
+ mov 886,d1
+ mov d1,(a1)
+ clr d0
+ rets
+1:
+ mov d0,d1
+ exthu d1
+ add -976,d1
+ cmp 12,d1
+ bcc 9f
+ movm [d2,d3,a2],(sp)
+ mov mdr,d2
+ cmp HS_GSH,d2
+ beq 2f
+ cmp HS_GHI,d2
+ beq 2f
+ cmp HS_GMD,d2
+ beq 2f
+ cmp HS_DIAL,d2
+ beq 2f
+ movm (sp),[d2,d3,a2]
+ bra 9f
+2:
+ mov d2,a2
+ add -4,sp
+ call cv_val,[d2,d3],12
+ add 4,sp
+ mov d0,(a1)
+ mov a2,d2
+ mov d2,mdr
+ movm (sp),[d2,d3,a2]
+ clr d0
+ rets
+9:
+ jmp sl_get
+
+/* cv_dflt <- facade GetDefault word 0x60e57510: the page's own reads -> our value, but Mid's 1 when COLOR k has a
+ * point set (the page then counts as changed); else ed_default */
+cv_dflt:
+ cmp 0,a1
+ beq 9f
+ mov (cv_on),d1
+ cmp 0,d1
+ beq 9f
+ mov d0,d1
+ exthu d1
+ add -976,d1
+ cmp 12,d1
+ bcc 9f
+ movm [d2,d3,a2],(sp)
+ mov mdr,d2
+ cmp HS_DSH,d2
+ beq 2f
+ cmp HS_DHI,d2
+ beq 2f
+ cmp HS_DMD,d2
+ beq 2f
+ movm (sp),[d2,d3,a2]
+ bra 9f
+2:
+ mov d2,a2
+ add -4,sp
+ call cv_val,[d2,d3],12
+ cmp HS_DMD,a2                    /* Mid's default: 1 when COLOR k has a point set, so the page counts as changed */
+ bne 3f                           /* (its Reset guide) */
+ mov (cv_k),d0
+ call cv_lk,[],0
+ mov 18,d1
+ clr d0
+4:
+ movbu (a0),d3
+ or d3,d0
+ inc a0
+ add -1,d1
+ bne 4b
+ cmp 0,d0
+ beq 3f
+ mov CV_MIDV + 1,d0
+3:
+ add 4,sp
+ mov d0,(a1)
+ mov a2,d2
+ mov d2,mdr
+ movm (sp),[d2,d3,a2]
+ clr d0
+ rets
+9:
+ jmp ed_default
+
+/* cv_sv <- .hook_set (the facade SetValue's manager call, entered as the manager: d0 id, d1 value, a0 inner, a1 mode;
+ * d2 / d3 / a2 / a3 saved by the call, frame 68, the return address at (68,sp)): while our page is on, COLOR k's H&S
+ * ids and 2191 keep the camera's own values (the manager gets them back: no change, the page refreshes, as ed_set);
+ * our values change in cv_ev only, and on the camera's reset of our row (cv_rst). Else sl_set. */
+cv_sv:
+ mov (cv_on),d2
+ cmp 0,d2
+ beq 9f
+ cmp 2191,d0
+ beq 8f
+ mov d0,d2
+ exthu d2
+ add -976,d2
+ cmp 12,d2
+ bcc 9f
+ movbu (cv_rst),d2                /* the camera's reset of our row (OK held): COLOR k's curves flat, once */
+ cmp 1,d2
+ bne 8f
+ mov 2,d2
+ movbu d2,(cv_rst)
+ mov d0,a3
+ mov d1,d3
+ mov (cv_k),d0
+ add -4,sp
+ call cv_zk,[d2],8
+ call cv_dty,[d2,d3,a2,a3],20
+ add 4,sp
+ mov a3,d0
+ mov d3,d1
+8:
+ mov d0,d2
+ mov a0,d3
+ mov a1,a2
+ add -4,sp
+ call sget,[],4
+ add 4,sp
+ mov d0,d1
+ mov (68,sp),d0
+ mov d0,mdr
+ mov d2,d0
+ mov d3,a0
+ mov a2,a1
+ jmp manager
+9:
+ jmp sl_set
+
+/* cv_ev <- .hook_pme (Picture Mode's event handler, CALLS: d0 event, d1, a0, a1; MDR return). On our page: the front dial (0x9031, a1 its direction) moves the point (the way the camera's
+ * Highlights value goes for it), the rear dial (0x9032) the offset (as the camera's Shadows), INFO (0x9014) picks the
+ * next colour. The events then go on to the camera (pm_ev) as they came: its dial handler writes its own running
+ * value and its panel toggles 2191 on INFO (cv_inf), both refused by cv_sv, and it redraws the page as for its own
+ * rows (consuming the event, or passing another in its place, left the page stale or closed it: om-emu). OK held
+ * (0xf802 while OK is down, 0x900c .. 0x900d) -> cv_rst: the camera's own reset of the row follows (cv_rsi), and its
+ * first write makes COLOR k's curves flat (cv_sv); without one, the release does it. */
+cv_ev:
+ movm [d2,d3,a2,a3],(sp)
+ add -24,sp                       /* (0) call slot, (4) MDR, (8) d0, (12) d1, (16) a0, (20) a1 */
+ mov mdr,d2
+ mov d2,(4,sp)
+ mov d0,(8,sp)
+ mov d1,(12,sp)
+ mov a0,(16,sp)
+ mov a1,(20,sp)
+ mov (cv_on),d2
+ cmp 0,d2
+ bne 1f
+ jmp 90f
+1:
+ cmp 0x900c,d0                    /* OK pressed / released: the reset counts only while it is held */
+ bne 2f
+ mov 1,d2
+ movbu d2,(cv_okd)
+ jmp 90f
+2:
+ cmp 0x900d,d0
+ bne 3f
+ clr d2
+ movbu d2,(cv_okd)
+ movbu (cv_rst),d2                /* a reset the camera made no write for: the curves flat now */
+ cmp 1,d2
+ bne 21f
+ mov (cv_k),d0
+ call cv_zk,[d2],8
+ call cv_dty,[d2,d3,a2,a3],20
+21:
+ clr d2
+ movbu d2,(cv_rst)
+ jmp 90f
+3:
+ mov a1,d3                        /* the dials' direction: -1 / 0 / +1 */
+ cmp 0,d3
+ beq 31f
+ mov 1,d3
+ mov a1,d2
+ cmp 0,d2
+ bgt 31f
+ mov -1,d3
+31:
+ cmp 0x9031,d0                    /* front dial: the point */
+ bne 4f
+ movbu (cv_p),d2
+ add d3,d2
+ cmp 0,d2
+ bge 32f
+ clr d2
+32:
+ cmp 5,d2
+ ble 33f
+ mov 5,d2
+33:
+ movbu d2,(cv_p)
+ jmp 80f
+4:
+ cmp 0x9032,d0                    /* rear dial: the offset of the selected point of the selected colour */
+ bne 5f
+ mov (cv_k),d0
+ call cv_lk,[],0
+ movbu (cv_c),d2
+ mov d2,d0
+ add d0,d0
+ add d2,d0
+ add d0,d0
+ movbu (cv_p),d2
+ add d2,d0
+ add d0,a0
+ movbu (a0),d2
+ extb d2
+ sub d3,d2
+ cmp -7,d2
+ bge 41f
+ mov -7,d2
+41:
+ cmp 7,d2
+ ble 42f
+ mov 7,d2
+42:
+ movbu d2,(a0)
+ PVAL 80f
+ mov 1,d3
+ movbu d3,(DIRTY,a2)              /* saved at the next half-press / on leaving Picture Mode */
+ jmp 80f
+5:
+ cmp 0x9014,d0                    /* INFO: the next colour */
+ bne 6f
+ movbu (cv_c),d2
+ inc d2
+ cmp 3,d2
+ bcs 51f
+ clr d2
+51:
+ movbu d2,(cv_c)
+ jmp 80f                          /* ... and goes on to the camera: its panel toggles 2191 (cv_inf lets it reach */
+                                  /* the panel on our row; cv_sv refuses the write) and redraws the page */
+6:
+ cmp 0xf802,d0                    /* OK held */
+ bne 90f
+ movbu (cv_okd),d2
+ cmp 0,d2
+ beq 90f
+ mov 1,d2                         /* the camera's own reset of the row follows (cv_rsi lets it reach the panel): */
+ movbu d2,(cv_rst)                /* its first write makes COLOR k's curves flat (cv_sv), and it redraws the page */
+ bra 90f
+80:
+ mov (cv_gen),d0                  /* changed: drawn again; the event goes on to the camera, whose writes cv_sv */
+ inc d0                           /* refuses but which refreshes the page as for its own rows */
+ mov d0,(cv_gen)
+90:
+ mov (4,sp),d2
+ mov d2,mdr
+ mov (8,sp),d0
+ mov (12,sp),d1
+ mov (16,sp),a0
+ mov (20,sp),a1
+ add 24,sp
+ movm (sp),[d2,d3,a2,a3]
+ jmp pm_ev
+
+/* cv_star: the column's "row changed?" switch (0x611d1a03, its sw13 table) for RG_IT, in that function's frame
+ * ((12,sp) = setting 903, the COLOR 1..4): d2 = 1 when COLOR k's curves are flat, else 0 -> STAR_END, which returns
+ * 1 / 2. It drives the row's '*' and, on our page, the "Reset [OK hold]" guide. Uses d0, d1, d2, a0. */
+cv_star:
+ mov 1,d2
+ mov (12,sp),d0
+ add -1,d0
+ cmp 4,d0
+ bcc 9f
+ call cv_lk,[],0
+ mov 18,d1
+1:
+ movbu (a0),d0
+ cmp 0,d0
+ bne 2f
+ inc a0
+ add -1,d1
+ bne 1b
+ bra 9f
+2:
+ clr d2
+9:
+ jmp STAR_END
+
+/* cv_dty: `call cv_dty,[d2,d3,a2,a3],20`: P dirty (saved at the next half-press / on leaving Picture Mode), the
+ * curves drawn again. Uses d0. */
+cv_dty:
+ PVAL 1f
+ mov 1,d0
+ movbu d0,(DIRTY,a2)
+1:
+ mov (cv_gen),d0
+ inc d0
+ mov d0,(cv_gen)
+ ret [d2,d3,a2,a3],20
+
+/* cv_inf <- .hook_inf (0x611c29c2 in the column's row event function, d2 = the current item): INFO goes to the row's
+ * panel for 5397 / 5398 (stock) and RG_IT. cv_rsi <- .hook_rsi (0x611c296f): the held-OK reset the same for 5052 /
+ * 5396 / 5397 / 5398 (stock) and RG_IT; 111 its own; else nothing. */
+cv_inf:
+ exthu d2
+ cmp 5397,d2
+ beq 1f
+ cmp 5398,d2
+ beq 1f
+ cmp RG_IT,d2
+ beq 1f
+ jmp INF_NO
+1:
+ jmp INF_GO
+cv_rsi:
+ exthu d2
+ cmp 5052,d2
+ beq 1f
+ cmp 5396,d2
+ beq 1f
+ cmp 5397,d2
+ beq 1f
+ cmp 5398,d2
+ beq 1f
+ cmp RG_IT,d2
+ beq 1f
+ cmp 111,d2
+ bne 2f
+ jmp RSI_111
+2:
+ jmp RSI_NO
+1:
+ jmp RSI_GO
+
+.section .hook_inf,"ax"
+ jmp cv_inf                       /* stock 0x611c29c2: exthu d2; cmp 5397,d2 */
+.section .hook_rsi,"ax"
+ jmp cv_rsi                       /* stock 0x611c296f: exthu d2; cmp 5052,d2 */
+.section .ext12,"ax"
+
+/* cv_ic <- .hook_ic (the picture lookup, d0 id -> a0 its slot, `retf`): our pictures CVI0.., and while the page is
+ * on the curve page's swaps (above); else ar_ic. Uses d1, a0 (cv_pic keeps the rest). */
+cv_ic:
+ mov d0,d1
+ exthu d1
+ cmp CVI0,d1
+ bcs 1f
+ cmp CVI0 + CVI_N,d1
+ bcc 1f
+ add -CVI0,d1
+ asl2 d1
+ mov cv_ent,a0
+ add d1,a0
+ retf [],0
+1:
+ mov (cv_on),a0
+ cmp 0,a0
+ beq 8f
+ mov cv_ent,a0                    /* entry 0: clear */
+ cmp 4147,d1
+ bcs 3f
+ cmp 4177,d1
+ bcs 7f                           /* the halves */
+ cmp 4207,d1
+ bcs cv_pic                       /* the middle curves: ours */
+3:
+ cmp 4331,d1
+ beq 7f
+ cmp 4208,d1
+ bne 4f
+ movbu (cv_c),d1                  /* "Sh" -> R / G / B */
+ inc d1
+ asl2 d1
+ add d1,a0
+ retf [],0
+4:
+ cmp 4207,d1
+ bne 5f
+ add 16,a0                        /* "Hi" -> "Pt" */
+ retf [],0
+5:
+ cmp 16247,d1
+ beq 6f
+ cmp 16248,d1
+ bne 8f
+6:
+ add 20,a0                        /* the guide */
+7:
+ retf [],0
+8:
+ jmp ar_ic
+
+/* cv_pic: (from cv_ic) our curves' picture, drawn again when anything changed (cv_gen) -> a0 = its slot */
+cv_pic:
+ movm [d2,d3,a2,a3],(sp)
+ add -8,sp
+ mov mdr,d2
+ mov d2,(4,sp)
+ mov (cv_gen),d0
+ mov (cv_dgen),d1
+ cmp d1,d0
+ beq 1f
+ mov d0,(cv_dgen)
+ call cv_draw,[d2,d3,a2,a3],128
+1:
+ mov (4,sp),d2
+ mov d2,mdr
+ add 8,sp
+ movm (sp),[d2,d3,a2,a3]
+ mov cv_slot,a0
+ retf [],0
+
+/* cv_draw: `call cv_draw,[d2,d3,a2,a3],128`: COLOR cv_k's three curves as a 300 x 300 OSD type-11 picture (the curve
+ * layer's palette: white 14, black 2, grey 20, cv_col) at
+ * CV_WRK + CW_ST, cv_desc's size and payload. Each column's span of each curve (lo / hi: this and the last column's
+ * rows, 3 px for the selected colour), then row by row: the diagonal, the other two, the selected one, its 6 points
+ * (the selected one white, bigger: radius 8, else 5), runs packed five 12-bit tokens a 64-bit word. Locals: (4) k, (8) c, (12) p,
+ * (16) y / x, (20) write pointer, (24) / (28) the word being packed, (32) tokens in it, (36) channel, (40) last row,
+ * (44) live[k], (48..59) points' rows (u16), (60) colour, (64) the row's x, (68) run start, (72) half width,
+ * (76) flat, (80) r, (84) dy, (88) point i. */
+ .set CV_PX0, 0
+cv_draw:
+ mov (cv_k),d0
+ cmp 4,d0
+ bcs 1f
+ clr d0
+1:
+ mov d0,(4,sp)
+ call cv_lk,[],0
+ mov a0,(44,sp)
+ movbu (cv_c),d0
+ mov d0,(8,sp)
+ movbu (cv_p),d0
+ mov d0,(12,sp)
+ clr d0                           /* 1. the spans, channel by channel */
+ mov d0,(36,sp)
+10:
+ mov (36,sp),d0
+ mov d0,d1
+ add d1,d1
+ add d0,d1
+ add d1,d1                        /* 6 ch */
+ mov (44,sp),a0
+ add d1,a0
+ mov a0,a2
+ mov 6,d1
+ mov 1,d2                         /* flat? */
+11:
+ movbu (a2),d0
+ cmp 0,d0
+ beq 12f
+ clr d2
+12:
+ inc a2
+ add -1,d1
+ bne 11b
+ mov d2,(76,sp)
+ cmp 0,d2
+ bne 13f
+ mov cv_pd,a1
+ call cv_prm,[d2,d3,a2,a3],64
+13:
+ clr d0                           /* half width: 1 for the selected colour */
+ mov (36,sp),d1
+ mov (8,sp),d2
+ cmp d1,d2
+ bne 14f
+ mov 1,d0
+14:
+ mov d0,(72,sp)
+ clr d0
+ mov d0,(16,sp)                   /* x */
+ mov -1,d0
+ mov d0,(40,sp)
+15:
+ mov (16,sp),d0
+ mov 14024,d1
+ mul d1,d0
+ lsr 10,d0                        /* t = x 4095 / 299 */
+ mov d0,d2
+ mov (76,sp),d1
+ cmp 0,d1
+ bne 16f
+ mov cv_pd,d1
+ call cv_d,[d2,d3,a2,a3],44
+ add d0,d2
+16:
+ cmp 0,d2
+ bge 161f
+ clr d2
+161:
+ cmp 4095,d2
+ ble 162f
+ mov 4095,d2
+162:
+ mov 4787,d1
+ mul d1,d2
+ lsr 16,d2
+ mov 299,d0
+ sub d2,d0                        /* this column's row */
+ mov (40,sp),d1
+ cmp 0,d1
+ bge 17f
+ mov d0,d1
+17:
+ mov d0,(40,sp)
+ mov d0,d2                        /* lo = min - w, hi = max + w */
+ mov d1,d3
+ cmp d3,d2
+ ble 18f
+ mov d1,d2
+ mov d0,d3
+18:
+ mov (72,sp),d1
+ sub d1,d2
+ add d1,d3
+ cmp 0,d2
+ bge 181f
+ clr d2
+181:
+ cmp 299,d3
+ ble 182f
+ mov 299,d3
+182:
+ mov (36,sp),d0                   /* lo[ch][x], hi[ch][x] */
+ mov 600,d1
+ mul d1,d0
+ mov (16,sp),d1
+ add d1,d1
+ add d1,d0
+ mov CV_WRK + CW_LO,a0
+ add d0,a0
+ movhu d2,(a0)
+ movhu d3,(CW_HI,a0)
+ mov (16,sp),d0
+ inc d0
+ mov d0,(16,sp)
+ cmp 300,d0
+ bcs 15b
+ mov (36,sp),d0
+ inc d0
+ mov d0,(36,sp)
+ cmp 3,d0
+ bcs 10b
+ clr d2                           /* 2. the selected colour's points: rows (u16 at (48 + 2 i)) */
+20:
+ mov (8,sp),d0
+ mov d0,d1
+ add d1,d1
+ add d0,d1
+ add d1,d1
+ add d2,d1
+ mov (44,sp),a0
+ movbu (d1,a0),d0
+ extb d0
+ mov CV_STEP,d1
+ mul d1,d0
+ mov d2,d1
+ asl2 d1
+ mov cv_h0,a0
+ add d1,a0
+ mov (a0),d1
+ add d1,d0
+ cmp 0,d0
+ bge 21f
+ clr d0
+21:
+ cmp 4095,d0
+ ble 22f
+ mov 4095,d0
+22:
+ mov 4787,d1
+ mul d1,d0
+ lsr 16,d0
+ mov 299,d1
+ sub d0,d1
+ mov sp,a0
+ add 48,a0
+ mov d2,d0
+ add d0,d0
+ movhu d1,(d0,a0)
+ inc d2
+ cmp 6,d2
+ bcs 20b
+ mov CV_WRK + CW_ST,a0            /* 3. the stream: its header, then row by row */
+ mov 0x0b12b12b,d0                /* 300 x 300, type 11 */
+ mov d0,(a0)
+ add 4,a0
+ mov a0,(cv_wp)
+ clr d0
+ mov d0,(cv_wn)
+ mov d0,(16,sp)                   /* y */
+30:
+ mov (cv_wp),d0                   /* room for one more row (300 tokens at worst) */
+ cmp CV_WRK + CW_END - 520,d0
+ bcs 31f
+ clr d0
+ mov d0,(cv_desc + 12)            /* too big: nothing shown */
+ jmp 99f
+31:
+ mov CV_WRK + CW_ROW,a0           /* the row clear */
+ clr d0
+ mov 75,d1
+32:
+ mov d0,(a0)
+ add 4,a0
+ add -1,d1
+ bne 32b
+ mov CV_WRK + CW_ROW,a0           /* the diagonal */
+ mov 299,d0
+ mov (16,sp),d1
+ sub d1,d0
+ mov 20,d1
+ movbu d1,(d0,a0)
+ clr d3                           /* the curves: the other two, then the selected one */
+33:
+ mov (8,sp),d2
+ add 1,d2
+ add d3,d2
+ cmp 3,d2
+ bcs 34f
+ add -3,d2
+34:
+ cmp 2,d3
+ bne 341f
+ mov (8,sp),d2
+341:
+ mov d2,d0                        /* its colour: bright if selected */
+ asl 1,d0
+ cmp 2,d3
+ bne 342f
+ inc d0
+342:
+ mov cv_col,a0
+ movbu (d0,a0),d0
+ mov d0,(60,sp)
+ mov 600,d0
+ mul d2,d0
+ mov CV_WRK + CW_LO,a1
+ add d0,a1                        /* lo[ch] */
+ mov CV_WRK + CW_ROW,a0
+ mov (16,sp),d2                   /* y */
+ mov 300,d1
+35:
+ movhu (a1),d0
+ cmp d0,d2
+ blt 36f
+ movhu (CW_HI,a1),d0
+ cmp d0,d2
+ bgt 36f
+ mov (60,sp),d0
+ movbu d0,(a0)
+36:
+ inc a0
+ add 2,a1
+ add -1,d1
+ bne 35b
+ inc d3
+ cmp 3,d3
+ bcs 33b
+ clr d0                           /* the selected colour's points */
+ mov d0,(88,sp)
+40:
+ mov (88,sp),d2
+ mov sp,a0
+ add 48,a0
+ mov d2,d0
+ add d0,d0
+ movhu (d0,a0),d0
+ mov (16,sp),d1
+ sub d0,d1
+ mov d1,(84,sp)                   /* dy */
+ mov 5,d0                         /* r: 5, the selected point 8; its fill white, else the colour */
+ mov (8,sp),d1
+ asl 1,d1
+ inc d1
+ mov cv_col,a0
+ movbu (d1,a0),d1
+ mov (12,sp),d3
+ cmp d3,d2
+ bne 41f
+ mov 8,d0
+ mov 14,d1
+41:
+ mov d1,(100,sp)
+ mov d0,(80,sp)
+ mov d0,d1
+ mul d0,d1
+ mov d1,(92,sp)                   /* r^2 */
+ mov d0,d1
+ add -2,d1
+ mul d1,d1
+ mov d1,(96,sp)                   /* (r - 2)^2 */
+ mov (84,sp),d1
+ cmp 0,d1
+ bge 42f
+ not d1
+ inc d1
+42:
+ cmp d0,d1
+ bgt 49f                          /* not on this row */
+ mov d2,d1
+ asl2 d1
+ mov cv_px,a0
+ add d1,a0
+ mov (a0),d1
+ mov d1,(64,sp)                   /* the point's column */
+ mov d0,d3
+ not d3
+ inc d3                           /* dx = -r .. r */
+43:
+ mov (64,sp),d2
+ add d3,d2
+ cmp 0,d2
+ blt 48f
+ cmp 299,d2
+ bgt 48f
+ mov d3,d0
+ mul d3,d0
+ mov (84,sp),d1
+ mul d1,d1
+ add d1,d0                        /* dx^2 + dy^2 */
+ mov (92,sp),d1
+ cmp d1,d0
+ bgt 48f
+ mov (96,sp),d1
+ cmp d1,d0
+ bgt 44f
+ mov (100,sp),d1                  /* inside: the fill */
+ bra 45f
+44:
+ mov 2,d1                         /* the ring: black */
+45:
+ mov CV_WRK + CW_ROW,a0
+ movbu d1,(d2,a0)
+48:
+ inc d3
+ mov (80,sp),d0
+ cmp d0,d3
+ ble 43b
+49:
+ mov (88,sp),d0
+ inc d0
+ mov d0,(88,sp)
+ cmp 6,d0
+ bcs 40b
+ mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
+ clr d3
+50:
+ movbu (d3,a2),d0
+ mov 1,d1
+51:
+ cmp 16,d1
+ bcc 52f
+ mov d3,d2
+ add d1,d2
+ cmp 300,d2
+ bcc 52f
+ movbu (d2,a2),d2
+ cmp d0,d2
+ bne 52f
+ inc d1
+ bra 51b
+52:
+ add d1,d3
+ asl 4,d0
+ add -1,d1
+ or d1,d0
+ call cv_tok,[d2,d3],12
+ cmp 300,d3
+ bcs 50b
+ mov (16,sp),d0                   /* next row */
+ inc d0
+ mov d0,(16,sp)
+ cmp 300,d0
+ bcc 60f
+ jmp 30b
+60:
+ mov (cv_wn),d0                   /* the last word, then the descriptor */
+ cmp 0,d0
+ beq 61f
+ mov (cv_wp),a0
+ mov (cv_wl),d0
+ mov d0,(a0)
+ mov (cv_wh),d0
+ mov d0,(4,a0)
+ add 8,a0
+ mov a0,(cv_wp)
+61:
+ mov (cv_wp),d0
+ add -(CV_WRK + CW_ST),d0
+ mov d0,(cv_desc + 12)
+ mov CV_WRK + CW_ST,d0
+ mov d0,(cv_desc + 16)
+99:
+ ret [d2,d3,a2,a3],128
+
+/* cv_tok: `call cv_tok,[d2,d3],12`, d0 = a 12-bit token: packed five a 64-bit word (cv_wl / cv_wh, cv_wn of them),
+ * the full word stored at cv_wp. Uses d0, d1, a0. */
+cv_tok:
+ mov (cv_wn),d1
+ cmp 0,d1
+ bne 1f
+ mov d0,(cv_wl)
+ clr d2
+ mov d2,(cv_wh)
+ bra 8f
+1:
+ cmp 1,d1
+ bne 2f
+ asl 12,d0
+ mov (cv_wl),d2
+ or d0,d2
+ mov d2,(cv_wl)
+ bra 8f
+2:
+ cmp 2,d1
+ bne 3f
+ mov d0,d2
+ asl 24,d2
+ mov (cv_wl),d3
+ or d2,d3
+ mov d3,(cv_wl)
+ lsr 8,d0
+ mov d0,(cv_wh)
+ bra 8f
+3:
+ cmp 3,d1
+ bne 4f
+ asl 4,d0
+ mov (cv_wh),d2
+ or d0,d2
+ mov d2,(cv_wh)
+ bra 8f
+4:
+ asl 16,d0
+ mov (cv_wh),d2
+ or d0,d2
+ mov (cv_wp),a0
+ mov (cv_wl),d3
+ mov d3,(a0)
+ mov d2,(4,a0)
+ add 8,a0
+ mov a0,(cv_wp)
+ mov -1,d1
+8:
+ inc d1
+ mov d1,(cv_wn)
+ ret [d2,d3],12
+
+ .balign 4
+cv_col:                           /* per colour: dim, bright. The curve layer has 32 colours, none red or blue (its
+                                   * palette 0x614a5fe0; 27..31 fill whole screens: om-emu): red = orange 6 / 4, green
+                                   * 8 / 9, blue = grey 15 / white 14 (the header's "B" is blue) */
+ .byte 6, 4, 8, 9, 15, 14
+ .balign 4
+cv_px:
+ .long 0, 30, 75, 150, 224, 299
+cv_h0:
+ .long 0, 410, 1024, 2048, 3072, 4095
+cv_pd:
+ .space 64
+cv_on:
+ .long 0
+cv_gen:
+ .long 0
+cv_dgen:
+ .long -1
+cv_k:
+ .long 0
+cv_wp:
+ .long 0
+cv_wl:
+ .long 0
+cv_wh:
+ .long 0
+cv_wn:
+ .long 0
+cv_slot:
+ .long cv_desc
+cv_desc:                          /* format 14, 300 x 300, as the camera's curve pictures; size and payload from cv_draw */
+ .short 14, 300, 300, 8, 0, 0
+ .long 0, 0, 0, 0
+cv_c:
+ .byte 0
+cv_p:
+ .byte 0
+cv_okd:
+ .byte 0
+cv_rst:
+ .byte 0
+ .balign 4
+ .include "rgbpics.inc"

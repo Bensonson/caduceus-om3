@@ -34,7 +34,7 @@
 .section .hook_shutter,"ax"
  jmp pr_hook
 .section .hook_set,"ax"
- call sl_set,[d2,d3,a2,a3],68     /* stock: call 0x60bb528f,[d2,d3,a2,a3],68 (settings manager); sl_set -> ed_set */
+ call cv_sv,[d2,d3,a2,a3],68      /* stock: call 0x60bb528f,[d2,d3,a2,a3],68 (settings manager); cv_sv (rgb-curves page) -> sl_set -> ed_set */
 .section .hook_tone,"ax"
  call tone,[d2,d3,a2,a3],56       /* stock 0x605197d7: mov d3,a0; call 0x60518fa4,[d2,d3,a2,a3],56 */
 .section .hook_rng,"ax"
@@ -65,20 +65,20 @@
  jmp rv_chk                       /* v0.23 stock 0x611b21e8 (a bar's value list top-down if its id is in 0x6152d6fe) */
  .byte 0xcb,0xcb,0xcb,0xcb,0xcb
 .section .hook_pme,"ax"
- jmp pm_ev                        /* v0.25 stock 0x6125becc (Picture Mode's event handler): movm [d2,a2,a3],(sp);
+ jmp cv_ev                        /* rgb-curves cv_ev, then pm_ev. v0.25 stock 0x6125becc (Picture Mode's event handler): movm [d2,a2,a3],(sp);
                                    * add -60,sp */
 .section .hook_gx,"ax"
- jmp gx_map                       /* v0.25 grid (as test 13): stock 0x610f6016 (after a screen handler: d0 = next
+ jmp cv_gx                        /* rgb-curves cv_gx, then gx_map. v0.25 grid (as test 13): stock 0x610f6016 (after a screen handler: d0 = next
                                    * state): mov d0,d3; exthu d3; mov d3,d2; asr 8,d2 */
  .byte 0xcb
 .section .hook_sc,"ax"
  jmp sc_cap                       /* stock 0x610cdf05 (a holder gets its scene): mov d0,a3; mov a0,d3; mov 1,d0 */
  .byte 0xcb
 .section .hook_pu,"ax"
- jmp pu_hook                      /* stock 0x611d04ec (Picture Mode update): mov (0x6037a360),d0 */
+ jmp cv_pu                        /* rgb-curves cv_pu, then pu_hook. stock 0x611d04ec (Picture Mode update): mov (0x6037a360),d0 */
  .byte 0xcb
 .section .hook_ic,"ax"
- jmp ar_ic                        /* v0.27: ar_ic (▲ / ◀ pictures), then ic_get. v0.23 stock 0x610f5611 (picture id -> its slot in the picture table): mov d0,d1;
+ jmp cv_ic                        /* rgb-curves cv_ic, then v0.27: ar_ic (▲ / ◀ pictures), then ic_get. v0.23 stock 0x610f5611 (picture id -> its slot in the picture table): mov d0,d1;
                                    * exthu d1; cmp 0,d1; bne 0x610f561b */
  .byte 0xcb
 .section .hook_stp,"ax"
@@ -2685,7 +2685,7 @@ pm_list:                          /* item ids, in the order the owner reads them
                                    * the colour wheel), tone (Contrast, Highlight & Shadow, Blacks, Whites), white balance
                                    * (A-B, G-M), detail (Sharpness, Noise Filter = NR), lens (Vignette Correction =
                                    * VigFix, Shading), finish (Film Grain Effect = Grain) */
- .long 111, 5397, TB_IT, 8, 5398, BK_IT, AB_IT, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT, 5400   /* v0.25: Shading back,
+ .long 111, 5397, TB_IT, 8, 5398, RG_IT, BK_IT, AB_IT, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT, 5400   /* rgb-curves: RG_IT under H&S. v0.25: Shading back,
                                     Glow / Clarity and Frame rows; AB_IT = the WB grid (no G-M row) */
 .set PM_N, (. - pm_list) / 4
 
@@ -2724,6 +2724,7 @@ pm_list:                          /* item ids, in the order the owner reads them
 .set HL_IT, 5380                  /* v0.28 Halation slider row (class 12, slot +30, 0..5) */
 .set HLB, 0x7ed0                  /* its bar ids + k (row 13; row 12 is WGB) */
 .set TB_IT, 5379                  /* v0.28 split-tone Balance slider row (class 13, slot +33, -5..+5) */
+.set RG_IT, 5378                  /* rgb-curves: the RGB curves row (the H&S row's cases; rgbcurves.inc) */
 .set TBB, 0x7ee0                  /* its bar ids + k (row 14) */
 .set BWB, 0x7ef0                  /* v0.28 Blacks / Whites grid row (BK_IT): its one option's id + k (row 15, class 14) */
 .set IC_BWG, 0x7f70               /* v0.28 our 8 pictures for the camera's WB grid while it is the Blacks / Whites grid */
@@ -2835,6 +2836,7 @@ it_tab:                           /* the stock 17 item entries (filled by build.
  .long FR_IT, fr_title, fr_l0, 2, 0, fr_l1, 2, 0, fr_l2, 2      /* v0.25: as Vignette Correction */
  .long HL_IT, 0, 0, 0, hl_title, 0, 10 << 16, 0, 0, 0          /* v0.28: icon 10 = IC_HL */
  .long TB_IT, 0, 0, 0, tb_title, 0, 11 << 16, 0, 0, 0          /* v0.28: icon 11 = IC_TB */
+ .long RG_IT, 0, 0, 0, 0x6154bd18, 0x1b, 0, 0, 0, 0             /* rgb-curves: as H&S's entry (item 5398) */
 bk_title:
  .short 4, ST_BKS
  .long 0x6154b480
@@ -7907,6 +7909,11 @@ fl_xr:                            /* {record offset, slot offset} of the rows GR
 /* fl_live: `call fl_live,[d2,d3,a2,a3],24`, a2 = P, d2 = COLOR k holding film j -> d0 1 when COLOR k now differs from
  * film j as built: its 18 settings (fl_isdef) or the slot's WB shift, Blacks / Whites, Extras (pf_bt). */
 fl_live:
+ call cv_kset,[d2,d3,a2,a3],20    /* rgb-curves: a curve point set on COLOR k counts too */
+ cmp 0,d0
+ beq 20f
+ ret [d2,d3,a2,a3],24
+20:
  clr d3
 21:
  mov pf_ids,a0
@@ -7987,6 +7994,10 @@ fl_fch:
  mov (12,a1),d3
  and d1,d3
  beq 8f
+ mov (4,sp),d0                    /* rgb-curves: its saved curves count too */
+ call cv_jset,[d2,d3,a2,a3],20
+ cmp 0,d0
+ bne 7f
  mov (4,sp),d0
  mov d0,d1
  asl 6,d1

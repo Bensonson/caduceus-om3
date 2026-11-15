@@ -64,6 +64,8 @@ HOOKS = {'.hook_color': (0x60518615, bytes.fromhex('cd6cfdf060')),
          '.hook_gx': (0x610f6016, bytes.fromhex('831f8ef8ca08')),
          '.hook_sc': (0x610cdf05, bytes.fromhex('f1e3f1d38001')),
          '.hook_pu': (0x611d04ec, bytes.fromhex('fca460a33760')),
+         '.hook_inf': (0x611c29c2, bytes.fromhex('1efaca1515')),   # rgb-curves: exthu d2; cmp 5397,d2 (INFO: the row's panel for 5397 / 5398)
+         '.hook_rsi': (0x611c296f, bytes.fromhex('1efacabc13')),   # rgb-curves: exthu d2; cmp 5052,d2 (held-OK reset: 5052 / 5396 / 5397 / 5398)
          '.hook_pme': (0x6125becc, bytes.fromhex('cfb0f8fec4')),
          '.hook_rsp': (0x611c3cb5, bytes.fromhex('5c14f8bc20f87058')),
          '.hook_su': (0x604b7730, bytes.fromhex('cdab20f088')),
@@ -74,7 +76,7 @@ XB_SRC = HERE / 'src' / 'xblock.s'
 XB_L1, XB_L2 = 0x10000000, 0x12345670          # the code block is linked at both; fields that move = relocations
 ROOT = HERE.parent                               # card files: card/mkguides.py (pictures), card/mklabels.py
 # data words (flash image, patched at build time): stock target -> our symbol
-WORDS = {0x60e57480: (0x60b86de7, 'sl_get'), 0x60e57490: (0x60b86e09, 'sl_cnt'), 0x60e57494: (0x60b87031, 'sl_vbi'), 0x60e57510: (0x60b86e44, 'ed_default'), 0x60e574bc: (0x60b8764c, 'cm_asg'), 0x60e574c4: (0x60b871f3, 'cm_rcl'), 0x60e574c0: (0x60b86aaf, 'cm_rst'),
+WORDS = {0x60e57480: (0x60b86de7, 'cv_get'), 0x60e57490: (0x60b86e09, 'sl_cnt'), 0x60e57494: (0x60b87031, 'sl_vbi'), 0x60e57510: (0x60b86e44, 'cv_dflt'), 0x60e574bc: (0x60b8764c, 'cm_asg'), 0x60e574c4: (0x60b871f3, 'cm_rcl'), 0x60e574c0: (0x60b86aaf, 'cm_rst'),
          0x60e5749c: (0x60b86a01, 'sl_sel'),   # v0.23 sliders: the facade answers go through sl_* first (-> ed_get / pf_cnt / pf_vbi / stock)
          **{a + 4: (0x6122393a, 'ed_init') for a in (0x615adcc4, 0x615adcfc, 0x615add34, 0x615add6c)},
          **{a + 44: (0x6122661b, 'ed_info') for a in (0x615adcc4, 0x615adcfc, 0x615add34, 0x615add6c)},
@@ -223,6 +225,14 @@ def build(defaults, testfile, out):
     for i, st in enumerate(zc):
         bw += [' .balign 4', f'zc_p{i}:', db(st).rstrip('\n')]
     (out / 'bwg.inc').write_text('\n'.join(bw) + '\n')
+    import rgbpics                                # rgb-curves: the page's pictures (firmware/rgbpics.py; editor's cv_ent)
+    rp = rgbpics.streams()
+    rg = ['.balign 4', 'cv_ent:', ' .long ' + ', '.join(f'cvp_d{i}' for i in range(len(rp)))]
+    for i, (name, w, h, st) in enumerate(rp):
+        rg += [f'cvp_d{i}:                          /* {name} */', f' .short 14, {w}, {h}, 8, 0, 0', f' .long {len(st)}, cvp_s{i} + 0x40000000, 0']
+    for i, (name, w, h, st) in enumerate(rp):
+        rg += [' .balign 4', f'cvp_s{i}:', db(st).rstrip('\n')]
+    (out / 'rgbpics.inc').write_text('\n'.join(rg) + '\n')
     (out / 'films.inc').write_text('.balign 4\nfl_top:\n' + db(mkicons.pack4(mkicons.film_top())) + 'fl_tops:\n' +
                                    db(mkicons.pack4(mkicons.film_top(True))) + 'fl_dig:\n' +
                                    ''.join(db(mkicons.pack4(d)) for d in digs) +
@@ -352,7 +362,7 @@ def build(defaults, testfile, out):
     for a, c in ((0x611d040d, 0x611d0422), (0x611d0846, 0x611d0859)):
         assert bytes(m[o(a):o(a) + 6]) == b'\xfc\xdc' + struct.pack('<I', IT) and bytes(m[o(c):o(c) + 2]) == b'\xa5\x11', hex(a)
         struct.pack_into('<I', m, o(a) + 2, sy['it_tab'])
-        m[o(c) + 1] = 27                         # v0.25: + Glow / Clarity, Frame; v0.28 + Halation, Tone Balance
+        m[o(c) + 1] = 28                         # v0.25: + Glow / Clarity, Frame; v0.28 + Halation, Tone Balance; rgb-curves + RG_IT
     # v0.24 film list: item 111's option lists (title / left column / strip, 48 x 12 B) -> fl_l0..2 (the stock 48, then
     # the films, written by editor.s), and setting 901's value table entry (COLOR 1-4) -> fl_rec, 4 + 20 records
     e = struct.unpack_from('<10I', m, o(sy['it_tab']))
@@ -421,6 +431,27 @@ def build(defaults, testfile, out):
         for item, pre in ((GL_IT, 'gl'), (HL_IT, 'hl'), (TB_IT, 'tb')):   # v0.28 + Halation, Tone Balance (Blacks / Whites: the grid row)
             t = sy[pre + '_f'] if base == 0x61536f2c else t7[0]     # left column: item 7's slider cell
             sw_add(base, n, item, t)
+    # rgb-curves: the RGB row = the H&S row (item 5398, key 5392) in every switch that has it, except the column update's
+    # case (cv_case marks our page; H&S's own case -> cv_hs), the left cell (lc_rg, our "RGB" cell) and the row's
+    # "changed?" (cv_star: its '*' and Reset guide from our curves)
+    RG_IT = 5378
+    for base, n in ((0x61536a2c, 32), (0x61536b2c, 32), (0x61536c2c, 32), (0x61536d2c, 32), (0x61536f2c, 32),
+                    (0x615510cc, 32), (sy['sw11_tab'], 32), (0x6155124c, 32), (sy['sw13_tab'], 32)):
+        hs = [(i, t) for i, (k, t) in enumerate(struct.unpack_from('<II', m, o(base) + 8 * i) for i in range(n)) if k == 5392]
+        if not hs:
+            continue
+        (hi, ht), = hs
+        if base == 0x615510cc:
+            assert ht == 0x611d04e5 and sy['HS_CASE'] == ht, hex(ht)
+            struct.pack_into('<I', m, o(base) + 8 * hi + 4, sy['cv_hs'])
+            sw_add(base, n, RG_IT, sy['cv_case'])
+        elif base == 0x6155124c:
+            sw_add(base, n, RG_IT, sy['lc_rg'])
+        elif base == sy['sw13_tab']:
+            assert ht == 0x611d1ab1 and sy['STAR_END'] == 0x611d1acb, hex(ht)
+            sw_add(base, n, RG_IT, sy['cv_star'])                       # the row's '*' and Reset guide: our curves
+        else:
+            sw_add(base, n, RG_IT, ht)
     assert sy['NR_IT'] == NR_IT if 'NR_IT' in sy else True
     # v0.23 Blacks / Whites icons: the left column's 5 slider-icon slots take ic_list (6 choices) instead of the stock
     # lists of 3 (layout records hold the list's start and end); the pictures from firmware/mkicons.py
@@ -729,6 +760,10 @@ def build(defaults, testfile, out):
         struct.pack_into('<II', m, o(vt) + 12 * i + 4, at, len(b))
         at = (at + len(b) + 15) & ~15
     vf_end = (at + 0xfff) & ~0xfff
+    # rgb-curves: the curve page's work area (editor's CV_WRK, uncached) right after, loaded too (GX4-proven space)
+    assert vf_end <= 0x60fa3000 and sy['CV_WRK'] == 0xa0fa3000, (hex(vf_end), hex(sy['CV_WRK']))
+    assert set(m[o(at):o(0x60fa3000 + 0x9000)]) <= {0xff}, 'the work area is not free in the firmware image'
+    vf_end = 0x60fa3000 + 0x9000
     assert vf_end <= 0x6103f000, hex(vf_end)
     struct.pack_into('<I', m, o(0x60045e9c), vf_end)
     print('BUILT IN: GUIDES, LABELS, TONES at 0x%x..0x%x, loader end word 0x%x' % (EXT12[1], at, vf_end))

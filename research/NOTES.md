@@ -4386,3 +4386,46 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   VERSION "v0.29.5 (per-mode settings, tested)" (same length as p2's; byte diff: only the name, the code-block tag, the
   built-in GUIDES CRC). `releases/v0.29.5`: patch.json (175 runs, 342,144 bytes), extras as v0.29.4. `patch.py` makes
   01ea3d14….
+
+## Per-film R / G / B tone curves: build (2026-11-15; feature/rgb-curves, emulator only)
+Owner: build mockup B (curves edited on the camera); no LookLab, no LOOKS.BIN / photo-code change until the camera build
+is finished. Branch `feature/rgb-curves` from v0.29.5. Code `firmware/src/rgbcurves.inc` (comments are the spec),
+pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
+- **Engine (emulator, bit-exact):** 3 x 6 points (input 0 / 10 / 25 / 50 / 75 / 100 % of the tables' 12-bit output),
+  offsets -7..+7 of 48 (1.2 %); D(t) monotone-preserving cubic (Hermite, harmonic-mean tangents), added in `st_run`'s
+  pass with split toning's delta, then its clamp and running max; per channel only when it has a point set. om-emu
+  ncall of st_run on a fake COLOR job: curves only, curves + split toning (red Shadows / cyan Highlights / Balance +2)
+  match the model on all 960 entries; split toning alone is byte-identical to v0.29.5; registers, MDR and sp kept.
+  Live view: same gates as split toning (key 11 / 12, `ST_STILL 0`). ~50k instructions a pass per two curved channels.
+- **Storage (emulator):** record 'OM3R' at M + 0x3B100 (docs/FORMATS.md), RAM image `cv_ram`. The curves follow the
+  slot: `cv_rec` at `pf_put1` / `ss_slot` (an EDITS record -> its saved curves, anything else -> flat), `cv_cap` after
+  fl_sw's `pf_capto`, `cv_sput` / `cv_sget` / `cv_sed` in ss_put / ss_get / ss_ed, `cv_zk` in e_rst. Written with the
+  films block (`ub_wr`, its new generation) and with the sets (`ss_wr`), in their locked sections. Read at the first
+  half-press (`ub_pfl`; nothing at start-up), only with the block it was written with. om-emu: film switch keeps each
+  film's curves; power-off / on keeps them (flat until the first half-press); after v0.29.5 saved the block they read
+  flat; a custom mode change carries them as it carries the slot's other rows.
+- **Page (emulator):** row RG_IT 5378 under H&S = the H&S row in the column's switches, except: update case `cv_case`
+  (marks the page on; `cv_hs` for H&S, `cv_pu` / `cv_gx` off), left cell `lc_rg` ("RGB"), the row's "changed?" `cv_star`
+  (its '*' and the Reset guide from the curves). While on: the page's own reads of 976 + 3k (Hi) / 977 (Mid) / 978 (Sh)
+  are ours by return address (`cv_get` / `cv_dflt`: Sh = the selected point's offset, Hi = the point 1..6, Mid 0;
+  2191 reads 886), writes of them and of 2191 keep the camera's values (`cv_sv`: the manager gets them back, which
+  redraws the page). Events (`cv_ev`): front dial 0x9031 = point, rear 0x9032 = offset, INFO 0x9014 = next colour, then
+  passed on as they came; the camera only gives INFO and the held-OK reset to the row's panel for items 5397 / 5398
+  (0x611c29c2 / 0x611c296f), so two hooks add RG_IT (`cv_inf`, `cv_rsi`); the reset's first write makes the curves flat
+  (`cv_rst`). Dead ends: passing a fake dial event (the camera reads the dial driver, ignored until a real turn) and
+  consuming the event (page stale, then Picture Mode closed). Pictures (`cv_ic`): halves 4147..4176 clear, middle
+  curves 4177..4206 our 300 x 300 type-11 picture drawn at run time (`cv_draw`, into a 36 KB work area after the
+  built-in files: loader end word 0x60fa3000 -> 0x60fac000, GX4-proven space, checked FF in the image), labels
+  4208 -> R / G / B, 4207 -> "Pt", 4331 clear, guides 16247 / 16248 -> "Color [INFO]". The film's '*' counts curves
+  (`fl_live`, `fl_fch`).
+- **Palettes (om-emu):** the curve layer (palette 0x614a5fe0, read when Picture Mode opens) is a 32-entry OSD plane
+  (indices >= 32 not drawn) with orange / green / white / greys only; entries 27..31 fill whole screens (a test
+  build with them magenta turned almost every screen magenta), so no palette change: red = orange 4 / 6, blue = white
+  14 / grey 15. The header labels use another palette (red 122, green 40, blue 105), the left column a third (105 shows
+  yellow-green there; 125 is blue).
+- **Regression (om-emu, pixel-identical to v0.29.5):** the H&S row (dials, INFO, held-OK reset), the HSL wheel (INFO
+  pages, an edit, held-OK reset), the Blacks / Whites and WB grid rows and the WB fine-tune screen.
+- **Test build 1:** VERSION "v0.30-dev (RGB curves, test 1)", E1479999.BIN 00edb50f…46db (rebuilds byte for byte).
+  ext11 54,224 / 65,536, ext12 258,432 / 262,144. Package (private) `test-builds/2026-11-15-rgb-curves-1`.
+  Open for the owner: dial directions, step size, the page's colours.
+
