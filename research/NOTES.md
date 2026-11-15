@@ -4565,3 +4565,31 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   blotchy orange / green patches, as predicted for this strongest kind of mix. No freeze (39 events, saves fine).
   Video not tested (owner): list it again next time. Camera-tested: the hook, its gates, live view.
 
+### Colour mix: the Mix row, mix test 1 (2026-11-15; emulator only)
+- Owner's page choice (after mockups A / B "very confusing", D by name, an explainer of C): **C, the circle**: hue and
+  strength of red, green and blue, as the camera's Color Creator (front dial hue, rear dial strength; INFO the colour).
+  Owner's question on HSL (answered, analysis from the code): the mix runs before the gamma stage, HSL (the COLOR
+  stage) after it, so HSL acts on the mixed colours; its values do not change.
+- **Engine (mx_go):** the six stored values are now h, s per colour (slot + 18: h R, s R, h G, s G, h B, s B; m1's
+  off-diagonal reading and the probe are gone). Column j: M[next][j] = 8 (h - s), M[prev][j] = 8 (-h - s), diagonals
+  256 - the row's others (research/colourmix/model.py). Hue + = toward the next colour (red -> yellow, green -> cyan,
+  blue -> purple), strength + = stronger. om-emu: the real call site with four settings = exactly the camera's
+  multiply + row scaling of model.py's matrix; no mix / before the first half-press / key 2000 / a filter / the other
+  caller = stock.
+- **Page:** row MX_IT 5377 under RGB (pm_list; it_tab 29; the 9 column switches as RG_IT: mx_case, lc_mx, mx_star,
+  else the H&S cases). The RGB page's code with cv_on = 2: cv_val -> mx_val (Hi = hue, Sh = strength), cv_ev -> mx_ev
+  (front + hue, rear - strength, -7..+7, as the RGB page's offset), cv_ic labels "Sat" / "Hue" in the chosen colour,
+  cv_dflt's Reset guide from the mix, resets through cv_zx (the Mix page clears only the mix, the RGB page only the
+  curves; the wheel's whole-profile reset e_rst both), cv_kset / cv_jset count the mix as a change of the film ('*').
+  The picture (cv_draw -> mx_pre / mx_line): a ring (r 90), its centre, marks where the colours start, spokes, the
+  dots at angle start + 5 deg x hue, radius 90 + 4 x strength; the chosen one r 13 in its bright colour on a white
+  r 16, the others r 8 dim. INFO's colour is shared with the RGB page.
+- Found in om-emu before packaging: the page's row routine was first named mx_row, the camera's row scaling's name
+  in editor.ld, and the label won silently, so mx_go called the drawing code (output zeros). Renamed mx_line; build.py
+  now asserts the four camera addresses mx_go uses.
+- om-emu: the page (labels, dots, '*', Reset guide), dials (ncall of cv_ev: hue / strength step, stop at +-7, INFO
+  cycles), hold OK on Mix (mix off, curves kept), on RGB (curves off, mix kept), on the wheel (both off); save + power
+  cycle keeps the mix, read at the first half-press. 14 screens vs test 4: the same except the new row in the list
+  (and the steps after it). Save interrupts-off 10,062. Pictures moved to ext11 (ext12 was nearly full): ext11
+  64,992 / 65,536, ext12 256,160 / 262,144. The camera's grid cross stays behind the circle (its own picture).
+

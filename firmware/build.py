@@ -234,6 +234,7 @@ def build(defaults, testfile, out):
     for i, (name, w, h, st) in enumerate(rp):
         rg += [' .balign 4', f'cvp_s{i}:', db(st).rstrip('\n')]
     (out / 'rgbpics.inc').write_text('\n'.join(rg) + '\n')
+    (out / 'mixtab.inc').write_text('\n'.join(rgbpics.mixtables()) + '\n')   # colour mix: the Mix page's tables
     (out / 'films.inc').write_text('.balign 4\nfl_top:\n' + db(mkicons.pack4(mkicons.film_top())) + 'fl_tops:\n' +
                                    db(mkicons.pack4(mkicons.film_top(True))) + 'fl_dig:\n' +
                                    ''.join(db(mkicons.pack4(d)) for d in digs) +
@@ -363,7 +364,7 @@ def build(defaults, testfile, out):
     for a, c in ((0x611d040d, 0x611d0422), (0x611d0846, 0x611d0859)):
         assert bytes(m[o(a):o(a) + 6]) == b'\xfc\xdc' + struct.pack('<I', IT) and bytes(m[o(c):o(c) + 2]) == b'\xa5\x11', hex(a)
         struct.pack_into('<I', m, o(a) + 2, sy['it_tab'])
-        m[o(c) + 1] = 28                         # v0.25: + Glow / Clarity, Frame; v0.28 + Halation, Tone Balance; rgb-curves + RG_IT
+        m[o(c) + 1] = 29                         # v0.25: + Glow / Clarity, Frame; v0.28 + Halation, Tone Balance; rgb-curves + RG_IT; + MX_IT
     # v0.24 film list: item 111's option lists (title / left column / strip, 48 x 12 B) -> fl_l0..2 (the stock 48, then
     # the films, written by editor.s), and setting 901's value table entry (COLOR 1-4) -> fl_rec, 4 + 20 records
     e = struct.unpack_from('<10I', m, o(sy['it_tab']))
@@ -435,7 +436,9 @@ def build(defaults, testfile, out):
     # rgb-curves: the RGB row = the H&S row (item 5398, key 5392) in every switch that has it, except the column update's
     # case (cv_case marks our page; H&S's own case -> cv_hs), the left cell (lc_rg, our "RGB" cell) and the row's
     # "changed?" (cv_star: its '*' and Reset guide from our curves)
-    RG_IT = 5378
+    RG_IT, MX_IT = 5378, 5377
+    # colour mix: the camera functions mx_go calls, by name (a label of ours with the same name would win silently)
+    assert (sy['mx_mul'], sy['mx_row'], sy['MX_BACK'], sy['MX_RET']) == (0x60514290, 0x605144ef, 0x6051485f, 0x605196fb)
     for base, n in ((0x61536a2c, 32), (0x61536b2c, 32), (0x61536c2c, 32), (0x61536d2c, 32), (0x61536f2c, 32),
                     (0x615510cc, 32), (sy['sw11_tab'], 32), (0x6155124c, 32), (sy['sw13_tab'], 32)):
         hs = [(i, t) for i, (k, t) in enumerate(struct.unpack_from('<II', m, o(base) + 8 * i) for i in range(n)) if k == 5392]
@@ -446,13 +449,17 @@ def build(defaults, testfile, out):
             assert ht == 0x611d04e5 and sy['HS_CASE'] == ht, hex(ht)
             struct.pack_into('<I', m, o(base) + 8 * hi + 4, sy['cv_hs'])
             sw_add(base, n, RG_IT, sy['cv_case'])
+            sw_add(base, n, MX_IT, sy['mx_case'])                       # colour mix: the Mix row the same way
         elif base == 0x6155124c:
             sw_add(base, n, RG_IT, sy['lc_rg'])
+            sw_add(base, n, MX_IT, sy['lc_mx'])
         elif base == sy['sw13_tab']:
             assert ht == 0x611d1ab1 and sy['STAR_END'] == 0x611d1acb, hex(ht)
             sw_add(base, n, RG_IT, sy['cv_star'])                       # the row's '*' and Reset guide: our curves
+            sw_add(base, n, MX_IT, sy['mx_star'])                       # ... and our mix
         else:
             sw_add(base, n, RG_IT, ht)
+            sw_add(base, n, MX_IT, ht)
     # rgb-curves test 2 (owner: "the line isn't blue"): the Picture Mode curve layer's palette (record 0x614a63e0 ->
     # 0x614a5fe0, read when Picture Mode opens; a 32-colour OSD plane) has no blue. Its fillers 27..31 are 0x01010101;
     # 31 fills whole screens, 27..30 changed nothing on 29 screens (om-emu, each made magenta). 29 / 30 -> blue (and

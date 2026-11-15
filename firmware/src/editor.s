@@ -1388,6 +1388,9 @@ e_rst:
  mov (12,sp),d0                   /* rgb-curves: COLOR k's curves flat too */
  add -2197,d0
  call cv_zk,[d2],8
+ mov (12,sp),d0                   /* colour mix: and its mix off */
+ add -2197,d0
+ call mx_zk,[d2],8
  mov 1,d0
  movbu d0,(DIRTY,a2)              /* saved to the card on the next half-press */
  cmp 0,d2
@@ -2685,7 +2688,7 @@ pm_list:                          /* item ids, in the order the owner reads them
                                    * the colour wheel), tone (Contrast, Highlight & Shadow, Blacks, Whites), white balance
                                    * (A-B, G-M), detail (Sharpness, Noise Filter = NR), lens (Vignette Correction =
                                    * VigFix, Shading), finish (Film Grain Effect = Grain) */
- .long 111, 5397, TB_IT, 8, 5398, RG_IT, BK_IT, AB_IT, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT, 5400   /* rgb-curves: RG_IT under H&S. v0.25: Shading back,
+ .long 111, 5397, TB_IT, 8, 5398, RG_IT, MX_IT, BK_IT, AB_IT, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT, 5400   /* rgb-curves: RG_IT under H&S. v0.25: Shading back,
                                     Glow / Clarity and Frame rows; AB_IT = the WB grid (no G-M row) */
 .set PM_N, (. - pm_list) / 4
 
@@ -2725,6 +2728,7 @@ pm_list:                          /* item ids, in the order the owner reads them
 .set HLB, 0x7ed0                  /* its bar ids + k (row 13; row 12 is WGB) */
 .set TB_IT, 5379                  /* v0.28 split-tone Balance slider row (class 13, slot +33, -5..+5) */
 .set RG_IT, 5378                  /* rgb-curves: the RGB curves row (the H&S row's cases; rgbcurves.inc) */
+.set MX_IT, 5377                  /* colour mix: the Mix row (the H&S row's cases too; colourmix.inc) */
 .set TBB, 0x7ee0                  /* its bar ids + k (row 14) */
 .set BWB, 0x7ef0                  /* v0.28 Blacks / Whites grid row (BK_IT): its one option's id + k (row 15, class 14) */
 .set IC_BWG, 0x7f70               /* v0.28 our 8 pictures for the camera's WB grid while it is the Blacks / Whites grid */
@@ -2837,6 +2841,7 @@ it_tab:                           /* the stock 17 item entries (filled by build.
  .long HL_IT, 0, 0, 0, hl_title, 0, 10 << 16, 0, 0, 0          /* v0.28: icon 10 = IC_HL */
  .long TB_IT, 0, 0, 0, tb_title, 0, 11 << 16, 0, 0, 0          /* v0.28: icon 11 = IC_TB */
  .long RG_IT, 0, 0, 0, 0x6154bd18, 0x1b, 0, 0, 0, 0             /* rgb-curves: as H&S's entry (item 5398) */
+ .long MX_IT, 0, 0, 0, 0x6154bd18, 0x1b, 0, 0, 0, 0             /* colour mix: the same */
 bk_title:
  .short 4, ST_BKS
  .long 0x6154b480

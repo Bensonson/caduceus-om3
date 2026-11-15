@@ -10,6 +10,8 @@ the curves themselves are drawn by the firmware at run time (cv_draw) on the cur
 - "Color [INFO]" guide (in place of "Mid [INFO]"), at most 160 px wide (checked in om-emu: the guide button is 180 px).
 - the row's left cell (100 x 76, as our other choice rows): "RGB", each letter in its colour.
 - a 2 x 2 clear picture (the camera's curve halves while our page shows).
+- colour mix (the Mix page, mockup C): "Sat" and "Hue" header labels in red, green, blue; the "Mix" row cell. And
+  mixtables(): the Mix page's circle tables (editor's colourmix.inc).
 usage: rgbpics.py [--preview PNG]     (build.py imports streams())"""
 import argparse, os, sys
 import numpy as np
@@ -60,11 +62,18 @@ def cell():
     return letters([('R', RED), ('G', GREEN), ('B', BLUE)], 100, 76, 26, 50, gap=2)
 
 
+def mixcell():
+    return letters([('Mix', WHITE)], 100, 76, 26, 50)
+
+
 def pictures():
     """(name, palette index array) in the order of the firmware's cv_pic table"""
     return [('blank', np.zeros((2, 2), dtype=np.uint8)),
             ('R', label([('R', RED)])), ('G', label([('G', GREEN)])), ('B', label([('B', BLUE)])),
-            ('Pt', label([('Pt', WHITE)])), ('guide', guide()), ('cell', cell())]
+            ('Pt', label([('Pt', WHITE)])), ('guide', guide()), ('cell', cell())] + \
+           [('Sat ' + n, label([('Sat', c)])) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
+           [('Hue ' + n, label([('Hue', c)])) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
+           [('Mix cell', mixcell())]
 
 
 def streams():
@@ -73,6 +82,31 @@ def streams():
         h, w = a.shape
         out.append((name, w, h, mkicons.encode11(bytes(a.flatten().tolist()), w, h)))   # no run past a row's end
     return out
+
+
+MX_ANG = (-90, 30, 150)      # the Mix page: red at the top; clockwise yellow, green, cyan, blue, purple (screen y down)
+MX_DEG = 5                    # degrees a hue step
+MXR = 90                      # the ring's radius (editor's MXR); centre 150, 150
+
+
+def mixtables():
+    import math
+    ux = [round(1024 * math.cos(math.radians(MX_ANG[j] + MX_DEG * h))) for j in range(3) for h in range(-7, 8)]
+    uy = [round(1024 * math.sin(math.radians(MX_ANG[j] + MX_DEG * h))) for j in range(3) for h in range(-7, 8)]
+    ro, ri = [], []
+    for dy in range(MXR + 3):
+        o = (MXR + 1.5) ** 2 - dy * dy
+        ro.append(int(math.floor(math.sqrt(o))) if o > 0 else 0)
+        i = (MXR - 1.5) ** 2 - dy * dy
+        ri.append(max(1, int(math.ceil(math.sqrt(i)))) if i > 0 else 0)
+    tk = []
+    for j in range(3):
+        c, sn = math.cos(math.radians(MX_ANG[j])), math.sin(math.radians(MX_ANG[j]))
+        tk += [round(150 + (MXR - 9) * c), round(150 + (MXR - 9) * sn), round(150 + (MXR + 9) * c), round(150 + (MXR + 9) * sn)]
+    assert max(ro) < 256 and len(ux) == 45
+    return [' .balign 4', 'mx_ux:', ' .short ' + ', '.join(map(str, ux)), 'mx_uy:', ' .short ' + ', '.join(map(str, uy)),
+            ' .balign 4', 'mx_tk:', ' .long ' + ', '.join(map(str, tk)),
+            'mx_ro:', ' .byte ' + ', '.join(map(str, ro)), 'mx_ri:', ' .byte ' + ', '.join(map(str, ri)), ' .balign 4']
 
 
 if __name__ == '__main__':

@@ -372,8 +372,8 @@ cv_zk:
  bne 1b
  ret [d2],8
 
-/* cv_kset: `call cv_kset,[d2,d3,a2,a3],20`, d2 = k -> d0 1 when COLOR k has a curve point set (fl_live: the film's
- * '*'). cv_jset: the same for EDITS record d0's saved curves (fl_fch). Use d0, d1, a0, MDR. */
+/* cv_kset: `call cv_kset,[d2,d3,a2,a3],20`, d2 = k -> d0 1 when COLOR k has a curve point or a colour mix set
+ * (fl_live: the film's '*'). cv_jset: the same for EDITS record d0's saved ones (fl_fch). Use d0, d1, a0, MDR. */
 cv_kset:
  mov d2,d0
  call cv_lk,[],0
@@ -384,7 +384,7 @@ cv_jset:
  mov cv_ram + CV_ED,a0
  add d0,a0
 1:
- mov 18,d1
+ mov 24,d1                        /* the 18 curve values, then the 6 of the colour mix */
 2:
  movbu (a0),d0
  cmp 0,d0
@@ -651,8 +651,9 @@ cv_v0:
  .set HS_DMD, 0x61288245
  .set HS_DIAL, 0x611b43ad         /* the dial handler's read before its write */
  .set CVI0, 0x7f60                /* our picture ids (cv_ent order, rgbpics.py; 0x7f60.. is free) */
- .set CVI_N, 7
+ .set CVI_N, 14                   /* + colour mix: "Sat" R / G / B, "Hue" R / G / B, the "Mix" cell */
  .set CVI_CELL, CVI0 + 6
+ .set CVI_MXC, CVI0 + 13
  .set CV_WRK, 0xa0fa3000          /* the drawing's work area (uncached), after the built-in files; build.py loads it */
  .set CW_LO, 0                    /* u16 lo[3][300], hi[3][300]: each curve's rows at each column */
  .set CW_HI, 1800
@@ -686,6 +687,8 @@ cv_pu:
  mov (4,sp),a0
  movhu (a0),d0
  cmp RG_IT,d0
+ beq 1f
+ cmp MX_IT,d0                     /* colour mix: its page too (cv_on 2) */
  beq 1f
  mov 0,a0
  mov a0,(cv_on)
@@ -734,6 +737,11 @@ cv_val:
  bra 1b
 2:
  mov d2,(cv_k)
+ mov (cv_on),d0                   /* colour mix: the Mix page's values */
+ cmp 2,d0
+ bne 21f
+ jmp mx_val
+21:
  cmp 0,d1
  bne 3f
  movbu (cv_p),d0                  /* Hi: the point 1..5 */
@@ -841,6 +849,12 @@ cv_dflt:
  mov (cv_k),d0
  call cv_lk,[],0
  mov 18,d1
+ mov (cv_on),d0                   /* colour mix: on the Mix page, its six values */
+ cmp 2,d0
+ bne 41f
+ add 18,a0
+ mov 6,d1
+41:
  clr d0
 4:
  movbu (a0),d3
@@ -886,7 +900,7 @@ cv_sv:
  mov d1,d3
  mov (cv_k),d0
  add -4,sp
- call cv_zk,[d2],8
+ call cv_zx,[d2],8                /* the open page's: curves or mix */
  call cv_dty,[d2,d3,a2,a3],20
  add 4,sp
  mov a3,d0
@@ -943,7 +957,7 @@ cv_ev:
  cmp 1,d2
  bne 21f
  mov (cv_k),d0
- call cv_zk,[d2],8
+ call cv_zx,[d2],8                /* the open page's: curves or mix */
  call cv_dty,[d2,d3,a2,a3],20
 21:
  clr d2
@@ -959,6 +973,11 @@ cv_ev:
  bgt 31f
  mov -1,d3
 31:
+ mov (cv_on),d2                   /* colour mix: the Mix page's dials */
+ cmp 2,d2
+ bne 311f
+ jmp mx_ev
+311:
  cmp 0x9031,d0                    /* front dial: the point */
  bne 4f
  movbu (cv_p),d2
@@ -1007,6 +1026,7 @@ cv_ev:
  movbu d3,(DIRTY,a2)              /* saved at the next half-press / on leaving Picture Mode */
  jmp 80f
 5:
+cv_ev5:
  cmp 0x9014,d0                    /* INFO: the next colour */
  bne 6f
  movbu (cv_c),d2
@@ -1028,6 +1048,7 @@ cv_ev:
  movbu d2,(cv_rst)                /* its first write makes COLOR k's curves flat (cv_sv), and it redraws the page */
  bra 90f
 80:
+cv_ev80:
  mov (cv_gen),d0                  /* changed: drawn again; the event goes on to the camera, whose writes cv_sv */
  inc d0                           /* refuses but which refreshes the page as for its own rows */
  mov d0,(cv_gen)
@@ -1089,6 +1110,8 @@ cv_inf:
  beq 1f
  cmp RG_IT,d2
  beq 1f
+ cmp MX_IT,d2
+ beq 1f
  jmp INF_NO
 1:
  jmp INF_GO
@@ -1103,6 +1126,8 @@ cv_rsi:
  cmp 5398,d2
  beq 1f
  cmp RG_IT,d2
+ beq 1f
+ cmp MX_IT,d2
  beq 1f
  cmp 111,d2
  bne 2f
@@ -1148,15 +1173,31 @@ cv_ic:
  beq 7f
  cmp 4208,d1
  bne 4f
- movbu (cv_c),d1                  /* "Sh" -> R / G / B */
+ movbu (cv_c),d1                  /* "Sh" -> R / G / B; colour mix: "Sat" R / G / B */
  inc d1
+ mov (cv_on),a0
+ cmp 2,a0
+ bne 31f
+ add 6,d1
+31:
  asl2 d1
+ mov cv_ent,a0
  add d1,a0
  retf [],0
 4:
  cmp 4207,d1
  bne 5f
- add 16,a0                        /* "Hi" -> "Pt" */
+ mov (cv_on),a0
+ cmp 2,a0
+ beq 41f
+ mov cv_ent + 16,a0               /* "Hi" -> "Pt" */
+ retf [],0
+41:
+ movbu (cv_c),d1                  /* colour mix: "Hue" R / G / B */
+ add 10,d1
+ asl2 d1
+ mov cv_ent,a0
+ add d1,a0
  retf [],0
 5:
  cmp 16247,d1
@@ -1200,6 +1241,14 @@ cv_pic:
  * (76) flat, (80) r, (84) dy, (88) point i. */
  .set CV_PX0, 0
 cv_draw:
+ mov (cv_on),d0                   /* colour mix: the Mix page's picture (mx_pre, mx_line) */
+ cmp 2,d0
+ bne cvd_rgb
+ call mx_pre,[d2,d3,a2,a3],20
+ movbu (cv_c),d0
+ mov d0,(8,sp)
+ jmp cvd_st
+cvd_rgb:
  mov (cv_k),d0
  cmp 4,d0
  bcs 1f
@@ -1366,6 +1415,7 @@ cv_draw:
  inc d2
  cmp 5,d2
  bcs 20b
+cvd_st:
  mov CV_WRK + CW_ST,a0            /* 3. the stream: its header, then row by row */
  mov 0x0b12b12b,d0                /* 300 x 300, type 11 */
  mov d0,(a0)
@@ -1390,6 +1440,13 @@ cv_draw:
  add 4,a0
  add -1,d1
  bne 32b
+ mov (cv_on),d0                   /* colour mix: its row instead */
+ cmp 2,d0
+ bne cvd_crv
+ mov (16,sp),d0
+ call mx_line,[d2,d3,a2,a3],20
+ jmp cvd_enc
+cvd_crv:
  mov CV_WRK + CW_ROW,a0           /* the diagonal */
  mov 299,d0
  mov (16,sp),d1
@@ -1528,6 +1585,7 @@ cv_draw:
  mov d0,(88,sp)
  cmp 5,d0
  bcs 40b
+cvd_enc:
  mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
  clr d3
 50:
@@ -1674,5 +1732,6 @@ cv_okd:
  .byte 0
 cv_rst:
  .byte 0
+.section .ext11,"ax"                /* colour mix: the pictures moved here (ext12 is nearly full) */
  .balign 4
  .include "rgbpics.inc"
