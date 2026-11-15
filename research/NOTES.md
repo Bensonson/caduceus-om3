@@ -4592,4 +4592,8 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   cycle keeps the mix, read at the first half-press. 14 screens vs test 4: the same except the new row in the list
   (and the steps after it). Save interrupts-off 10,062. Pictures moved to ext11 (ext12 was nearly full): ext11
   64,992 / 65,536, ext12 256,160 / 262,144. The camera's grid cross stays behind the circle (its own picture).
+- **Mix test 1 camera (owner, 2026-11-15): "ok it works well, but a some tweaks".** No freeze (48 events, 6 films-block
+  writes fine). Tweaks: (1) "the words sat and hue get cut off"; (2) "the dial symbols don't line up with what is
+  changing". One ISO 6400 photo with a mix and one video clip were taken (owner's PB152714 / PB152715.MOV, not kept);
+  no comment on them yet. Camera-tested: the Mix row, its page, the mix in photos and live view.
 
