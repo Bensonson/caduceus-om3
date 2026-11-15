@@ -246,7 +246,7 @@ def build(defaults, testfile, out):
                                    f'.set LVDB, {lvboxes[0].shape[1]}\n.set LV_GAP, {mkicons.LV_GAP}\n.set LV_DGAP, {mkicons.LV_DGAP}\n' +
                                    'fl_lvst:\n' + db(mkicons.pack4(lvst[0])) + f'.set LVSTB, {lvst[0].shape[1]}\n'
                                    f'.set LVSTI, {lvst[1]}\n.set LV_SGAP, {mkicons.LV_SGAP}\n .balign 2\n')
-    subprocess.run([P.AS, '-I', out, '-o', out / 'p.o', HERE / 'src' / 'editor.s'], check=True)
+    subprocess.run([P.AS, '-I', out, '-I', HERE / 'src', '-o', out / 'p.o', HERE / 'src' / 'editor.s'], check=True)
     subprocess.run([P.LD, '-T', HERE / 'src' / 'editor.ld', '-o', out / 'p.elf', out / 'p.o'], check=True)
     blobs = {}
     for s in list(HOOKS) + ['.ext1', '.ext4', '.ext10', '.ext6', '.ext5', '.ext3', '.ext8', '.ext9', '.ext2', '.ext7', '.ext11', '.ext12']:

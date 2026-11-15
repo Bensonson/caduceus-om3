@@ -1385,6 +1385,9 @@ e_rst:
  inc a0
  add -1,d1
  bne 2b
+ mov (12,sp),d0                   /* rgb-curves: COLOR k's curves flat too */
+ add -2197,d0
+ call cv_zk,[d2],8
  mov 1,d0
  movbu d0,(DIRTY,a2)              /* saved to the card on the next half-press */
  cmp 0,d2
@@ -2035,6 +2038,7 @@ pf_put:
  add d0,a3
 1:
 pf_put1:                          /* v0.24 (fl_sw): (4) a0, (8) a1, (12) k set, a3 = the record to load */
+ call cv_rec,[d2,d3,a2,a3],20     /* rgb-curves: the record's curves into COLOR k's */
  mov a3,(16,sp)
  mov d2,d0
  asl 6,d0
@@ -6713,6 +6717,7 @@ fl_sw:
  add d1,a3
  mov a3,(20,sp)
  call pf_capto,[d2,d3,a2,a3],28   /* keeps d2, d3, a2, a3 */
+ call cv_cap,[d2,d3,a2,a3],20     /* rgb-curves: COLOR k's curves kept with the record */
  mov (16,sp),d1
  cmp 20,d1
  bcs 41f
@@ -8111,11 +8116,13 @@ s_wl:
  * (key 11, or 12 with +1731 0, as tone); P valid; a strength set; R, G and B tables identical before (stock COLOR
  * copies one curve three times: a repeated pass never bends twice and art curves are left alone).
  * Frame: (0) getter return, (4..28) registers, (32..52) Ks R G B, Kh R G B, (56) segment, (60) running max, (64) d0,
- * (68) Ks, (72) Kh of the segment, v0.28 (76) c, (80) f1 = 2^27 / c, (84) f2 = 2047 << 16 / (4095 - c), (88) t.
- * Stores: own stack frame, O+1252..O+3171. */
+ * (68) Ks, (72) Kh of the segment, v0.28 (76) c, (80) f1 = 2^27 / c, (84) f2 = 2047 << 16 / (4095 - c), (88) t,
+ * rgb-curves (92) the segment channel's curve block or 0, (96) k, then the COLOR's curved channels (rgbcurves.inc:
+ * each entry also gets its channel's curve delta D(t); a COLOR with curves and no split toning runs with K = 0).
+ * Stores: own stack frame, O+1252..O+3171, cv_pb / cv_pp. */
 .section .ext11,"ax"
 st_run:
- add -92,sp
+ add -100,sp
  mov d0,(64,sp)
  mov d1,(4,sp)
  mov d2,(8,sp)
@@ -8168,7 +8175,11 @@ st_run:
  add -1,d2
  bne 12b
  cmp 0,d1
+ bne 13f
+ call cv_any,[d2],8               /* rgb-curves: or a curve point set on any COLOR */
+ cmp 0,d0
  beq s9
+13:
  mov a2,(52,sp)                   /* P (the Kh B slot is written later) */
  mov 63153,d0                     /* effective COLOR profile number */
  clr d1
@@ -8178,6 +8189,7 @@ st_run:
  add -1,d0
  cmp 4,d0
  bcc s9
+ mov d0,(96,sp)                   /* rgb-curves: k */
  mov d0,d2
  asl 6,d2
  add d2,a2                        /* a2 = P + 64k: the slot is at +32 */
@@ -8228,8 +8240,14 @@ st_run:
  add 12,a1
  cmp 91,d3                        /* then Highlights: slot +57 / +58 */
  bne 2b
+ mov d2,(56,sp)                   /* rgb-curves: COLOR k's curves (blocks, cv_pp), as a mask */
+ mov (96,sp),d0
+ call cv_set,[d2,d3,a2,a3],20
+ mov d0,(96,sp)
+ mov (56,sp),d2
+ or d0,d2
  cmp 0,d2
- beq s9                           /* both strengths 0 */
+ beq s9                           /* both strengths 0 and no curve */
  movbu (65,a2),d1                 /* v0.28 Tone Balance b (slot +33), -5..+5 */
  extb d1
  cmp -5,d1
@@ -8288,6 +8306,12 @@ st_run:
  mov d2,(68,sp)                   /* Ks */
  mov (44,a1),d2
  mov d2,(72,sp)                   /* Kh */
+ mov d1,d2                        /* rgb-curves: the channel's curve block or 0 */
+ asl2 d2
+ mov cv_pp,a0
+ add d2,a0
+ mov (a0),d2
+ mov d2,(92,sp)
  mov 640,d2
  mul d1,d2
  mov a3,a0
@@ -8337,6 +8361,13 @@ st_run:
  mul d1,d3                        /* Kh wh */
  add d3,d2
  asr 9,d2                         /* v0.28: half the v0.26 step */
+ mov (92,sp),d1                   /* rgb-curves: + the channel's curve delta D(t) */
+ cmp 0,d1
+ beq 83f
+ mov (88,sp),d0
+ call cv_d,[d2,d3,a2,a3],44       /* keeps d2, d3, a0..a3 */
+ add d0,d2
+83:
  mov (88,sp),d0                   /* t */
  add d2,d0
  bge 9f
@@ -8371,7 +8402,7 @@ s9:
  mov (16,sp),a1
  mov (20,sp),a2
  mov (24,sp),a3
- add 92,sp
+ add 100,sp
  mov d3,a0                        /* displaced 0x605197d7 */
  jmp tone_next                    /* 0x60518fa4; returns to 0x605197de */
 st_k:                             /* K per strength step, R G B, for the wheel's 12 colours (v0.26: 4.8 Cb/Cr units at
@@ -13031,6 +13062,7 @@ ub_pfl:                           /* `call ub_pfl,[d2,d3,a2,a3],28` from sd_load
  mov TW_LEN,d1
  call ub_cpy,[],0
 42:
+ call cv_load,[d2,d3,a2,a3],20    /* rgb-curves: the curves record, with this block only */
  movbu (ub_new),d0                /* new or first films: into the block now */
  cmp 0,d0
  beq 99f
@@ -13205,6 +13237,8 @@ ub_wr:                            /* ub_put's write, with ub_run held */
  call sd_crc,[d2,d3],12
  not d0
  mov d0,(ub_stg + 8)
+ mov (ub_stg + 12),d0             /* rgb-curves: the curves record goes with this block */
+ call cv_hdr,[d2,d3,a2,a3],20
  clr d0                           /* into M with dispatch held, only while the camera is not saving it */
  call LOCK,[d2],8
  mov d0,d3
@@ -13219,6 +13253,7 @@ ub_wr:                            /* ub_put's write, with ub_run held */
  mov ub_stg,a1
  mov UB_LEN,d1
  call ub_cpy,[],0
+ call cv_put,[d2],8
  mov 1,d0
  movbu d0,(UB_DIRTY)              /* M changed: the camera saves it at the next return to shooting or power-off */
  mov d3,d0
@@ -14640,6 +14675,7 @@ rc_rec:
 /* ss_slot: `call ss_slot,[d2,d3,a2,a3],20`, a2 = P, d2 = k, a3 = a record (0 = neutral): COLOR k's slot <- the record,
  * as pf_put1 fills it, without the camera's 18 settings (no settings-manager call). */
 ss_slot:
+ call cv_rec,[d2,d3,a2,a3],20     /* rgb-curves: the record's curves into COLOR k's */
  mov d2,d0
  asl 6,d0
  add 32,d0
@@ -14745,6 +14781,8 @@ ss_wr:
  call sd_crc,[d2,d3],12
  not d0
  mov d0,(ss_ram + 8)
+ mov (ub_gen),d0                  /* rgb-curves: the curves record (the sets' curves), with the block in M now */
+ call cv_hdr,[d2,d3,a2,a3],20
  clr d0
  call LOCK,[d2],8
  mov d0,d3
@@ -14759,6 +14797,7 @@ ss_wr:
  mov ss_ram,a1
  mov SS_LEN,d1
  call ub_cpy,[],0
+ call cv_put,[d2],8
  mov 1,d0
  movbu d0,(UB_DIRTY)              /* M changed: the camera saves it at the next return to shooting or power-off */
  clr d0
@@ -14894,6 +14933,8 @@ ss_put:
  mov TW_LEN,d1
  call ss_cc,[d2],8
 4:
+ mov (4,sp),d0                    /* rgb-curves: the set's curves */
+ call cv_sput,[d2,d3,a2,a3],20
  mov (8,sp),d0
  cmp 0,d0
  beq 5f
@@ -14987,6 +15028,8 @@ ss_get:
  add d0,a0
  mov 64,d1
  call ub_cpy,[],0
+ mov (4,sp),d0                    /* rgb-curves: and its curves */
+ call cv_sget,[d2,d3,a2,a3],20
  mov 1,d0
  asl d2,d0
  or d0,d3
@@ -15289,6 +15332,8 @@ ss_ed:
  add TWO,a0
  mov TW_LEN,d1
  call ub_cpy,[],0
+ mov d2,d0                        /* rgb-curves: and their curves */
+ call cv_sed,[d2,d3,a2,a3],20
  mov a3,a0
  add TWO,a0
  mov 1,d0
@@ -15614,3 +15659,5 @@ vf_get:
  mov d0,(a1)
  clr d0
  rets
+
+ .include "rgbcurves.inc"           /* rgb-curves: engine, storage */
