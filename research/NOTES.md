@@ -4386,3 +4386,16 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   VERSION "v0.29.5 (per-mode settings, tested)" (same length as p2's; byte diff: only the name, the code-block tag, the
   built-in GUIDES CRC). `releases/v0.29.5`: patch.json (175 runs, 342,144 bytes), extras as v0.29.4. `patch.py` makes
   01ea3d14….
+
+## LookLab: RGB curves (2026-11-15; feature/looklab-rgb-curves; browser-checked, not live)
+- Owner: RGB curves are camera-tested (feature/rgb-curves test 4), colour mix is coming: update LookLab, as a private
+  test page (claude.ai artifact) first.
+- `webapp/src/curves.ts`: the camera's curve maths (research/rgbcurves/model.py, test 4: 5 points at 0 / 25 / 50 / 75 /
+  100 %, step 48), bit for bit (vitest against the model's values). The preview adds it in split toning's pass
+  (`bendSplit`), then the clamp and running max, as st_run. Looks keep `rgb: {r, g, b}` (5 values each; absent = flat),
+  in saved lists and share links.
+- Editor: an "RGB curves" panel under Highlight & Shadow (as the camera's row): R / G / B, the three curves on the
+  camera-style grid, drag a point or use its slider; Reset.
+- Not in `LOOKS.BIN` or the photo code (the camera does not read curves from the card yet): the panel says to set the
+  same numbers on the camera's RGB row. Colour mix: not built in the firmware yet, nothing in LookLab.
+

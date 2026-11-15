@@ -18,6 +18,7 @@ import {
 } from './om3';
 import { namesBin } from './om3names';
 import { SPLIT_COLOURS, SPLIT_STEPS, fromSteps, toSteps, type Split } from './split';
+import { CHANNELS, CURVE_MAX, CURVE_STEP, curveDelta, flatCurves, hasCurves, type Channel } from './curves';
 import { CAMERA_FILMS, FILMS, FILM_GROUPS, filmLook, filmOf, type Film, type FilmGroup } from './om3films';
 import { parseLook } from './pack';
 import { cubeApply, fitLook, lightroomExtras, lightroomTransform, looksLikeLog, parseCube, parseLightroom, type RGB, type Transform } from './convert';
@@ -39,6 +40,7 @@ let libNotice = '';
 const S = {
   tab: 'sat' as Tab,
   sector: 0,            // the wheel's selected colour (the camera's front dial)
+  rgb: 'r' as Channel,  // the RGB curves' colour (the camera's INFO on the RGB row)
   image: 'frames',
   cut: 50,
 };
@@ -550,6 +552,105 @@ function tonePanel(l: Look, changed: () => void): HTMLElement {
     h('p', { class: 'help' }, 'Drag Sh, Mid and Hi on the curve up or down; double-click one to zero it. The curve shows the camera\'s normal → this look; its two ends follow Blacks / Whites (their own grid below).'));
 }
 
+/** RGB curves (the camera's RGB row under Highlight & Shadow; feature/rgb-curves, camera-tested 2026-11-15): a curve
+ *  each for red, green and blue with 5 points at 0 / 25 / 50 / 75 / 100 %, −7..+7 each (1.2 % of full scale a step).
+ *  On the camera INFO picks the colour, the front dial the point, the rear dial up / down. Here: R / G / B, then drag
+ *  a point up or down (or ↑ ↓; double-click = 0) or use its slider. Preview only: not in LOOKS.BIN yet. */
+const RGB_NAME: Record<Channel, string> = { r: 'Red', g: 'Green', b: 'Blue' };
+const RGB_PT: [string, string][] = [['Black', '0 %'], ['Shadows', '25 %'], ['Mid', '50 %'], ['Highlights', '75 %'], ['White', '100 %']];
+function rgbPanel(l: Look, changed: () => void): HTMLElement {
+  const S0 = 200, P = 8, W = S0 - 2 * P;
+  const X = (v: number) => P + v * W, Y = (v: number) => P + (1 - v) * W;
+  const ch = () => S.rgb;
+  const get = (c: Channel, i: number) => l.rgb?.[c][i] ?? 0;
+  const set = (c: Channel, i: number, v: number) => {
+    v = Math.max(-CURVE_MAX, Math.min(CURVE_MAX, v));
+    if (v === get(c, i)) return false;
+    (l.rgb ??= flatCurves())[c][i] = v;
+    if (!hasCurves(l)) delete l.rgb;
+    return true;
+  };
+  const svg = svgEl('svg', { viewBox: `0 0 ${S0} ${S0}`, width: S0, height: S0, class: 'tone-curve rgb-curve cam-screen', role: 'img', 'aria-label': 'RGB curves: stock input to look output, per colour' });
+  svg.append(svgEl('rect', { x: P, y: P, width: W, height: W, class: 'tc-frame' }));
+  for (const q of [0.25, 0.5, 0.75]) {          // the camera page's quarter lines (the points sit on them)
+    svg.append(svgEl('line', { x1: X(q), y1: Y(0), x2: X(q), y2: Y(1), class: 'tc-grid' }));
+    svg.append(svgEl('line', { x1: X(0), y1: Y(q), x2: X(1), y2: Y(q), class: 'tc-grid' }));
+  }
+  svg.append(svgEl('line', { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), class: 'tc-ident' }));
+  const paths = Object.fromEntries(CHANNELS.map((c) => [c, svgEl('path', { class: `rc-curve rc-${c}`, d: '' })])) as Record<Channel, SVGPathElement>;
+  CHANNELS.forEach((c) => svg.append(paths[c]));
+  const STEP = 9;   // px of drag per step
+  const knobs = RGB_PT.map(([name, at], i) => {
+    const g = svgEl('g', { class: 'tc-knob', tabindex: 0, role: 'slider', 'aria-valuemin': -CURVE_MAX, 'aria-valuemax': CURVE_MAX });
+    g.append(svgEl('circle', { r: 10, class: 'hit' }), svgEl('circle', { r: 4, class: 'pip' }));
+    let d: { id: number; y: number; v0: number } | null = null;
+    g.addEventListener('pointerdown', (e) => { if (e.button) return; d = { id: e.pointerId, y: e.clientY, v0: get(ch(), i) }; g.setPointerCapture(e.pointerId); e.preventDefault(); e.stopPropagation(); });
+    g.addEventListener('pointermove', (e) => {
+      if (!d || e.pointerId !== d.id) return;
+      const scale = svg.viewBox.baseVal.height / svg.getBoundingClientRect().height;
+      if (set(ch(), i, d.v0 + Math.round(((d.y - e.clientY) * scale) / STEP))) { draw(); changed(); }
+    });
+    const end = (e: PointerEvent) => { if (d && e.pointerId === d.id) { d = null; checkpoint(); } };
+    g.addEventListener('pointerup', end); g.addEventListener('pointercancel', end);
+    g.addEventListener('keydown', (e) => {
+      const key = (e as KeyboardEvent).key;
+      if (key !== 'ArrowUp' && key !== 'ArrowDown') return;
+      if (set(ch(), i, get(ch(), i) + (key === 'ArrowUp' ? 1 : -1))) { draw(); changed(); checkpoint(); }
+      e.preventDefault();
+    });
+    g.addEventListener('dblclick', () => { if (set(ch(), i, 0)) { draw(); changed(); checkpoint(); } });
+    g.setAttribute('aria-label', `${name} (${at}): drag up or down`);
+    svg.append(g);
+    return g;
+  });
+  const top = h('div', { class: 'tc-top' });
+  const chips = h('div', { class: 'seg rgb-ch', role: 'radiogroup', 'aria-label': 'Curve colour' });
+  const rowsBox = h('div', {});
+  // what the photo gets: t -> t + D(t), clamped, kept rising (as the camera's st_run)
+  const out = (c: Channel) => {
+    const D = curveDelta(l.rgb?.[c] ?? [0, 0, 0, 0, 0]), o: number[] = []; let mx = 0;
+    for (let i = 0; i <= 128; i++) { const t = (i / 128) * 4095; mx = Math.max(mx, Math.min(4095, Math.max(0, t + D(t)))); o.push(mx / 4095); }
+    return o;
+  };
+  const syncs: (() => void)[] = [];
+  function draw() {
+    for (const c of CHANNELS) {
+      const o = out(c);
+      paths[c].setAttribute('d', o.map((v, i) => `${i ? 'L' : 'M'}${X(i / 128).toFixed(1)},${Y(v).toFixed(1)}`).join(''));
+      paths[c].classList.toggle('sel', c === ch());
+    }
+    svg.append(paths[ch()], ...knobs);         // the chosen colour on top, its points over it
+    RGB_PT.forEach((_, i) => {
+      const v = get(ch(), i), t = i * 1024 - (i === 4 ? 1 : 0);
+      knobs[i].setAttribute('transform', `translate(${X(i / 4).toFixed(1)},${Y(Math.max(0, Math.min(4095, t + v * CURVE_STEP)) / 4095).toFixed(1)})`);
+      knobs[i].setAttribute('class', `tc-knob rc-k-${ch()}${v ? ' on' : ''}`);
+      knobs[i].setAttribute('aria-valuenow', String(v));
+    });
+    top.replaceChildren(h('span', { class: 'on' }, RGB_NAME[ch()]), ...RGB_PT.map((_, i) => h('span', { class: get(ch(), i) ? 'on' : '' }, get(ch(), i) ? signed(get(ch(), i)) : '±0')));
+    chips.replaceChildren(...CHANNELS.map((c) => h('button', {
+      role: 'radio', 'aria-checked': String(c === ch()), class: `rc-chip rc-${c}${c === ch() ? ' on' : ''}`, title: `${RGB_NAME[c]} curve${l.rgb && l.rgb[c].some((x) => x) ? ' (changed)' : ''}`,
+      onclick: () => { S.rgb = c; buildRows(); draw(); },
+    }, c.toUpperCase(), l.rgb && l.rgb[c].some((x) => x) ? '*' : '')));
+    syncs.forEach((f) => f());
+  }
+  function buildRows() {
+    syncs.length = 0;
+    rowsBox.replaceChildren(...RGB_PT.map(([name, at], i) => {
+      const { inp, out: o } = slider(-CURVE_MAX, CURVE_MAX, get(ch(), i), (v) => { if (set(ch(), i, v)) { draw(); changed(); } }, undefined, `${RGB_NAME[ch()]} ${name}`);
+      syncs.push(() => { inp.value = String(get(ch(), i)); o.textContent = signed(get(ch(), i)); });
+      return h('div', { class: 'crow', title: `Point ${i + 1} on the camera (front dial): the ${RGB_NAME[ch()].toLowerCase()} channel at ${at} of the brightness range` }, h('span', { class: 'cname' }, `${i + 1} · ${name}`), steps(inp), o);
+    }));
+  }
+  buildRows(); draw();
+  return h('div', { class: 'group cam' },
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'RGB curves'),
+      hasCurves(l) ? h('button', { class: 'link', onclick: () => { delete l.rgb; renderEditor(); changed(); } }, 'Reset') : null),
+    chips,
+    h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
+    h('p', { class: 'help' }, 'A curve each for red, green and blue: raise a colour\'s points to add it (in the shadows, mids or highlights), lower them to take it away. Drag a point up or down; double-click one to zero it.'),
+    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'RGB curves are not released yet and LookLab can\'t send them to the camera yet. Set the same numbers on the camera: Picture Mode › RGB (under Highlight & Shadow): INFO picks R / G / B, the front dial the point (1–5), the rear dial up / down.'));
+}
+
 /** Blacks / Whites (v0.28, as the camera's grid row): Blacks across (− left, + right), Whites up (+) and down (−),
  *  −7..+7 each. Black boxes and edges for Blacks, white ones for Whites, as on the camera. */
 function bwPanel(l: Look, changed: () => void): HTMLElement {
@@ -718,7 +819,7 @@ function splitPv(l: Look): Look {
   if (fw >= 28) return l;
   const c = (v: number) => Math.max(-5, Math.min(5, v));
   const r: Look = { ...l, tone: { ...l.tone, blacks: c(l.tone.blacks), whites: c(l.tone.whites) } };
-  delete r.halation; delete r.tone_balance; delete r.film_wb;
+  delete r.halation; delete r.tone_balance; delete r.film_wb; delete r.rgb;
   if (r.split) r.split = fw >= 25 ? { ...r.split, sh: Math.round(r.split.sh), hl: Math.round(r.split.hl) } : undefined;
   if (!r.split) delete r.split;
   return r;
@@ -1180,6 +1281,7 @@ function renderOm3Editor(l: Look) {
       })()),
     h('div', { class: 'group cam' }, crow('Contrast', OM3.contrast, () => l.advice.contrast ?? 0, (x) => { l.advice.contrast = x; }, 'The camera\'s Contrast for this look')),
     tonePanel(l, changed),
+    rgbPanel(l, changed),
     bwPanel(l, changed),
     wbPanel(l, changed),
     h('div', { class: 'group cam rows' },

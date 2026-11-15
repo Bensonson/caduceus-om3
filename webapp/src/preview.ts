@@ -199,7 +199,7 @@ export function renderLook(src: ImageData, dst: ImageData, look: Look, opt: Prev
     if (mono) R = G = B = mw[0] * R + mw[1] * G + mw[2] * B;
     img[q] = R; img[q + 1] = G; img[q + 2] = B;
   }
-  if (om3 && look.split) bendSplit(img, n, look.split, OM3_CAL.split, look.tone_balance ?? 0);   // OM-3 v0.26 split toning (the camera bends its gamma curves); v0.28 Tone Balance
+  if (om3 && (look.split || look.rgb)) bendSplit(img, n, look.split, OM3_CAL.split, look.tone_balance ?? 0, look.rgb);   // OM-3 v0.26 split toning (the camera bends its gamma curves); v0.28 Tone Balance; RGB curves
   // 5. bloom / halation (Soft Focus blend of a 160-px-wide blurred copy) or clarity (large-radius local contrast)
   const e = look.effect;                     // OM-3 v0.20: glow (no colour) and clarity too
   if (e && e.strength >= 1) {

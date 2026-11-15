@@ -390,6 +390,18 @@ dialog.modal:has(.replace-grid) { width: min(780px, calc(100vw - 32px)); }
 .bw-lab { font-size: 15px; font-weight: 700; } .bw-lab.bk { fill: #f4f2ec; } .bw-lab.wh { fill: #111; }
 .bw-limit { fill: none; stroke: rgba(241, 239, 233, .55); stroke-dasharray: 3 3; pointer-events: none; }
 .tc-knob.ro { cursor: default; pointer-events: none; }
+/* RGB curves (the camera's RGB row) */
+.rgb-ch { margin: 2px auto 6px; align-self: center; }
+.rgb-ch button { min-width: 44px; font-weight: 600; }
+.rgb-ch .rc-r { color: #e5484d; } .rgb-ch .rc-g { color: #30a46c; } .rgb-ch .rc-b { color: #3e8ef7; }
+.rgb-ch button.on { color: var(--accent-ink); }
+.rgb-ch button.on.rc-r { background: #e5484d; } .rgb-ch button.on.rc-g { background: #30a46c; } .rgb-ch button.on.rc-b { background: #3e8ef7; }
+.rgb-curve .rc-curve { fill: none; stroke-width: 1.2; opacity: .45; stroke-linejoin: round; }
+.rgb-curve .rc-curve.sel { stroke-width: 2.2; opacity: 1; }
+.rgb-curve .rc-r { stroke: #ff6b6b; } .rgb-curve .rc-g { stroke: #4cd18a; } .rgb-curve .rc-b { stroke: #5aa2ff; }
+.rgb-curve .tc-knob .pip { stroke-width: 1.8; }
+.rgb-curve .rc-k-r .pip { stroke: #ff6b6b; } .rgb-curve .rc-k-g .pip { stroke: #4cd18a; } .rgb-curve .rc-k-b .pip { stroke: #5aa2ff; }
+.rgb-curve .tc-knob.on.rc-k-r .pip { fill: #ff6b6b; } .rgb-curve .tc-knob.on.rc-k-g .pip { fill: #4cd18a; } .rgb-curve .tc-knob.on.rc-k-b .pip { fill: #5aa2ff; }
 /* v0.28 the film's WB mode */
 .wb-mode { display: grid; gap: 2px; margin-bottom: 6px; }
 .wb-mode .crow { grid-template-columns: 112px minmax(0, 1fr) 64px; }

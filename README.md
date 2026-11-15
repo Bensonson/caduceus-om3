@@ -1,3 +1,7 @@
+> **Branch `feature/looklab-rgb-curves` (work in progress, not released):** LookLab edits and previews the RGB curves of
+> `feature/rgb-curves` (R / G / B, 5 points, −7..+7, the camera's own maths). Preview only: the curves are not in
+> `LOOKS.BIN` yet, so they are set on the camera's RGB row. Details: `research/NOTES.md`, "LookLab: RGB curves".
+
 <h1 align="center">Caduceus for OM-3</h1>
 
 
