@@ -4524,4 +4524,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   show in live view only after the next half-press too (not checked on the camera). Every way to do it per dial step is
   new (a real change of a camera setting and back, re-writing the picture mode / film setting so the manager sends its
   picture-mode message, or calling the camera's set-up ourselves, as video-sharp v1 did). Waiting for the owner (cad).
+- **Owner's decision (2026-11-15, via cad): "Keep the half-press".** No test 5 and no live-refresh experiment. Test 4
+  (E1479999.BIN eab68387…, a5df321) is the line: the live view shows curve changes at the next half-press, as with our
+  other rows.
 
