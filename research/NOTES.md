@@ -3171,7 +3171,8 @@ Fork: github.com/fernandezk26/camera-stuff (Apache-2.0), branches `sdload/v0.26.
 - The readout can not show a plain "0": the six callers of the sign lookup (e.g. 0x611d1233) draw sign 1 as "+-%d"
   (char 130), 2 "+%d", 3 "-%d" (wide formats at 0x61551060..70) and nothing at all for any other sign (tried: sign 0 hid
   the number). So 0 reads "+-0", as on every camera slider. The small dot above the bar's middle is part of the stock
-  bar picture (the -5..+5 and -2..+2 bars both have it), not placed by the dot code: it stays.
+  bar picture (the -5..+5 and -2..+2 bars both have it), not placed by the dot code: it stays. (2026-11-14: it is
+  the bar block's child 15, and sl_dot now hides it on the 0..5 bar. See "Picture Mode display, stars and saving".)
 - om-emu (out-h6b, Halation slot +30 poked to 0 / 3 / 5): dot at the left end / 60 % / the right end, "-" grey at 0,
   "+" grey at 5, readout +-0 / +3 / +5; left column "Halo +3*". Package: E1479999.BIN 6fc8dae8…, GUIDES.BIN 4ad05bf9…
   (LABELS / TONES as h5). firmware/VERSION "v0.28-dev (halation h6)".
@@ -4233,3 +4234,66 @@ profiles are not included. Not affiliated with or endorsed by spektrafilm; its n
   **Released as v0.29.3** (owner): the PR's commits as they are, then the release commit; VERSION "v0.29.3 (Delete
   button, tested)" (same length as d1's; byte diff: only the name, the code-block tag, the built-in GUIDES CRC).
   `releases/v0.29.3`: patch.json (175 runs, 327,667 bytes), extras as v0.29.2. `patch.py` makes 1eeb8976….
+
+## Picture Mode display, stars and saving (2026-11-14, camera-tested)
+
+Branch `fix/picture-mode` (crombach), from v0.29.3: `fix/picture-mode-display`, then `fix/hsl-row-star` on top of it,
+then `fix/save-on-picture-mode-exit`. Owner rule for the stars (crombach): a row gets a '*' only when it differs from
+the default of its profile or film, and a change on one row never stars another row.
+
+### Display
+- A negative Whites showed "M" in the Blacks / Whites grid. `bwg_swap` adds header picture 10819, the camera's other
+  "M", so it shows "-".
+- `wb_draw` masks the second value (`and 255`) before it joins the redraw key. A negative G-M or Whites
+  sign-extended over A-B or Blacks, so the grids' left cell stayed stale after a change there.
+- Halation's center mark is hidden: it is the bar block's child 15 (block +8). On the 0..5 bar, `sl_dot` clears it
+  with `clr d0`, then `movbu d0,(8,a0)`.
+- Before the films load, a Blacks / Whites grid edit changed the camera's own WB shift. Owner's camera, c9, COLOR 1-4,
+  no half-press yet. v0.29.3 does the same. `gr_id` maps the camera's WB shift ids 1580..1605 to BKB / WHB + k, so
+  when `REAL` misses, `sl_set0` label 9 passed `gr_oid`, the WB shift id, to `tn_set` and on to `ed_set`. The WB grid
+  row has the same path through ABB / GMB. Label 9 now refuses classes 5..8 (Blacks, Whites, A-B, G-M). The other rows
+  use our own ids, which the camera ignores, or Sharpness's own per-COLOR id. Emulator: every row as before after the
+  half-press. Before it, v0.29.3 and c9 show the bug (WB A2 M2 after a Blacks / Whites edit) and c11 leaves WB at 0 / 0.
+  The emulator reaches Picture Mode with no half-press: `ok wait ok wait ok wait` (date screen, quick menu, Picture
+  Mode). Camera-tested 2026-11-14 (owner, c11): WB stays as it was. The grid's dot still moves while the screen is open,
+  and the edit is gone when the grid opens again.
+- Before the films load: `sl_gb` label 9 jumps to `vf_get`. When `sl_slot` misses, `vf_get` answers 1 (On) for
+  VFB + k and for VF_IT (5389, the left-column label), then falls through to `tn_get`. Sharpness stays on the camera's
+  range.
+- A changed film shows "FILM n*" in the shooting screen's picture-mode name, as a changed COLOR profile shows
+  "COLOR n*". `fl_pcp` picks layout `fl_LVL1` for `fl_LVL` when `fl_fch` says the film changed. `fl_LVL1` adds the
+  '*' picture `fl_lvst` (cap 18, its fill 8 rows above the cap line, gap -5). Camera-tested 2026-11-14 (build c9).
+
+### Stars
+- `ed_isd0` (the profile name's '*' and the Reset guide) and `ed_isdef` (the HSL row's '*') share one path. The flag
+  rides in d3 bit 8 (`asl 8,d1`, then `or d1,d3` before `stock_isdef`), because `stock_isdef` clobbers d1.
+- A profile changed only on Halation (+30) gets its '*' and the Reset guide.
+- Only `ed_isd0` counts the slot's +47..+54, +30 (Halation), +33 (Tone Balance) and the WB shift (+25 & 0x81 == 1,
+  then halfword +26). The HSL row keeps hue, light and the split toning strengths +56 / +58.
+- Grid rows: the WB row (WGB + k, 0x7ec0) reads the slot's +57 flags and +58 halfword. The Blacks / Whites row
+  (BWB + k, 0x7ef0) reads +79 / +80.
+- Films (`fl_isdef`): rows 12 and 15 compare two `fl_xr` pairs, packed into (8,sp) as pair1 | pair2 << 16, with
+  `and 0xff` after `lsr 8`. The range is 0x100.
+- Noise (+51: 0 Camera, 1 Std, 2 Low, 3 Off, 4 High): a reset profile or film holds 0. High then Std stored 1, so the
+  profile kept its '*' and the Reset guide while the row showed none. The setter now stores 0 when the choice equals
+  the camera's own Noise Filter (`nf_get`, key 0x9719). d0 / a0 / a1 are kept in `gr_sv` across the call, because
+  `s_dirty` reads them. Every film in v0.29.3's LOOKS.BIN holds 0 at +51.
+
+### Saving on leaving Picture Mode
+- `gx_map` calls `pm_save` (ext12) at `cmp 0x1804,d1`. `pm_save` takes DIRTY under LOCK, then calls `ub_put`. If
+  `ub_put` returns 0, DIRTY goes back to 1, so the next exit or half-press saves again.
+- `ub_put` guards `ub_wr` with the byte `ub_run` (test-and-set under LOCK), so the GUI task and the half-press task
+  never build `ub_stg` at once. A busy guard sets `ub_pend`.
+- om-emu: Halation +1, then MENU: `pm_save`, then `ub_wr`. A stock row such as Contrast calls `pm_save` but not
+  `ub_wr`, because the camera saves stock rows itself.
+
+### Tests
+- om-emu (branch build): each of the 14 rows stars only itself and the profile. Films 1-4 unchanged show no '*'.
+  Noise High then Std clears the '*' on COLOR 1 and on FILM 1.
+- Camera (crombach, test builds c1..c7 with these branches and PR #45): a reset, or an edit, then MENU, then power-off
+  keeps the change. Leaving by a half-press works. All rows star as the rule says. Noise back to Std clears the '*'
+  (c7, E1479999.BIN 17d9b9df…). Halation shows no dot, and Whites and the WB cell look right.
+- Open, kept as it is (crombach): before the first half-press, our rows (Vignette, Halation, Glow, Grain and the
+  others) show their defaults and do not store an edit, so they get no '*'. A later change is planned on its own
+  branch: gray out "-" / "+" by giving each of our bars min = max until the load. The emulator reaches Picture Mode
+  before the half-press with `ok wait ok wait ok wait` (see Display).

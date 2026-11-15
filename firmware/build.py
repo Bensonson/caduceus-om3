@@ -190,10 +190,12 @@ def build(defaults, testfile, out):
     assert ldigs[0].shape[0] == mkicons.LD == 32 and ldw % 2 == 0 and (mkicons.LCW, mkicons.LT) == (82, 30)
     lvw, lvwi, lvboxes, lvdw = mkicons.lv_parts()  # film test 9: the shooting screen's "FILM n" (fl_sp, layout fl_LVL)
     assert lvw.shape[0] == mkicons.LVH == 44 and lvboxes[0].shape[1] % 2 == 0 and mkicons.LVW == 96
-    lvmax = max(len(mkicons.encode11(bytes(mkicons.lv_film(n, (lvw, lvwi, lvboxes, lvdw)).flatten().tolist()), 96, 44))
-                for n in range(1, 21))
+    lvst = mkicons.lv_star()
+    lvmax = max(len(mkicons.encode11(bytes(mkicons.lv_film(n, (lvw, lvwi, lvboxes, lvdw), st).flatten().tolist()), 96, 44))
+                for n in range(1, 21) for st in (None, lvst))
     assert lvmax <= 2800, lvmax                   # LV_SLOT in editor.s
-    assert all(lvwi + mkicons.LV_GAP + lvdw[a] + mkicons.LV_DGAP + lvdw[c] <= 96 for a in range(10) for c in range(10))
+    assert all(lvwi + mkicons.LV_GAP + lvdw[a] + mkicons.LV_DGAP + lvdw[c] + mkicons.LV_SGAP + lvst[1] <= 96
+               for a in range(10) for c in range(10))
     lab, gd = mkicons.sat_pictures()             # film test 8: the wheel's Saturation page (gd_sel swaps them in)
     slab = mkicons.encode11(bytes(lab.flatten().tolist()), 70, 30)
     sgd = mkicons.encode11(bytes(gd.flatten().tolist()), 175, 50)
@@ -241,7 +243,9 @@ def build(defaults, testfile, out):
                                    'fl_llab:\n' + db(llab) + f'.set LLS, {len(llab)}\n .balign 4\n' +
                                    'fl_lvw:\n' + db(mkicons.pack4(lvw)) + 'fl_lvd:\n' + ''.join(db(mkicons.pack4(x)) for x in lvboxes) +
                                    'fl_lvdw:\n' + db(bytes(lvdw)) + f'.set LVWB, {lvw.shape[1]}\n.set LVWI, {lvwi}\n'
-                                   f'.set LVDB, {lvboxes[0].shape[1]}\n.set LV_GAP, {mkicons.LV_GAP}\n.set LV_DGAP, {mkicons.LV_DGAP}\n .balign 2\n')
+                                   f'.set LVDB, {lvboxes[0].shape[1]}\n.set LV_GAP, {mkicons.LV_GAP}\n.set LV_DGAP, {mkicons.LV_DGAP}\n' +
+                                   'fl_lvst:\n' + db(mkicons.pack4(lvst[0])) + f'.set LVSTB, {lvst[0].shape[1]}\n'
+                                   f'.set LVSTI, {lvst[1]}\n.set LV_SGAP, {mkicons.LV_SGAP}\n .balign 2\n')
     subprocess.run([P.AS, '-I', out, '-o', out / 'p.o', HERE / 'src' / 'editor.s'], check=True)
     subprocess.run([P.LD, '-T', HERE / 'src' / 'editor.ld', '-o', out / 'p.elf', out / 'p.o'], check=True)
     blobs = {}

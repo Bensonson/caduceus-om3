@@ -456,7 +456,7 @@ ed_default:
 d_miss:
  movm (sp),[d2,d3,a2]
 d_stock:
- jmp stock_default
+ jmp vf_def
 
 /* ed_set <- 0x60b8798b `call 0x60bb528f,[d2,d3,a2,a3],68` in the facade SetValue (mode 0): entered exactly like
  * the settings manager (d0 id, d1 value, a0 inner, a1 mode; d2/d3/a2/a3 saved by the call; return address at
@@ -1327,79 +1327,6 @@ gd_set:
  mov (GPTR,a2),a1
 1:
  jmp tg_sel                       /* v0.26: Shadows / Highlights -> their pictures in TONES.BIN (tg_sel) */
-gd_s11:
- cmp 0,a1
- beq 4f
- cmp 2,d0
- beq 2f
- cmp 1,d0
- beq 3f
- cmp 4,d0
- beq 6f
- cmp 3,d0
- bne 4f
- mov (24,a1),d1                   /* WB picture, if the file has one */
- cmp 0,d1
- bne 5f
-4:
- jmp gd_s0                        /* film test 11: Saturation -> our guide, else the camera's */
-2:
- mov (16,a1),d1
- mov d1,(12,a0)
- mov a1,d1
- add 32,d1
- mov d1,(16,a0)
- bra 9f
-3:
- mov (20,a1),d1
- mov d1,(12,a0)
- mov (16,a1),d1
- add 3,d1
- and -4,d1
- add 32,d1
- mov a1,d2
- add d2,d1
- mov d1,(16,a0)
- bra 9f
-5:
- mov d1,(12,a0)                   /* s3 */
- mov (16,a1),d1
- add 3,d1
- and -4,d1
- mov (20,a1),d2
- add 3,d2
- and -4,d2
- add d2,d1
- add 32,d1
- mov a1,d2
- add d2,d1
- mov d1,(16,a0)
-9:
- ret [d2,a2],8
-6:                                /* Glow picture (s4 at +28), if the file has one and an s3 */
- mov (28,a1),d1
- cmp 0,d1
- beq 4b
- mov (24,a1),d2
- cmp 0,d2
- beq 4b
- mov d1,(12,a0)                   /* s4 */
- mov (16,a1),d1
- add 3,d1
- and -4,d1
- add 3,d2
- and -4,d2
- add d2,d1                        /* align4(s1) + align4(s3) */
- mov (20,a1),d2
- add 3,d2
- and -4,d2
- add d2,d1                        /* + align4(s2) */
- add 32,d1
- mov a1,d2
- add d2,d1
- mov d1,(16,a0)
- bra 9b
-
 
 /* ed_event <- COLOR1-4 editor records +36 (stock 0x61225d52; the router's catch-all, which handles the held-OK
  * reset 0x903e). CALLS: d0 event, d1 arg, a0 parent. Reset with a loaded table: the stock reset runs with the page
@@ -1541,8 +1468,8 @@ ed_pmod:
 /* ed_isdef <- the nine calls of stock "is at default" 0x6129bad6 (call [d2,d3,a2],24; d0 id -> d0 1 default, 0 changed).
  * They drive the '*' after COLOR n / the look name and the "Reset [OK hold]" guide (v0.21: with a look selected,
  * ed_pmod asks the code block instead). Stock first; a COLOR1-4 sector
- * id that stock calls default is reported changed when its Hue or Light is non-zero, or when the profile's WB shift is
- * on and non-zero. Reads only. */
+ * id that stock calls default is reported changed when its Hue, Light or split toning is non-zero. Through ed_isd0
+ * (the profile's '*') also when any other setting in the slot is, WB shift included. Reads only. */
 ed_isd0:                          /* lk11: ed_pmod's entry ('*'): the Looks page is compared too */
  mov 1,d1
  bra 86f
@@ -1559,6 +1486,8 @@ ed_isdef:
 87:
  clr d0
  movbu d0,(AXIS,a2)
+ asl 8,d1                         /* the ed_isd0 flag into d3 bit 8: stock_isdef keeps d3, not d1 */
+ or d1,d3
  mov d2,d0
  call stock_isdef,[d2,d3,a2],24   /* keeps d2/d3/a2 */
  movbu d3,(AXIS,a2)               /* ... then the page back */
@@ -1567,7 +1496,7 @@ ed_isdef:
  exthu d2
  add -928,d2
  cmp 48,d2
- bcc 8f
+ bcc 70f
  mov a2,a0
  add 32,a0                        /* slot 0 entry */
 81:
@@ -1577,6 +1506,10 @@ ed_isdef:
  add 64,a0
  bra 81b
 82:
+ mov d3,d1
+ clr d3
+ btst 0x100,d1                    /* the HSL row's '*' (ed_isdef): its own settings only; the profile's (ed_isd0): all */
+ beq 84f
  movbu (47,a0),d3                 /* Blacks, Whites, Extras Glow/Clarity, Art Effect, NR, VigFix: any non-zero */
  mov (48,a0),d1                   /* +48..51 (slot entries are 4-aligned: P + 32 + 64k) */
  or d1,d3
@@ -1584,23 +1517,23 @@ ed_isdef:
  or d1,d3
  movbu (54,a0),d1                 /* +54 Sharp (v0.26: +55, a split toning colour, alone is no change) */
  or d1,d3
+ movbu (30,a0),d1                 /* v0.28 Halation */
+ or d1,d3
+ movbu (33,a0),d1                 /* v0.28 Tone Balance (its own row, so a change shows on the profile too) */
+ or d1,d3
+ movbu (25,a0),d1                 /* WB on (bit0 set, bit7 clear) and shifted: the WB row's, not the HSL row's */
+ and 0x81,d1
+ cmp 1,d1
+ bne 84f
+ movhu (26,a0),d1
+ or d1,d3
+84:
  movbu (56,a0),d1                 /* v0.26: the split toning strengths +56, +58 */
  or d1,d3
  movbu (58,a0),d1
  or d1,d3
  cmp 0,d3
  bne 7f
- movbu (25,a0),d3                 /* WB on: bit0 set, bit7 clear */
- and 0x81,d3
- cmp 1,d3
- bne 83f
- movbu (26,a0),d3
- cmp 0,d3
- bne 7f
- movbu (27,a0),d3
- cmp 0,d3
- bne 7f
-83:
  add d2,a0
  movbu (a0),d3                    /* hue */
  cmp 0,d3
@@ -1615,6 +1548,36 @@ ed_isdef:
  clr d0
 9:
  ret [d2,d3,a2],24
+70:                               /* the WB and Blacks / Whites grid rows (their one option reads 0): the slot's values */
+ add 928,d2
+ mov d2,d1
+ add -BWB,d1
+ cmp 4,d1
+ bcs 72f
+ mov d2,d1
+ add -WGB,d1
+ cmp 4,d1
+ bcc 8b
+ asl 6,d1
+ mov a2,a0
+ add d1,a0
+ movbu (57,a0),d3                 /* slot +25: WB on (bit0 set, bit7 clear), then +26 / +27 */
+ and 0x81,d3
+ cmp 1,d3
+ bne 8b
+ movhu (58,a0),d3
+ bra 73f
+72:
+ asl 6,d1
+ mov a2,a0
+ add d1,a0
+ movbu (79,a0),d3                 /* slot +47 Blacks, +48 Whites */
+ movbu (80,a0),d1
+ or d1,d3
+73:
+ cmp 0,d3
+ bne 7b
+ bra 8b
 85:                               /* no table: stock as is */
  mov d2,d0
  call stock_isdef,[d2,d3,a2],24
@@ -3546,11 +3509,14 @@ sl_gb:
  add 4,sp
  movm (sp),[d2,d3,a2,a3]
 9:
- jmp tn_get                       /* v0.26: the Shadows / Highlights wheel pages, else ed_get */
+ jmp vf_get                       /* Vignette Correction before the load, else tn_get (v0.26: the Shadows / Highlights
+                                   * wheel pages, else ed_get) */
 
 /* REAL miss: d0 = a bar id (904 / GRB / NRB / VFB + k) and P valid -> a3 = class 1..4, d2 = k, a2 = P.
+ * REAL miss, 0: the class alone, also before the table loads (count, index, selectable need no P). Class 1 still
+ * needs P: its bar 904 + k is the stock Sharpness, whose getter and setter stay the camera's (-2..+2) until then.
  * Uses d2, d3, a2, a3. */
- .macro REAL miss
+ .macro REAL miss, p=1
  mov 1,a3
  mov d0,d2
  exthu d2
@@ -3636,7 +3602,14 @@ sl_gb:
  cmp 4,d2
  bcc \miss
 90:
+ .if \p
  PVAL \miss
+ .else
+ cmp 1,a3
+ bne 91f
+ PVAL \miss
+91:
+ .endif
  .endm
 
 /* sl_cnt <- facade +28 word 0x60e57490 (d0 id, a0 -> d0 count); else pf_cnt. Sharp 8, Grain 4, NR 4, VigFix 2. */
@@ -3649,7 +3622,7 @@ sl_cnt:
  add 4,sp
  mov a3,d2
  mov d2,mdr
- REAL 8f
+ REAL 8f, 0
  mov 1,d0                         /* v0.25: 11 the WB grid row's one option; v0.28 14 Blacks / Whites */
  cmp 11,a3
  beq 6f
@@ -3746,7 +3719,7 @@ sl_vbi:
  add 4,sp
  mov a3,d2
  mov d2,mdr
- REAL 8f
+ REAL 8f, 0
  mov d1,d2                        /* the index (REAL keeps d1) */
  LOWCNT
  cmp d1,d2
@@ -3783,7 +3756,7 @@ sl_sel0:
  add 4,sp
  mov a3,d2
  mov d2,mdr
- REAL 8f
+ REAL 8f, 0
  mov d1,d2                        /* value */
  LOWCNT
  sub d0,d2                        /* index */
@@ -3939,13 +3912,30 @@ sl_set0:
  blt 7f
  cmp 1,d1
  bgt 7f
+ mov d0,(gr_sv)                   /* s_dirty reads d0, a0, a1: kept across nf_get as gr_now keeps them */
+ mov a0,(gr_sv + 8)
+ mov a1,(gr_sv + 12)
  mov d1,d3
+ mov 38681,d0                     /* key 0x9719, the stills Noise Filter (-2..+1) */
+ clr d1
+ mov 0,a0
+ call nf_get,[d2,d3],12
+ extb d0
+ cmp d3,d0                        /* the camera's own value -> 0 Camera, as after a reset, so no '*' */
+ beq 48f
  add 2,d3
  add nr_v2s,d3
  mov d3,a3
  movbu (a3),d3
+ bra 49f
+48:
+ clr d3
+49:
  mov d2,a3
  movbu d3,(83,a3)
+ mov (gr_sv),d0
+ mov (gr_sv + 8),a0
+ mov (gr_sv + 12),a1
  jmp s_dirty
 4:
  cmp 5,a3
@@ -3977,6 +3967,10 @@ sl_set0:
  clr d0
  ret [d2,d3,a2,a3],68
 9:
+ mov a3,d2                        /* the grids (Blacks, Whites, A-B, G-M) before the films load: refuse, as gr_oid is the */
+ add -5,d2                        /* camera's WB shift and ed_set would change the camera's own WB */
+ cmp 4,d2
+ bcs 7b
  mov (gr_oid),d0
  jmp tn_set                       /* v0.26: the Shadows / Highlights wheel pages, else ed_set */
 
@@ -4282,7 +4276,7 @@ ic_stk:
 bwg_swap:
  .short 10904, IC_BWG, 10327, IC_BWG + 1, 10325, IC_BWG + 2, 10324, IC_BWG + 3, 10328, IC_BWG + 4
  .short 10813, IC_BWG + 5, 10814, IC_BWG + 5, 10817, IC_BWG + 5, 10818, IC_BWG + 5
- .short 10815, IC_BWG + 6, 10816, IC_BWG + 6, 10820, IC_BWG + 6, 11240, IC_BWG + 7
+ .short 10815, IC_BWG + 6, 10816, IC_BWG + 6, 10819, IC_BWG + 6, 10820, IC_BWG + 6, 11240, IC_BWG + 7
  .long 0
 .section .ext12,"ax"
  .include "bwg.inc"
@@ -4578,7 +4572,9 @@ wb_draw:
 3:
  mov d2,d0
  asl 8,d0
- or d3,d0
+ mov d3,d1
+ and 255,d1                       /* a negative G-M / Whites must not hide A-B / Blacks */
+ or d1,d0
  exthu d0
  mov (24,a2),d1                   /* the values it was drawn for */
  cmp d1,d0
@@ -5025,6 +5021,13 @@ gx_map:
 5:
  cmp 0x1804,d1                    /* leaving Picture Mode (0x0418) */
  bne 9f
+ mov mdr,d2                       /* save the edits (pm_save); d2, d3 free here as for rc_go */
+ mov d0,d3
+ add -4,sp
+ call pm_save,[d2,d3,a2,a3],24
+ add 4,sp
+ mov d2,mdr
+ mov d3,d0
  movbu (gr_fine),d1
  cmp 0,d1
  bne 6f                           /* to the fine-tune screen from our row: keep the look */
@@ -5477,6 +5480,8 @@ sl_dot:
  mov (4,sp),d0
  cmp 5,d0
  bne 4f
+ clr d0                           /* no centre mark: 0 is the left end (block +8 shows it; the setup set it to 1) */
+ movbu d0,(8,a0)
  mov 124,d0
  mul d0,d1
  add -310,d1
@@ -7070,6 +7075,9 @@ fl_LS1:                           /* v0.28: the quick menu's changed film, "FILM
 fl_LVL:                           /* the shooting screen, 96 x 44 (film test 9) */
  .long 96, 44, 0x0b05f02b, fl_lvw, LVWB / 2, LVWI, fl_lvd, LVDB / 2, LVDB * 44 / 2, fl_lvdw, LV_GAP, LV_DGAP
  .long 0, 0, 0, 0
+fl_LVL1:                          /* the shooting screen's changed film, "FILM N*" */
+ .long 96, 44, 0x0b05f02b, fl_lvw, LVWB / 2, LVWI, fl_lvd, LVDB / 2, LVDB * 44 / 2, fl_lvdw, LV_GAP, LV_DGAP
+ .long fl_lvst, LVSTB / 2, LVSTI, LV_SGAP
 
 /* fl_scp <- ic_get (d0 / d1 = 15746..15753: the quick menu's "COLOR k" / "COLOR k*", k = 0..3) and fl_lvp <- ic_get
  * (15706..15709: the shooting screen's "COLOR1".."COLOR4", film test 9): when COLOR k holds a film that is there,
@@ -7150,14 +7158,20 @@ fl_pcp:
 3:
  inc d3
  mov (24,sp),d0                   /* v0.28: the quick menu's "FILM N*" when the film is changed (as the list's cell) */
+ mov fl_LS1,d1
  cmp fl_LS,d0
+ beq 40f
+ mov fl_LVL1,d1                   /* and the shooting screen's, as its "COLOR1*" */
+ cmp fl_LVL,d0
  bne 6f
+40:
+ mov d1,(4,sp)                    /* the starred layout (fl_fch keeps no d1) */
  mov (20,sp),d0
  call fl_fch,[d2,d3,a2,a3],28
  cmp 0,d0
  beq 6f
  or 0x100,d3                      /* the drawn key: N | star << 8 */
- mov fl_LS1,d0
+ mov (4,sp),d0
  mov d0,(24,sp)
 6:
  mov (32,sp),d0
@@ -7788,27 +7802,49 @@ fl_isdef:
  exthu d0
  add -GRB,d0
  blt 90f
- cmp 0xf0,d0                      /* v0.25: + GLB (row 10), FRB (row 11); v0.28 HLB (row 13), TBB (14); rows 7..9 (FLB films)
-                                     and 12 (WGB) are not ours */
+ cmp 0x100,d0                     /* v0.25: + GLB (row 10), FRB (row 11); v0.28 HLB (row 13), TBB (14); rows 7..9 (FLB films)
+                                     are not ours; 12 (WGB) and 15 (BWB) are the WB and Blacks / Whites grids */
  bcc 90f
  mov d0,d2
  and 15,d2                        /* k */
  cmp 4,d2
  bcc 90f
  lsr 4,d0                         /* the row */
- cmp 12,d0
- beq 90f
  cmp 7,d0
  bcs 6f
  cmp 10,d0
  bcs 90f
 6:
+ clr d1                           /* (8,sp): one {record, slot} pair, or two (the grids: A-B + G-M, Blacks + Whites) */
+ cmp 12,d0
+ bne 61f
+ mov 5,d0
+ mov 6,d1
+ bra 62f
+61:
+ cmp 15,d0
+ bne 63f
+ mov 3,d0
+ mov 4,d1
+62:
+ mov fl_xr,a0
+ add d1,a0
+ add d1,a0
+ movbu (1,a0),d1
+ asl 8,d1
+ movbu (a0),d3
+ or d3,d1
+ asl 16,d1
+63:
+ mov d1,(8,sp)
  mov fl_xr,a0
  add d0,a0
  add d0,a0
  movbu (1,a0),d1                  /* record offset | slot offset << 8 (bytes: the table is not aligned) */
  asl 8,d1
  movbu (a0),d0
+ or d1,d0
+ mov (8,sp),d1
  or d1,d0
  mov d0,(8,sp)
  call fl_film,[],0
@@ -7819,6 +7855,7 @@ fl_isdef:
  call fl_has,[],0
  cmp 0,d0
  beq 90f
+64:
  mov (LPTR,a2),a0
  mov d3,d1
  asl 6,d1
@@ -7835,10 +7872,16 @@ fl_isdef:
  add 32,a1
  mov (8,sp),d1
  lsr 8,d1
+ and 0xff,d1
  add d1,a1
  movbu (a1),d1                    /* now */
  cmp d1,d0
  bne 7b
+ mov (8,sp),d0                    /* the second pair, if any */
+ lsr 16,d0
+ mov d0,(8,sp)
+ cmp 0,d0
+ bne 64b
  jmp 8b
 90:
  mov (4,sp),d0
@@ -12760,8 +12803,9 @@ hl_open:
  * instead of BUNDLES / EDITS / LOOKS on the card. A write builds the block in ub_stg, then, with dispatch held (LOCK),
  * copies it into M (cached and uncached) and sets the changed byte 0xa32bfb32, only while the camera's save of M is not
  * running (its busy byte 0xa32a9904, set by 0x60063d73 before the checksum, cleared when the flash write is done);
- * else ub_pend and again at the next shutter event (ub_try). The camera saves M at the return to shooting after a menu
- * and at power-off (om-emu S-NVRAM + S-SHUTDOWN, 2026-11-13). We never write flash.
+ * else, or while the other task writes (ub_run), ub_pend and again at the next shutter event (ub_try). The camera
+ * saves M at the return to shooting after a menu and at power-off (om-emu S-NVRAM + S-SHUTDOWN, 2026-11-13). We
+ * never write flash.
  * Frames: a function that calls another keeps (0,sp) free for the call's return address (f2: ub_chk / ub_bun / ub_put
  * were 16 with four registers saved, so each call overwrote a saved register; harmless for their callers in f1). */
 .section .ext12,"ax"
@@ -12990,7 +13034,32 @@ ub_pfl:                           /* `call ub_pfl,[d2,d3,a2,a3],28` from sd_load
  ret [d2,d3,a2,a3],28
 
 ub_put:                           /* `call ub_put,[d2,d3,a2,a3],20`, a2 = P: films, edits and Extras now -> the block
-                                   * -> d0 1 written, 0 not (no films loaded; or the camera saving M: ub_pend) */
+                                   * -> d0 1 written, 0 not (no films loaded; or the camera saving M, or a write
+                                   * already running in another task: ub_pend). ed_trig (HLS_EVENT task) and pm_save
+                                   * (GUI task) both build the block in ub_stg, so one at a time (ub_run). */
+ clr d0
+ call LOCK,[d2],8
+ mov d0,d3
+ movbu (ub_run),d0
+ mov d0,a3
+ mov 1,d0
+ movbu d0,(ub_run)
+ mov d3,d0
+ call UNLOCK,[d2],8
+ mov a3,d0
+ cmp 0,d0
+ bne 8f
+ call ub_wr,[d2,d3,a2,a3],20
+ clr d1
+ movbu d1,(ub_run)
+ ret [d2,d3,a2,a3],20
+8:
+ mov 1,d0
+ movbu d0,(ub_pend)
+ clr d0
+ ret [d2,d3,a2,a3],20
+
+ub_wr:                            /* ub_put's write, with ub_run held */
  mov (LPTR,a2),a3
  cmp 0,a3
  bne 1f
@@ -13164,6 +13233,30 @@ ub_put:                           /* `call ub_put,[d2,d3,a2,a3],20`, a2 = P: fil
  clr d0
  ret [d2,d3,a2,a3],20
 
+pm_save:                          /* `call pm_save,[d2,d3,a2,a3],24` from gx_map leaving Picture Mode (GUI task):
+                                   * edits not saved yet -> the block in M now, so a power-off without a half-press
+                                   * keeps them (the camera saves M at the return to shooting and at power-off) */
+ PVAL 9f
+ clr d0
+ call LOCK,[d2],8
+ mov d0,d3
+ movbu (DIRTY,a2),d0
+ mov d0,a3
+ clr d0
+ movbu d0,(DIRTY,a2)              /* taken here; ed_trig reads it unlocked, so at worst both save (harmless) */
+ mov d3,d0
+ call UNLOCK,[d2],8
+ mov a3,d0
+ cmp 1,d0
+ bne 9f
+ call ub_put,[d2,d3,a2,a3],20
+ cmp 0,d0
+ bne 9f
+ mov 1,d0                         /* not written (held back, or the other task's write): ed_trig tries again */
+ movbu d0,(DIRTY,a2)
+9:
+ ret [d2,d3,a2,a3],24
+
 ub_save:                          /* `call ub_save,[d2,d3,a2,a3],24` from ed_trig (owner,
                                    * 2026-11-13: no card copies), a2 = P -> d0 status 1 */
  call ub_put,[d2,d3,a2,a3],20
@@ -13285,6 +13378,8 @@ ub_src:
 ub_new:
  .byte 0
 ub_pend:
+ .byte 0
+ub_run:
  .byte 0
  .balign 4
 ub_stg:
@@ -14453,3 +14548,127 @@ cm_gnow:
 3:
  mov 5,d0
  ret [],0
+
+/* gd_s11 (moved here from ext10 for room): the Saturation / WB / Glow guide pictures, as before */
+.section .ext11,"ax"
+gd_s11:
+ cmp 0,a1
+ beq 4f
+ cmp 2,d0
+ beq 2f
+ cmp 1,d0
+ beq 3f
+ cmp 4,d0
+ beq 6f
+ cmp 3,d0
+ bne 4f
+ mov (24,a1),d1                   /* WB picture, if the file has one */
+ cmp 0,d1
+ bne 5f
+4:
+ jmp gd_s0                        /* film test 11: Saturation -> our guide, else the camera's */
+2:
+ mov (16,a1),d1
+ mov d1,(12,a0)
+ mov a1,d1
+ add 32,d1
+ mov d1,(16,a0)
+ bra 9f
+3:
+ mov (20,a1),d1
+ mov d1,(12,a0)
+ mov (16,a1),d1
+ add 3,d1
+ and -4,d1
+ add 32,d1
+ mov a1,d2
+ add d2,d1
+ mov d1,(16,a0)
+ bra 9f
+5:
+ mov d1,(12,a0)                   /* s3 */
+ mov (16,a1),d1
+ add 3,d1
+ and -4,d1
+ mov (20,a1),d2
+ add 3,d2
+ and -4,d2
+ add d2,d1
+ add 32,d1
+ mov a1,d2
+ add d2,d1
+ mov d1,(16,a0)
+9:
+ ret [d2,a2],8
+6:                                /* Glow picture (s4 at +28), if the file has one and an s3 */
+ mov (28,a1),d1
+ cmp 0,d1
+ beq 4b
+ mov (24,a1),d2
+ cmp 0,d2
+ beq 4b
+ mov d1,(12,a0)                   /* s4 */
+ mov (16,a1),d1
+ add 3,d1
+ and -4,d1
+ add 3,d2
+ and -4,d2
+ add d2,d1                        /* align4(s1) + align4(s3) */
+ mov (20,a1),d2
+ add 3,d2
+ and -4,d2
+ add d2,d1                        /* + align4(s2) */
+ add 32,d1
+ mov a1,d2
+ add d2,d1
+ mov d1,(16,a0)
+ bra 9b
+
+/* vf_def: ed_default's miss (CALLS, d0 id, a1 out): Vignette Correction's rows (VFB + k) default to 1 On, the
+ * camera's own correction, so On shows no '*'. Anything else: stock_default, registers as at entry. */
+vf_def:
+ cmp 0,a1
+ beq 2f
+ movm [d2],(sp)
+ mov d0,d2
+ exthu d2
+ add -VFB,d2
+ cmp 4,d2
+ bcs 1f
+ movm (sp),[d2]
+2:
+ jmp stock_default
+1:
+ movm (sp),[d2]
+ mov 1,d0
+ mov d0,(a1)
+ clr d0
+ rets
+
+/* vf_get: sl_gb's miss before the table loads (CALLS, d0 id, a1 out): VFB + k read 1 On, as vf_def, so the row
+ * shows no '*' then, and the left column's VF_IT reads On too. Anything else: tn_get, registers as at entry. */
+vf_get:
+ cmp 0,a1
+ beq 3f
+ cmp VF_IT,d0
+ bne 4f
+ mov 1,d0
+ mov d0,(a1)
+ clr d0
+ rets
+4:
+ movm [d2],(sp)
+ mov d0,d2
+ exthu d2
+ add -VFB,d2
+ cmp 4,d2
+ bcs 5f
+ movm (sp),[d2]
+3:
+ jmp tn_get
+5:
+ movm (sp),[d2]
+ mov 1,d0
+ mov d0,(a1)
+ clr d0
+ rets
