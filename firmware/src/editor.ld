@@ -40,6 +40,7 @@ SECTIONS {
   .hook_pu      0x611d04ec : { *(.hook_pu) }
   .hook_inf     0x611c29c2 : { *(.hook_inf) }   /* rgb-curves: INFO goes to the row's panel for 5397 / 5398 / RG_IT */
   .hook_rsi     0x611c296f : { *(.hook_rsi) }   /* rgb-curves: the held-OK reset the same */
+  .hook_mx      0x6051485a : { *(.hook_mx) }    /* colour mix: the matrix function's row-scaling call */
   .hook_bar     0x611d1035 : { *(.hook_bar) }
   .hook_rda     0x611d16b4 : { *(.hook_rda) }
   .hook_rdb     0x611d1725 : { *(.hook_rdb) }
@@ -169,6 +170,10 @@ GSTOCK_P      = 0xa49ebe40;
 GSTOCK_S      = 4022;
 stock_isdef   = 0x6129bad6;
 tone_next     = 0x60518fa4;
+MX_BACK       = 0x6051485f;   /* colour mix: after the matrix function's row-scaling call */
+MX_RET        = 0x605196fb;   /* colour mix: the matrix function's return in the development function (split toning's) */
+mx_mul        = 0x60514290;   /* colour mix: the camera's 3 x 3 multiply (a0 out = a1 x d0, s16, 256 = 1.0) */
+mx_row        = 0x605144ef;   /* colour mix: the camera's row scaling (a0 out <- a1, rows to 128) */
 LPTR          = 708;
 LIDX          = 712;
 BKUP          = 720;

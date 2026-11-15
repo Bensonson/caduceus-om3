@@ -4528,3 +4528,33 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   (E1479999.BIN eab68387…, a5df321) is the line: the live view shows curve changes at the next half-press, as with our
   other rows.
 
+### Colour mix per film: engine and probe m1 (2026-11-15; emulator only)
+- Owner (via cad): "lets work on the color mix now"; camera firmware only, on test 4. Research Lab's first look:
+  branch experiment/screen-info d21cff8, "Colour matrix per film ("colour mixing"): first look".
+- **om-emu, stock (ncall of 0x605147a2 on a synthetic request, base matrix rows summing to 256):** COLOR (key 11)
+  takes the default branch: with R+1587 and R+1923 0 no matrix is multiplied (the output is the base, rows scaled to
+  128); R+1923 1..3 multiplies the identity (same output); R+1587 1 / 2 multiplies 0x606ad348 (the mild change). Key
+  2000 and 12 as 11. The real values of R+1587 / R+1923 in a camera job are not known (om-emu runs no jobs); the hook
+  does not depend on them. **0x60514290(a0 out, a1 A, d0 B) = A x B** (a row swap in A swaps B's rows), so A acts
+  after B on a colour: our matrix goes in as A, the camera's so far as B.
+- **Two callers** of 0x605147a2: 0x605196f6 in the development function 0x605196b4 (the one whose stage list holds the
+  tone hook / st_run: photos and live view, camera-tested for split toning) and 0x6051a6fb (another job type, its own
+  record layout: key from (a0)+8.., filter +918, base +896; not identified). Ours acts only for the first.
+- **Hook `.hook_mx`** at 0x6051485a (stock `cd95fcf014` = call 0x605144ef,[d2,d3,a2,a3],20, the row scaling; build.py
+  checks it) -> `jmp mx_go` (ext12, 0x60f99014). mx_go, in the matrix function's frame: films read (cv_ok), return
+  address 0x605196fb, key 11 or 12 with R+1731 0 (as split toning), the effective COLOR k (getter 63153, as st_run),
+  COLOR k's six values (slot + 18; the m1 probe uses mx_pr for COLOR 3) not all 0 -> our 3 x 3 (diagonal = 256 - the
+  row's two values x 4) x the matrix so far by 0x60514290 into the function's free work matrix (F + 8, or F + 28
+  when the matrix so far is at F + 8); then the stock row scaling and back to 0x6051485f with d2 / d3 as they came.
+  ~540 instructions more per COLOR job.
+- **Probe m1 (MX_PROBE 1, MX_PK 2):** COLOR 3 gets R' = 1.6 R - 0.6 G, G' = 1.6 G - 0.6 B, B' = 1.6 B - 0.6 R (values
+  -38, 0, 0, -38, -38, 0; rows 1.0 so greys stay grey; noise gain ~1.7, the strongest kind of mix): very strong
+  colours, yellows toward lime, cyans toward blue, magentas toward red. Nothing stored; the other COLORs as test 4.
+- om-emu (the real call site 0x605196f6 run natively after the first half-press, session COLOR 3): key 11 and key 12
+  with no filter -> exactly the camera's own multiply then row scaling of probe x base (also with R+1587 1); key
+  2000, key 12 with a filter, the other caller, and everything before the first half-press -> identical to test 4.
+  A build with MX_PROBE 0: values poked into COLOR 3's slot -> the same as the probe; into COLOR 1's (not in use) or
+  none -> stock. 14 screens identical to test 4; save interrupts-off 10,062 (as 2b). ext12 260,448 / 262,144.
+- Not known (camera): live view (expected, as split toning in the same function), the look at ISO 6400 (colour noise),
+  video (the hook covers what split toning covers).
+

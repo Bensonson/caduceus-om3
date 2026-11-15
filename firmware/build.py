@@ -66,6 +66,7 @@ HOOKS = {'.hook_color': (0x60518615, bytes.fromhex('cd6cfdf060')),
          '.hook_pu': (0x611d04ec, bytes.fromhex('fca460a33760')),
          '.hook_inf': (0x611c29c2, bytes.fromhex('1efaca1515')),   # rgb-curves: exthu d2; cmp 5397,d2 (INFO: the row's panel for 5397 / 5398)
          '.hook_rsi': (0x611c296f, bytes.fromhex('1efacabc13')),   # rgb-curves: exthu d2; cmp 5052,d2 (held-OK reset: 5052 / 5396 / 5397 / 5398)
+         '.hook_mx': (0x6051485a, bytes.fromhex('cd95fcf014')),    # colour mix: call 0x605144ef,[d2,d3,a2,a3],20 (the matrix's row scaling)
          '.hook_pme': (0x6125becc, bytes.fromhex('cfb0f8fec4')),
          '.hook_rsp': (0x611c3cb5, bytes.fromhex('5c14f8bc20f87058')),
          '.hook_su': (0x604b7730, bytes.fromhex('cdab20f088')),

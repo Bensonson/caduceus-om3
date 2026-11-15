@@ -78,8 +78,9 @@ store, at image offset 0x3B100 (3,348 bytes), so no file above changes and older
 record is used only with that block: a block saved by older firmware leaves every curve flat) | at 16: 196 slots of 17
 bytes: COLOR 1–4's slots now (4), EDITS record r's (24), then the same 28 for each per-mode set as `OM3S` (6). A slot
 = its 18 curve values (red 6, green 6, blue 6) two to a byte, low nibble first (a curve's points are its values 0, 2,
-3, 4, 5; value 1 was test 1–2b's 10 % point and is 0 since test 4), then 8 bytes kept for a per-film colour
-matrix (zero; nothing reads them yet). Not in LOOKS.BIN, EDITS.BIN or the photo code yet.
+3, 4, 5; value 1 was test 1–2b's 10 % point and is 0 since test 4), then 8 bytes for the per-film colour mix
+(colour mix m1: six s8 off-diagonal values, R row (G, B), G row (R, B), B row (R, G), each 4 / 256, the diagonal
+making each row 1.0; bytes 6 and 7 zero; all zero = no mix). Not in LOOKS.BIN, EDITS.BIN or the photo code yet.
 
 ## EDITS.BIN (1648 bytes, v0.24)
 
