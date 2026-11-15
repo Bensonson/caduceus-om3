@@ -116,6 +116,22 @@ in twenty minutes.
   make a test build, the owner tests, then release. Don't add changes of our own to them unless the owner asks.
 - **Behaviour that differs from the current release** is the owner's call: tell them, don't decide it.
 - Project sessions build and test only: their own worktree and branch, no merging into `main`, no releases, no pushing.
+- **Before any pull request** that changes `firmware/`, `card/`, `tools/emulator/` or `tools/test/`: commit, build
+  that commit, run `python3 tools/test/emu_test.py BUILD_DIR --stock STOCK_BIN` on the build (`research/TESTING.md`),
+  and put its pass / known / FAIL lines in the PR body. Open the PR only when it exits 0. A `FAIL` blocks the PR.
+  Never add a test to `KNOWN_FAILURES` to get past one. Never run `static_check.py --write-hooks` to get past
+  `static:hook-list` or `static:changed-bytes`: review the new hook or patch site against the start-up rule first,
+  and name it in the PR body. The hook in `.claude/settings.json` (`tools/test/pr_gate.py`) refuses `gh pr create`
+  until the suite has passed on HEAD with a build of this checkout.
+- **Every bug fix and every new feature adds a test** in `tools/test/emu_test.py` in the same branch. One behavior
+  per test, checked through the debug log, deterministic.
+  - Bug fix: show the test fails on a build without the fix (`emu_test.py BUILD --without OLD_BUILD --only TEST`
+    prints `caught`) and passes in the full run on the fixed build. Give both results in the PR body.
+    A fixed bug listed in `KNOWN_FAILURES`: remove its entry.
+  - Feature: test what the feature does, and that the behavior it leaves alone still holds. Give the result in the
+    PR body.
+  - om-emu cannot show it (stills, video, timing, see "What stays camera-only" in `research/TESTING.md`): say so in
+    the PR body. For a bug, also add its row to "Past regressions" there with `No`.
 
 ## Keeping the record
 
