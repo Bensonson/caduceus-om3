@@ -4641,4 +4641,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 - **The middle "±0" stays** (grey, no dial, as the camera's own unused middle value in the Sh / Hi mode): it is the
   camera's slot, drawn with the same "±" / digit pictures as Sat / Hue (picture 1131 "±" etc.; om-emu), so it cannot
   be blanked by picture without blanking ours; its value must stay in -7..+7 (our picture rides on its object).
+- **Mix test 2 camera, the rest (owner, 2026-11-15):** words in full: good ("The words look good"). Video: "yes the
+  video looked normal": **photos only works on the camera** (no mix and no curves in video; mx_photo camera-tested).
+  The dial over the unused middle number: fixed in mix test 3 (above), not camera-tested yet.
 
