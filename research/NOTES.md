@@ -4691,4 +4691,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   turn), the page redraws in the new colour; the camera's own H&S row still flips (887 / 886, its Mid look). Test 5's
   middle clearing stays, plus the Mid look's full dial pictures 10912 / 10913 / 10919 cleared by id on our pages as a
   backstop. 14 screens identical to test 5.
+- **Mix test 6 camera (owner, 2026-11-15): "thats perfect!!!!"** The header stays in the outer look on INFO (dials
+  over Sat / Hue, values white, middle empty). Camera-tested: the selector set in cv_inf, the middle clearing. **Test 6
+  (E1479999.BIN f85e7f86…, f4a053b) is the line for the RGB curves + colour mix.**
 

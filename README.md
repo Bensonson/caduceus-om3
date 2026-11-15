@@ -1,9 +1,10 @@
-> **Branch `feature/rgb-curves` (work in progress, not released):** per-film R / G / B tone curves, edited on the
-> camera (a new RGB row in Picture Mode). **Test 4 is camera-tested and is the line** (2026-11-15, E1479999.BIN
-> `eab68387…`: 5 even points, no text on the grid). The live view shows a curve change at the next half-press, as with
-> our other rows (owner's choice: no live-refresh experiment). Next: the per-film colour mix: engine camera-tested
-> (probe m1); the Mix row (owner's mockup C) camera-tested in mix test 1; mix test 6 (photos only; the camera's header kept in
-> its outer look, no middle number or dial) is emulator-checked only and waits for the camera test. Details: `research/NOTES.md`, "Per-film R / G / B tone curves: build".
+> **Branch `feature/rgb-curves` (work in progress, not released):** per-film R / G / B tone curves and a per-film
+> colour mix, both edited on the camera (the RGB and Mix rows in Picture Mode). **Colour mix test 6 is camera-tested
+> and is the line** (2026-11-15, E1479999.BIN `f85e7f86…`): the RGB curves as test 4 (5 even points), the Mix row
+> (hue and strength of red, green and blue, the circle page), both in photos only (video stays stock), the camera's
+> header on both pages kept in its outer look (no middle number or dial). The live view shows changes at the next
+> half-press, as with our other rows. Details: `research/NOTES.md`, "Per-film R / G / B tone curves: build" and
+> "Colour mix per film".
 
 <h1 align="center">Caduceus for OM-3</h1>
 
