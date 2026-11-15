@@ -4557,4 +4557,11 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   none -> stock. 14 screens identical to test 4; save interrupts-off 10,062 (as 2b). ext12 260,448 / 262,144.
 - Not known (camera): live view (expected, as split toning in the same function), the look at ISO 6400 (colour noise),
   video (the hook covers what split toning covers).
+- **m1 camera (owner, 2026-11-15): works.** Live view: "yes, color 3s live view shows the strong colors" (so live
+  view jobs go through the hooked caller, as for split toning). Photos at ISO 6400 under warm light, COLOR 1 vs COLOR 3
+  (owner's PB152712 / PB152713, not kept): the mix shows clearly (wood toward yellow-lime, a screen deep blue); the
+  warm room cast was pushed too (a silver laptop a bit yellow-green: the mix acts after white balance, so a cast left
+  in the picture is mixed like any colour). Dark crop: COLOR 3's chroma spread ~1.7x COLOR 1's (R/B ~8.7 -> ~15),
+  blotchy orange / green patches, as predicted for this strongest kind of mix. No freeze (39 events, saves fine).
+  Video not tested (owner): list it again next time. Camera-tested: the hook, its gates, live view.
 
