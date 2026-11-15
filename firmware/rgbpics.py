@@ -60,33 +60,6 @@ def cell():
     return letters([('R', RED), ('G', GREEN), ('B', BLUE)], 100, 76, 26, 50, gap=2)
 
 
-LEGEND = ('Front dial: point', 'Rear dial: up / down')
-LG_W, LG_H = 176, 40
-
-
-def legend():
-    """the dials' legend drawn into the curve picture (cv_draw, top left): 2 bits a pixel, 4 to a byte (first pixel in
-    the low bits): 0 clear, 1 the dark edge, 2 white, 3 soft. -> (w, h, bytes)"""
-    from scipy import ndimage
-    cov = np.zeros((LG_H, LG_W))
-    for k, txt in enumerate(LEGEND):
-        a, b = mkicons.word(txt, 12, LG_W - 6, 0.95)
-        y0 = int(round(15 + 19 * k - b))
-        h, w = a.shape
-        cov[y0:y0 + h, 3:3 + w] = np.maximum(cov[y0:y0 + h, 3:3 + w], a[:LG_H - y0, :LG_W - 3])
-    px = np.zeros((LG_H, LG_W), dtype=np.uint8)
-    fill = cov >= 0.5
-    px[(cov >= 0.25) & ~fill] = 3
-    px[fill] = 2
-    e = ndimage.distance_transform_edt(~(cov >= 0.25))
-    px[(e > 0) & (e <= 1.5)] = 1
-    out = bytearray()
-    for row in px:
-        for x in range(0, LG_W, 4):
-            out.append(int(row[x]) | int(row[x + 1]) << 2 | int(row[x + 2]) << 4 | int(row[x + 3]) << 6)
-    return LG_W, LG_H, bytes(out), px
-
-
 def pictures():
     """(name, palette index array) in the order of the firmware's cv_pic table"""
     return [('blank', np.zeros((2, 2), dtype=np.uint8)),
@@ -110,9 +83,7 @@ if __name__ == '__main__':
     for name, w, h, s in streams():
         print(name, w, h, len(s))
     if a.preview:
-        lw, lh, lb, lpx = legend()
-        pics = pictures() + [('legend', np.choose(lpx, [0, 7, 10, 11]).astype(np.uint8))]
-        W = sum(p.shape[1] + 10 for _, p in pics); H = max(p.shape[0] for _, p in pics)
+        pics = pictures(); W = sum(p.shape[1] + 10 for _, p in pics); H = max(p.shape[0] for _, p in pics)
         im = Image.new('RGB', (W, H), (40, 40, 40)); x = 0
         for _, p in pics:
             rgb = np.array([[COL.get(int(v), (255, 0, 255)) for v in row] for row in p], dtype=np.uint8)

@@ -4443,4 +4443,11 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   a pixel, 176 x 40, in the image at the work area's +0x8000, loaded with section 6; cv_draw draws it after the
   points). om-emu: 17 screens (shooting screen info views, quick panel, menus, playback) and the camera's own rows
   pixel-identical to v0.29.5; engine bit-exact; storage as 1b.
+- **Test 2 camera (owner, 2026-11-15): "This is lookign good again"**; no problems, debug log normal (cad). Notes: (1) "I
+  don't think we need the text on the grid"; (2) "the curves are kinda shallow. and they be a little more dynamic?"
+- **Test 3 (emulator only):** the legend removed (bitmap, its blit and its build step); step 48 -> 96 (2.3 % of full
+  scale a step, +7 = 672 / 4095 = 16 %, about 42 of 255 levels; model.py STEP 96, om-emu ncall bit-exact incl. the
+  -7 / +7 zig-zag); cv_draw keeps each drawn curve rising as st_run does (a lift at black now shows flat until the
+  curve rises again, as in the photo; the points stay where they are set). Blue (palette 29 / 30, "B" 53) as test 2.
+  om-emu: the 17 screens and the camera's own rows pixel-identical to v0.29.5; storage as before.
 

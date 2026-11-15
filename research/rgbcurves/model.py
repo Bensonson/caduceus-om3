@@ -2,7 +2,7 @@
 """Per-film R / G / B tone curves (feature/rgb-curves): the exact integer model of the firmware's cv_prm / cv_d.
 
 Each channel has 6 points at input 0 / 10 / 25 / 50 / 75 / 100 % of the gamma tables' 12-bit output (X below), each
-an offset v of -7..+7 steps of STEP (48 = 1.2 % of full scale). The curve's delta D(t) is a monotone-preserving
+an offset v of -7..+7 steps of STEP (96 = 2.3 % of full scale; 48 until test 2, owner: "kinda shallow"). The curve's delta D(t) is a monotone-preserving
 cubic (Hermite, tangents by the harmonic mean, as Fritsch-Butland), evaluated on every table entry t (0..4095):
 t' = t + D(t), then st_run's clamp and running max. All zero = stock (no work). Firmware and this model must agree
 bit for bit (integer ops, truncating division as the CPU's `div`, arithmetic shifts as `asr`).
@@ -12,7 +12,7 @@ usage: python3 model.py            print D at a few inputs for example curves
 X = [0, 410, 1024, 2048, 3072, 4096]
 H = [X[i + 1] - X[i] for i in range(5)]
 INV = [(1 << 24) // h for h in H]                   # Q12 reciprocal: s = x * INV >> 12
-STEP = 48
+STEP = 96
 
 def tdiv(a, b):                                     # C / mn10300 `div`: truncates toward zero
     q = abs(a) // abs(b)
