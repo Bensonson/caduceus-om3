@@ -4397,7 +4397,9 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   ncall of st_run on a fake COLOR job: curves only, curves + split toning (red Shadows / cyan Highlights / Balance +2)
   match the model on all 960 entries; split toning alone is byte-identical to v0.29.5; registers, MDR and sp kept.
   Live view: same gates as split toning (key 11 / 12, `ST_STILL 0`). ~50k instructions a pass per two curved channels.
-- **Storage (emulator):** record 'OM3R' at M + 0x3B100 (docs/FORMATS.md), RAM image `cv_ram`. The curves follow the
+- **Storage (emulator):** record 'OM3R' at M + 0x3B100 (docs/FORMATS.md), RAM image `cv_ram` (26-byte slots: 18 curve
+  values, then 8 bytes kept for a future per-film colour matrix, owner via the research lab 2026-11-15; in M packed two
+  values to a byte, 17-byte slots, 3,348 B, version 2, so it fits before +0x3C000: unpacked it would be 5,112 B). The curves follow the
   slot: `cv_rec` at `pf_put1` / `ss_slot` (an EDITS record -> its saved curves, anything else -> flat), `cv_cap` after
   fl_sw's `pf_capto`, `cv_sput` / `cv_sget` / `cv_sed` in ss_put / ss_get / ss_ed, `cv_zk` in e_rst. Written with the
   films block (`ub_wr`, its new generation) and with the sets (`ss_wr`), in their locked sections. Read at the first
@@ -4425,7 +4427,9 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   yellow-green there; 125 is blue).
 - **Regression (om-emu, pixel-identical to v0.29.5):** the H&S row (dials, INFO, held-OK reset), the HSL wheel (INFO
   pages, an edit, held-OK reset), the Blacks / Whites and WB grid rows and the WB fine-tune screen.
-- **Test build 1:** VERSION "v0.30-dev (RGB curves, test 1)", E1479999.BIN 00edb50f…46db (rebuilds byte for byte).
-  ext11 54,224 / 65,536, ext12 258,432 / 262,144. Package (private) `test-builds/2026-11-15-rgb-curves-1`.
+- **Test build 1 (1b):** VERSION "v0.30-dev (RGB curves, test 1b)", E1479999.BIN 819ce467…64a6 (rebuilds byte for
+  byte; replaces 00edb50f…, never flashed, which had 18-byte slots and a version-1 record). ext11 54,224 / 65,536,
+  ext12 260,112 / 262,144. Package (private) `test-builds/2026-11-15-rgb-curves-1`. om-emu on 1b: engine bit-exact,
+  storage (film switch, power cycle, the packed record read back), the page and the v0.29.5 pixel comparison as above.
   Open for the owner: dial directions, step size, the page's colours.
 

@@ -3,20 +3,27 @@
  * tables' 12-bit output, an offset -7..+7 of CV_STEP each (research/rgbcurves/model.py is the exact model). st_run
  * (split toning's pass over the job's R / G / B tables, camera-tested since v0.26) adds the curve's delta D(t) to each
  * entry of its channel, with split toning's own delta, then its clamp and running max. All zero = no work.
- * Values (cv_ram, a RAM image of record 'OM3R' at M + 0x3B100, which older firmware never reads):
- *   +0 magic 'OM3R', +4 u16 version 1, +6 u16 length CV_LEN, +8 CRC-32 of 12.., +12 the films block's generation
- *   when written (the record is used only with that block: a block written by older firmware drops the curves)
- *   +16 live[4][18]: COLOR k's curves now (R 6, G 6, B 6), as COLOR k's slot is its other rows now
- *   +88 ed[24][18]: the curves of EDITS record r (film j, COLOR k's own 20 + k), kept and used with that record
- *   +520 sets[6] {live[4][18], ed[24][18]}: per-mode settings, as the 'OM3S' sets (C1..C5, P group)
+ * Values (cv_ram; record 'OM3R' at M + 0x3B100, which older firmware never reads, holds them packed):
+ *   a slot = 26 bytes: its curves (R 6, G 6, B 6, -7..+7), then 8 bytes kept for a per-film colour matrix (owner via
+ *   the research lab, 2026-11-15: room now, so the record need not change again; zero, nothing reads them yet)
+ *   +16 live[4]: COLOR k's slot now, as COLOR k's slot is its other rows now
+ *   +120 ed[24]: EDITS record r's (film j, COLOR k's own 20 + k), kept and used with that record
+ *   +744 sets[6] {live[4], ed[24]}: per-mode settings, as the 'OM3S' sets (C1..C5, P group)
+ * In M (3348 bytes): +0 magic 'OM3R', +4 u16 version 2, +6 u16 length, +8 CRC-32 of 12.., +12 the films block's
+ * generation when written (the record is used only with that block: a block written by older firmware drops the
+ * curves), +16 the 196 slots in the same order, 17 bytes each: the 18 curve values two to a byte (low nibble first),
+ * then the 8 kept bytes (cv_pk / cv_upk).
  * The curves follow the slot: whatever puts a record into COLOR k's slot (pf_put1, ss_slot) puts that record's
  * curves into live[k] (cv_rec: an EDITS record -> its ed[r], anything else -> flat); fl_sw's capture copies live[k]
  * into ed[r] (cv_cap); ss_put / ss_get / ss_ed copy them with the sets; e_rst clears them. */
+ .set CV_ESZ, 26                  /* a slot: its curves (18: R 6, G 6, B 6), then 8 bytes kept for a colour matrix */
  .set CV_LV, 16
- .set CV_ED, 88
- .set CV_SS, 520
- .set CV_SSZ, 504
- .set CV_LEN, CV_SS + 6 * CV_SSZ  /* 3544 */
+ .set CV_ED, CV_LV + 4 * CV_ESZ    /* 120 */
+ .set CV_SS, CV_ED + 24 * CV_ESZ   /* 744 */
+ .set CV_SSZ, 28 * CV_ESZ          /* 728 */
+ .set CV_LEN, CV_SS + 6 * CV_SSZ   /* 5112 in RAM */
+ .set CV_NE, 7 * 28                /* slots in all */
+ .set CV_MLEN, 16 + CV_NE * 17     /* 3348 in M: the curves two to a byte, then the 8 kept bytes */
  .set CV_C, 0x6295b800            /* M image 0x62920700 + 0x3B100 (after 'OM3C' at +0x3B000, before +0x3C000) */
  .set CV_U, 0xa295b800
  .set CV_MAGIC, 0x52334d4f        /* "OM3R" */
@@ -27,7 +34,7 @@
 /* cv_any: `call cv_any,[d2],8` -> d0 != 0 when any COLOR has a curve point set. Uses d0, d1, a0. */
 cv_any:
  mov cv_ram + CV_LV,a0
- mov 18,d1
+ mov CV_ESZ,d1                    /* 4 slots: 4 x CV_ESZ bytes, CV_ESZ words */
  clr d0
 1:
  mov (a0),d2
@@ -230,7 +237,7 @@ cv_d:
 /* cv_set: `call cv_set,[d2,d3,a2,a3],20`, d0 = COLOR k (0..3) -> d0 = its channels with a point set (bit c); their
  * blocks into cv_pb + 64 c and cv_pp[c] = that block, else 0. Uses d0, d1, a0, a1, MDR. */
 cv_set:
- mov 18,d1
+ mov CV_ESZ,d1
  mul d1,d0
  mov cv_ram + CV_LV,a2
  add d0,a2                        /* live[k] */
@@ -298,7 +305,7 @@ cv_rid:
 
 /* cv_lk: `call cv_lk,[],0`, d0 = k -> a0 = live[k]. Uses d0, d1, a0, MDR. */
 cv_lk:
- mov 18,d1
+ mov CV_ESZ,d1
  mul d1,d0
  mov cv_ram + CV_LV,a0
  add d0,a0
@@ -314,12 +321,12 @@ cv_rec:
  mov 0,a1
  cmp 0,d3
  blt 1f
- mov 18,d0
+ mov CV_ESZ,d0
  mul d3,d0
  mov cv_ram + CV_ED,a1
  add d0,a1
 1:
- mov 18,d1
+ mov CV_ESZ,d1
 2:
  clr d0
  cmp 0,a1
@@ -339,13 +346,13 @@ cv_cap:
  call cv_rid,[],0
  cmp 0,d0
  blt 9f
- mov 18,d1
+ mov CV_ESZ,d1
  mul d1,d0
  mov cv_ram + CV_ED,a1
  add d0,a1
  mov d2,d0
  call cv_lk,[],0
- mov 18,d1
+ mov CV_ESZ,d1
 1:
  movbu (a0),d0
  movbu d0,(a1)
@@ -356,7 +363,7 @@ cv_cap:
 9:
  ret [d2,d3,a2,a3],20
 
-/* cv_zk: `call cv_zk,[d2],8`, d0 = k: live[k] flat (e_rst; the RGB page's reset). Uses d0, d1, a0, MDR. */
+/* cv_zk: `call cv_zk,[d2],8`, d0 = k: live[k]'s curves flat (e_rst; the RGB page's reset). Uses d0, d1, a0, MDR. */
 cv_zk:
  call cv_lk,[],0
  clr d0
@@ -375,7 +382,7 @@ cv_kset:
  call cv_lk,[],0
  bra 1f
 cv_jset:
- mov 18,d1
+ mov CV_ESZ,d1
  mul d1,d0
  mov cv_ram + CV_ED,a0
  add d0,a0
@@ -413,12 +420,12 @@ cv_sget:
  mul d1,d0
  mov cv_ram + CV_SS,a1
  add d0,a1
- mov 18,d0
+ mov CV_ESZ,d0
  mul d2,d0
  add d0,a1
  mov d2,d0
  call cv_lk,[],0
- mov 18,d1
+ mov CV_ESZ,d1
 1:
  movbu (a1),d0
  movbu d0,(a0)
@@ -433,16 +440,16 @@ cv_sget:
 cv_sed:
  mov CV_SSZ,d1
  mul d1,d0
- mov cv_ram + CV_SS + 72,a1
+ mov cv_ram + CV_SS + 4 * CV_ESZ,a1
  add d0,a1
  mov cv_ram + CV_ED,a0
- mov 24 * 18,d1
+ mov 24 * CV_ESZ,d1
  call ub_cpy,[],0
  ret [d2,d3,a2,a3],20
 
 /* cv_load: `call cv_load,[d2,d3,a2,a3],20` (ub_pfl, the first half-press; once a power-on): the record in M when it
- * is valid and was written with the films block the camera had at power-on (ub_ok0, generation ub_gen0); else
- * every curve flat. */
+ * is valid and was written with the films block the camera had at power-on (ub_ok0, generation ub_gen0), unpacked;
+ * else every slot zero. */
 cv_load:
  movbu (cv_ok),d0
  cmp 0,d0
@@ -457,10 +464,10 @@ cv_load:
  cmp CV_MAGIC,d0
  bne 8f
  movhu (4,a3),d0
- cmp 1,d0
+ cmp 2,d0
  bne 8f
  movhu (6,a3),d0
- cmp CV_LEN,d0
+ cmp CV_MLEN,d0
  bne 8f
  mov (12,a3),d0
  mov (ub_gen0),d1
@@ -469,16 +476,15 @@ cv_load:
  mov -1,d0
  mov a3,a0
  add 12,a0
- mov CV_LEN - 12,d1
+ mov CV_MLEN - 12,d1
  call sd_crc,[d2,d3],12
  not d0
  mov (8,a3),d1
  cmp d1,d0
  bne 8f
- mov cv_ram,a0
- mov a3,a1
- mov CV_LEN,d1
- call ub_cpy,[],0
+ mov cv_ram + 16,a0
+ mov CV_C + 16,a1
+ call cv_upk,[d2,d3],12
  mov 1,d0
  movbu d0,(cv_v0)
  bra 9f
@@ -489,43 +495,103 @@ cv_load:
 9:
  ret [d2,d3,a2,a3],20
 
-/* cv_hdr: `call cv_hdr,[d2,d3,a2,a3],20`, d0 = the films block's generation it goes with: cv_ram's header and CRC
- * (before the locked copy, cv_put). */
+/* cv_hdr: `call cv_hdr,[d2,d3,a2,a3],20` (before ub_wr's / ss_wr's locked write), d0 = the films block's generation
+ * the record goes with. */
 cv_hdr:
- mov d0,(cv_ram + 12)
- mov CV_MAGIC,d0
- mov d0,(cv_ram)
- mov 1,d0
- movhu d0,(cv_ram + 4)
- mov CV_LEN,d0
- movhu d0,(cv_ram + 6)
- mov -1,d0
- mov cv_ram + 12,a0
- mov CV_LEN - 12,d1
- call sd_crc,[d2,d3],12
- not d0
- mov d0,(cv_ram + 8)
+ mov d0,(cv_gw)
  ret [d2,d3,a2,a3],20
 
-/* cv_put: `call cv_put,[d2],8` inside ub_wr's / ss_wr's locked write (the camera not saving M): cv_ram -> M, both
- * aliases. Uses d0, d1, a0, a1. */
+/* cv_put: `call cv_put,[d2],8` inside ub_wr's / ss_wr's locked write (the camera not saving M; no other task between,
+ * so its pack and CRC need no buffer of their own): cv_ram packed into M, its header and CRC, then the other alias.
+ * Uses d0, d1, a0, a1; keeps d3 (the callers' lock state). */
 cv_put:
  movbu (cv_ok),d0                 /* never before the record was read this power-on (it would be overwritten flat) */
  cmp 0,d0
  beq 9f
- mov CV_C,a0
- mov cv_ram,a1
- mov CV_LEN,d1
- call ub_cpy,[],0
+ mov CV_C + 16,a0
+ mov cv_ram + 16,a1
+ call cv_pk,[d2,d3],12
+ mov CV_MAGIC,d0
+ mov d0,(CV_C)
+ mov 2,d0
+ movhu d0,(CV_C + 4)
+ mov CV_MLEN,d0
+ movhu d0,(CV_C + 6)
+ mov (cv_gw),d0
+ mov d0,(CV_C + 12)
+ mov -1,d0
+ mov CV_C + 12,a0
+ mov CV_MLEN - 12,d1
+ call sd_crc,[d2,d3],12
+ not d0
+ mov d0,(CV_C + 8)
  mov CV_U,a0
- mov cv_ram,a1
- mov CV_LEN,d1
+ mov CV_C,a1
+ mov CV_MLEN,d1
  call ub_cpy,[],0
  mov (cv_nw),d0
  inc d0
  mov d0,(cv_nw)
 9:
  ret [d2],8
+
+/* cv_pk: `call cv_pk,[d2,d3],12`, a0 = M's slots, a1 = cv_ram's: each slot's 18 curve values two to a byte (low
+ * nibble first), then its 8 kept bytes. cv_upk: the other way (a0 = cv_ram's, a1 = M's), nibbles sign-extended.
+ * Use d0, d1, a0, a1. */
+cv_pk:
+ mov CV_NE,d3
+1:
+ mov 9,d2
+2:
+ movbu (a1),d0
+ and 15,d0
+ movbu (1,a1),d1
+ asl 4,d1
+ or d1,d0
+ movbu d0,(a0)
+ add 2,a1
+ inc a0
+ add -1,d2
+ bne 2b
+ mov 8,d2
+3:
+ movbu (a1),d0
+ movbu d0,(a0)
+ inc a1
+ inc a0
+ add -1,d2
+ bne 3b
+ add -1,d3
+ bne 1b
+ ret [d2,d3],12
+cv_upk:
+ mov CV_NE,d3
+1:
+ mov 9,d2
+2:
+ movbu (a1),d0
+ mov d0,d1
+ asl 28,d0
+ asr 28,d0
+ movbu d0,(a0)
+ asl 24,d1
+ asr 28,d1
+ movbu d1,(1,a0)
+ add 2,a0
+ inc a1
+ add -1,d2
+ bne 2b
+ mov 8,d2
+3:
+ movbu (a1),d0
+ movbu d0,(a0)
+ inc a1
+ inc a0
+ add -1,d2
+ bne 3b
+ add -1,d3
+ bne 1b
+ ret [d2,d3],12
 
  .balign 4
 cv_h:
@@ -535,6 +601,8 @@ cv_inv:
 cv_pp:
  .long 0, 0, 0
 cv_nw:
+ .long 0
+cv_gw:
  .long 0
 cv_pb:
  .space 3 * 64
@@ -657,7 +725,7 @@ cv_val:
  mov CV_MIDV,d0
  bra 9f
 4:
- mov 18,d3                        /* Sh: the offset */
+ mov CV_ESZ,d3                    /* Sh: the offset */
  mul d2,d3
  movbu (cv_c),d1
  asl 1,d1
