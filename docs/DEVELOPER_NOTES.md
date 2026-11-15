@@ -394,6 +394,16 @@ Stock: OLY_E_147_1100_0000_0000_3.BIN sha 8c133084…696d, main 5e8d376e…7d59.
 - The looks are only as good as the preview model (`src/preview.ts`) is of the camera; check a film on the camera
   before trusting it for anything critical.
 
+## v0.29.4 release (PRs #45, #46 by crombach and #48 by buburun, merged; build t1, camera-tested 2026-11-15)
+
+v0.29.3 plus #45 (dead card save / load code removed), #46 (Picture Mode stars `ed_isdef` / `ed_isd0` / `fl_isdef`,
+display fixes, `fl_LVL1` "FILM n*", `pm_save` from `gx_map` at 0x1804) and #48 (`fw_apply` also writes 1632, the stills
+Custom WB Kelvin). Details: `research/NOTES.md` ("Picture Mode display, stars and saving", "Film WB: Custom WB Kelvin
+lost").
+- `firmware/VERSION` "v0.29.4 (PRs 45 46 48, tested)", the same length as t1's: main.bin differs only in that string,
+  the code-block tag and the built-in GUIDES copy's CRC / tag (checked, 31 bytes). E1479999.BIN 757e2d39…; `patch.py`
+  makes it by default.
+
 ## v0.29.3 release (PR #40 by crombach, merged; build d1, camera-tested 2026-11-14)
 
 v0.29.2 plus the remappable Delete button (#37): keycode 14 -> sids 570 (stills) / 1276 (movie), another body's button

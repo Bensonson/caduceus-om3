@@ -4323,3 +4323,14 @@ Branch `feature/film-cwb-kelvin` (buburun), from v0.29.3.
   so RAW Data Edit with the film's own Kelvin (Custom2 CWB, Picture Mode = the film's COLOR) does not match the
   in-camera JPEG. RAW Data Edit itself develops the film loaded on that COLOR (colour, tone, split toning, Halation,
   grain and the film's WB shift; camera, 2026-11-14); its WB mode, Kelvin, Noise Filter and exposure come from Custom2.
+
+### v0.29.4: PRs #45, #46 and #48 (2026-11-15; camera-tested)
+- #45 and #46 merged into main as their authors wrote them (#46 updated by crombach after cad's r1..r4 review builds;
+  the review's own changes were not taken, owner). #48 merged on top in a local test branch: conflicts only in
+  ROADMAP.md and this file (both entries kept); the firmware merged cleanly. Test build t1 (VERSION "v0.29.4-dev (main
+  + PR 48, t1)"): E1479999.BIN 3825f078….
+- **Camera (owner, 2026-11-15, t1): all good** (#48's CWB, #46's stars, saving, display); debug log: build t1, every
+  file loaded and matching, films block valid, no errors.
+- **Released as v0.29.4** (owner): VERSION "v0.29.4 (PRs 45 46 48, tested)" (same length as t1's; byte diff: only the
+  name, the code-block tag, the built-in GUIDES CRC). `releases/v0.29.4`: patch.json (175 runs, 327,352 bytes), extras
+  as v0.29.3. `patch.py` makes 757e2d39….

@@ -8,6 +8,7 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 | Version | Released | What's new |
 |---|---|---|
+| [v0.29.4](#v0294) | 2026-11-15 | Fixes: Picture Mode stars and saving on leaving it; a film's Custom WB Kelvin kept in the WB screen |
 | [v0.29.3](#v0293) | 2026-11-14 | The Delete button takes a function while shooting (photo and video) |
 | [v0.29.2](#v0292) | 2026-11-14 | Fix: custom modes (C1–C5) keep their own films and no longer change yours |
 | [v0.29.1](#v0291) | 2026-11-13 | Fix: the films load with no card in the camera |
@@ -34,6 +35,22 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 Versions are named v0.N from v0.18 on. Earlier builds were called "test N" while they were tried on the camera; the
 same number is used here (test 17 = v0.17).
+
+## v0.29.4
+v0.29.3 plus two pull requests' fixes and a clean-up. Firmware camera-tested (2026-11-15, build t1; only its name was
+changed).
+
+- **Picture Mode stars and saving** ([#46](https://github.com/androidfanman/caduceus-om3/pull/46), by
+  [crombach](https://github.com/crombach)): a row gets a "*" only when it differs from its profile's or film's default
+  (a WB change no longer stars HSL; the Blacks / Whites and WB rows get theirs; Noise back to Std clears it); a changed
+  film shows "FILM n*" on the shooting screen; leaving Picture Mode saves, so a power-off right after keeps your change;
+  Halation has no stray center dot and a negative Whites shows "-".
+- **Film Custom WB kept** ([#48](https://github.com/androidfanman/caduceus-om3/pull/48), by
+  [buburun](https://github.com/buburun)): on a film with Custom WB, OK on CWB in the WB screen keeps the film's Kelvin
+  (it jumped to an old value and starred the film).
+- **Clean-up** ([#45](https://github.com/androidfanman/caduceus-om3/pull/45), by crombach): the card save code v0.29.1
+  replaced is removed. No change you can see.
+  Details: [release notes](releases/v0.29.4/NOTES.md).
 
 ## v0.29.3
 v0.29.2 plus one feature. Firmware camera-tested (2026-11-14, build d1; only its name was changed).
