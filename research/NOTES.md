@@ -4377,3 +4377,6 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   the films as built with no changes (all four COLORs; FILM 15 Halation 0, Sharp +1, Contrast 0), at each entry and
   after a power-off; P keeps +2 / +1; 0 differences. The p1 scenario gives p1's results. VERSION "v0.29.5-dev
   (per-mode settings, p2)".
+- **Camera (owner, 2026-11-15, p2 27f44762…): "it works"** (camera-tested): Assign > Reset puts the custom mode back to
+  the films as built; the p1 scenario still holds. CADLOG (as reported by the main chat): 23 events, saves 1, built from
+  the films 1, 0 differences in Reset custom modes.
