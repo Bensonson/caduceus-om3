@@ -27,7 +27,7 @@
  .set CV_C, 0x6295b800            /* M image 0x62920700 + 0x3B100 (after 'OM3C' at +0x3B000, before +0x3C000) */
  .set CV_U, 0xa295b800
  .set CV_MAGIC, 0x52334d4f        /* "OM3R" */
- .set CV_STEP, 96                 /* test 3 (owner: "kinda shallow"): 2.3 % a step, +7 = 16 % (was 48) */
+ .set CV_STEP, 48
 
 .section .ext12,"ax"
 
@@ -646,7 +646,13 @@ cv_v0:
  .set CW_HI, 1800
  .set CW_ROW, 3600                /* one row of palette indices */
  .set CW_ST, 4096                 /* the stream */
- .set CW_END, 0x9000
+ .set CW_END, 0x8000              /* ... up to here */
+ .set CW_LG, 0x8000               /* test 2: the dials' legend (rgbpics.legend, 2 bits a pixel; build.py writes it
+                                   * into the image there, loaded at start-up with the rest of section 6) */
+ .set LG_W, 176                   /* its size (build.py checks it against rgbpics.legend) and place in the picture */
+ .set LG_H, 40
+ .set LG_X, 6
+ .set LG_Y, 4
 
 /* cv_case: the column's update switch for RG_IT (as H&S's case 0x611d04e5; d0 free there) */
 cv_case:
@@ -1164,8 +1170,7 @@ cv_pic:
 
 /* cv_draw: `call cv_draw,[d2,d3,a2,a3],128`: COLOR cv_k's three curves as a 300 x 300 OSD type-11 picture (the curve
  * layer's palette: white 14, black 2, grey 20, cv_col) at
- * CV_WRK + CW_ST, cv_desc's size and payload. Each column's span of each curve, kept rising as st_run keeps it (the
- * photo's curve; the points stay where they are set) (lo / hi: this and the last column's
+ * CV_WRK + CW_ST, cv_desc's size and payload. Each column's span of each curve (lo / hi: this and the last column's
  * rows, 3 px for the selected colour), then row by row: the diagonal, the other two, the selected one, its 6 points
  * (the selected one white, bigger: radius 8, else 5), runs packed five 12-bit tokens a 64-bit word. Locals: (4) k, (8) c, (12) p,
  * (16) y / x, (20) write pointer, (24) / (28) the word being packed, (32) tokens in it, (36) channel, (40) last row,
@@ -1223,7 +1228,6 @@ cv_draw:
  mov d0,(72,sp)
  clr d0
  mov d0,(16,sp)                   /* x */
- mov d0,(84,sp)                   /* test 3: the running max, as st_run keeps the curve rising (the photo's curve) */
  mov -1,d0
  mov d0,(40,sp)
 15:
@@ -1247,12 +1251,6 @@ cv_draw:
  ble 162f
  mov 4095,d2
 162:
- mov (84,sp),d1
- cmp d1,d2
- bge 163f
- mov d1,d2
-163:
- mov d2,(84,sp)
  mov 4787,d1
  mul d1,d2
  lsr 16,d2
@@ -1504,6 +1502,35 @@ cv_draw:
  mov d0,(88,sp)
  cmp 6,d0
  bcs 40b
+ mov (16,sp),d0                   /* test 2: the dials' legend, top left (its clear pixels leave the row) */
+ add -LG_Y,d0
+ cmp LG_H,d0
+ bcc 45f
+ mov LG_W / 4,d1
+ mul d1,d0
+ mov CV_WRK + CW_LG,a1
+ add d0,a1
+ mov CV_WRK + CW_ROW + LG_X,a0
+ mov cv_lgc,a2
+ mov LG_W / 4,d3
+46:
+ movbu (a1),d0
+ mov 4,d2
+47:
+ mov d0,d1
+ and 3,d1
+ beq 48f
+ movbu (d1,a2),d1
+ movbu d1,(a0)
+48:
+ inc a0
+ lsr 2,d0
+ add -1,d2
+ bne 47b
+ inc a1
+ add -1,d3
+ bne 46b
+45:
  mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
  clr d3
 50:
@@ -1617,6 +1644,9 @@ cv_col:                           /* per colour: dim, bright. The curve layer ha
  .balign 4
 cv_px:
  .long 0, 30, 75, 150, 224, 299
+cv_lgc:                           /* the legend's 2-bit values: clear, black edge, white, soft grey */
+ .byte 0, 2, 14, 15
+ .balign 4
 cv_h0:
  .long 0, 410, 1024, 2048, 3072, 4095
 cv_pd:
