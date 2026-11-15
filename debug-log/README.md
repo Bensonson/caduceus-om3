@@ -20,14 +20,19 @@ update didn't install. See [Install, step 4](https://androidfanman.github.io/cad
 ## What's in the log
 
 The camera rewrites `CADLOG.TXT` at every half-press and every release of the shutter button (each counts as one
-event), so the log always shows the moment of the last one. Since v0.29.6 it has five parts:
+event), so the log always shows the moment of the last one. It only reads the camera's settings: it never changes
+them. Since v0.29.6 it has these parts:
 
 | Part | What it says |
 |---|---|
-| **START-UP** | The firmware build. Whether the camera's settings block was found, where the films came from (the camera's memory or the card), what loaded, and whether each card file matches this firmware. |
-| **NOW** | The shooting mode (P, A, S, M, B, C1–C5, video or S&Q) and a custom mode's Save Settings. The picture mode and its film, the film on each COLOR, and which films have changes (the `*` in the camera). |
+| **SUMMARY** | The mode, exposure, WB and film now, where the films came from, whether the card files match, how many saves and photos, and anything that looks wrong. |
+| **START-UP** | The firmware build, what loaded when the camera switched on, and whether each card file matches this firmware. |
+| **NOW** | The shooting mode (P, A, S, M, B, C1–C5, video or S&Q) and a custom mode's Save Settings. The picture mode and film, the film on each COLOR, and which films have changes (the `*` in the camera). |
+| **CAMERA** | The camera's own settings: exposure (shutter, aperture, ISO, exposure and flash compensation), white balance, drive, AF mode and target, metering, flash, stabiliser, aspect, image and video quality, the Fn lever and the screen it was on. |
 | **SAVES** | Whether edits are waiting and the last save result. How often the films, the custom modes and the per-mode settings were saved since switching on, and anything held back. |
-| **CUSTOM MODES** | For P / A / S / M / B and each custom mode: its Save Settings, its films, its picture mode, and whether it keeps its own copy of the settings. Then the counters and the last 8 shooting-mode changes. |
-| **LAST 32 SHUTTER BUTTON EVENTS** | Newest first: the mode, the picture mode and film, the Creative Dial, whether edits were waiting, and the save result. |
+| **CUSTOM MODES** | For P / A / S / M / B and each custom mode: its Save Settings, its films, its picture mode, and whether it keeps its own copy of the settings. Then the last 8 shooting-mode changes. |
+| **BUTTONS AND DIALS** | What each button (photo and video), the front and rear dials (both Fn lever positions) and our Creative Dial rows are set to. |
+| **LAST 32 SHUTTER BUTTON EVENTS** | Newest first: the mode, the screen, shutter, aperture, ISO, exposure compensation, WB, film, drive / AF mode / quality, edits waiting, the save result and the photos taken so far. |
 
-Older versions (v0.27 to v0.29.5) write the same facts as one longer list.
+Some settings show as the camera's own code number in `[ ]`, and a few as `-` until the camera has read them (within
+16 half-presses). Older versions (v0.27 to v0.29.5) write a shorter log about Caduceus's own state only.

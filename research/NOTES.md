@@ -4423,3 +4423,46 @@ clearer, complete `CADLOG.TXT` (lines had been added piecemeal, some as hex word
 - Emulator cases (scripts: video-sharp's s41v.mjs): P, a power-on in C1, video / S&Q, no films (stock NV, no
   LOOKS.BIN), settings block missing (STATE poked 0xFFFF), every custom mode filled (cm_ram / ss_ram poked, emulator
   only). All read right; the "missing" case prints the card files with "not checked" and skips NOW's film lines.
+
+### Debug log dl9: the camera's own state too (2026-11-15; emulator only, camera test pending)
+Owner (via cad): "I want it to cover everything the camera does!" Read only (sget), never a settings write; no slower
+half-press, nothing at start-up. VERSION "v0.29.6-dev (debug log, dl9)"; report 8192 B (was 5120).
+- **Setting ids found (om-emu, E147):** the quick panel (OK in shooting) writes the highlighted item's own setting id
+  into **261** as its cursor moves, so walking it maps every cell: mode **24** (P 3, A 4, S 5), shutter **1699** and
+  aperture **1697** as set (APEX x 256), ISO **6** (0 Auto, else Sv x 256, ISO 100 = 1280), AF target **85**, exp comp
+  **2** (EV x 256), item **1714** (the "±0.0" with the curve icon; meaning not checked), picture mode **111**, WB **9**,
+  item 1414 (the cog), AF mode **289**, face / eye **1712**, flash **16**, flash comp **17**, drive **3265**, metering
+  **1**, aspect **269**, stabiliser **157**, image quality **861**, video quality **2236**. The exposure the AE worked
+  out: **4000** shutter, **4001** aperture (APEX x 256; 0 before the first metering), 4002 = their sum. WB mode
+  **1578** / movie **1579** and Custom WB **107** as in "Film WB". The debugger's getter call times out for 134 ids
+  (111, 901, 1578, 9, 289, 16, 3265, 1, 157, 861, 2236 among them) but the firmware's own sget reads them all.
+  Getter cost (firmware): ~300..900 instructions, but 111 ~2.5k, 289 ~2.2k, 861 ~1.9k, 107 ~1.3k.
+- **Screen:** the GUI state is the u16 at **0x62ce5864** (child << 8 | parent; the firmware loads that address as a
+  constant at 0x610fcf81 and keeps it in 0x603713a4, so it is the camera's too): parents 1 COMMON (child 8 = the
+  shooting screen), 2 REC (direct setting), 3 / 11 menus, 4 MENU_LV (3 / 4 the quick panel, 0x16 quality, 0x17 WB,
+  0x18 Picture Mode), 5..7 playback, 12 edit.
+- **Buttons / dials** (research/BUTTONS.md): photo Fn 47, REC 48, |o| 1292, CP 49, AF-ON 1964, ✥ mode 158, up 50,
+  left 52, right 53, down 51, Delete 570, L-Fn 56; video 1272, 1273, 1278, 1274, 1965, 1279, 1280, 1282, 1283, 1281,
+  1276, 1291; our Creative Dial rows 571 / 54 / 55 / 1966; dials P / A / S / M at Fn lever position 1 and 2 (70..77,
+  1302..1309); the Fn lever's state 534 (om-emu 4; 8 = position 2). As dial function codes 1697 = shutter and 1699 =
+  aperture (the opposite of the setting ids), 86 Ps, 2 exp comp, 17 flash comp, 1701 WB, 1578 ISO.
+- **Not found / not read:** battery level, card free space and shots left (the panel's "803" is not a setting id), the
+  Fn lever's function setting (Off / mode 1 / mode 2), names for drive / AF mode / quality / metering / flash /
+  stabiliser codes (shown as numbers), photo counts in om-emu (it takes no photo: `s2` and `hold:s2` change nothing).
+  Menu visits: only the screen at each event; a full menu history would need a counter in gx_map (not done).
+- **Photos:** `lg_np`, one increment in ex_fill (our EXIF hook, once per photo's EXIF; our RAM only). Not testable in
+  om-emu; whether RAW-only photos reach ex_fill is not known.
+- **Cost kept down:** per event 5 reads (4000, 4001, 6, 2, 1578 / 1579; 107 only for Custom WB) and one of drive / AF
+  mode / quality in turn (lg_fv); 4 of 63 other settings per event in turn (lg_cid -> lg_cv, -1 = "-" until read,
+  each at most 16 events old; BUTTONS AND DIALS shown after the first full round); each event's line made once
+  (lg_line -> lg_lines in ext11, LSLOT 100 B) and copied by words; START-UP, CUSTOM MODES and BUTTONS AND DIALS kept
+  as text and copied while their inputs (a key of words) are the same; the padding only over the last report's text.
+- **Cost** (om-emu instructions per write, v0.29.5 -> dl9): P run (edit, Assign, dial turns, 43 events) average
+  210,800 -> 194,100, longest 223,711 -> 203,663 (7 early writes up to +6.8k, when the custom-mode text changes);
+  video / S&Q (11 events) 194,159 -> 195,409, longest 199,322 -> 204,150; power-on in C1 (7) 191,774 -> 193,689;
+  no films (7) 190,543 -> 188,801; first write 568.9k -> ~588k. fopen ~48k and the write (~92.5k, the same for 8192 B
+  as for 5120 B in om-emu) unchanged. Settings manager calls over the P run: 153, identical to v0.29.5.
+- Space: ext12 259,280 of 262,144 (2.8 KB left), ext11 62,240 of 65,536 (3.2 KB left: the 32 lines, the kept texts
+  and keys).
+- Cases (om-emu): P, a power-on in C1, video / S&Q, no films, settings block missing, every custom mode filled (8,106 B
+  with all 32 events), a 1 KB-buffer variant (1024 B with CR LF at every event).
