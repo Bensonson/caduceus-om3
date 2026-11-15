@@ -232,6 +232,8 @@ def build(defaults, testfile, out):
         rg += [f'cvp_d{i}:                          /* {name} */', f' .short 14, {w}, {h}, 8, 0, 0', f' .long {len(st)}, cvp_s{i} + 0x40000000, 0']
     for i, (name, w, h, st) in enumerate(rp):
         rg += [' .balign 4', f'cvp_s{i}:', db(st).rstrip('\n')]
+    lw, lh, lgb, _ = rgbpics.legend()                 # test 2: the dials' legend, written into the work area below
+    assert (lw, lh) == (176, 40), (lw, lh)            # editor's LG_W / LG_H (rgbcurves.inc)
     (out / 'rgbpics.inc').write_text('\n'.join(rg) + '\n')
     (out / 'films.inc').write_text('.balign 4\nfl_top:\n' + db(mkicons.pack4(mkicons.film_top())) + 'fl_tops:\n' +
                                    db(mkicons.pack4(mkicons.film_top(True))) + 'fl_dig:\n' +
@@ -452,6 +454,16 @@ def build(defaults, testfile, out):
             sw_add(base, n, RG_IT, sy['cv_star'])                       # the row's '*' and Reset guide: our curves
         else:
             sw_add(base, n, RG_IT, ht)
+    # rgb-curves test 2 (owner: "the line isn't blue"): the Picture Mode curve layer's palette (record 0x614a63e0 ->
+    # 0x614a5fe0, read when Picture Mode opens; a 32-colour OSD plane) has no blue. Its fillers 27..31 are 0x01010101;
+    # 31 fills whole screens, 27..30 changed nothing on 29 screens (om-emu, each made magenta). 29 / 30 -> blue (and
+    # their copies 157 / 158), for the blue curve only (editor's cv_col).
+    PAL = 0x614a5fe0
+    assert struct.unpack_from('<II', m, o(0x614a63e0)) == (256, PAL)
+    for i, argb in ((29, 0xff3c78ff), (30, 0xff28469c)):
+        for j in (i, i + 128):
+            assert struct.unpack_from('<I', m, o(PAL) + 4 * j)[0] == 0x01010101, j
+            struct.pack_into('<I', m, o(PAL) + 4 * j, argb)
     assert sy['NR_IT'] == NR_IT if 'NR_IT' in sy else True
     # v0.23 Blacks / Whites icons: the left column's 5 slider-icon slots take ic_list (6 choices) instead of the stock
     # lists of 3 (layout records hold the list's start and end); the pictures from firmware/mkicons.py
@@ -763,6 +775,9 @@ def build(defaults, testfile, out):
     # rgb-curves: the curve page's work area (editor's CV_WRK, uncached) right after, loaded too (GX4-proven space)
     assert vf_end <= 0x60fa3000 and sy['CV_WRK'] == 0xa0fa3000, (hex(vf_end), hex(sy['CV_WRK']))
     assert set(m[o(at):o(0x60fa3000 + 0x9000)]) <= {0xff}, 'the work area is not free in the firmware image'
+    lgb = rgbpics.legend()[2]                         # test 2: the legend's bitmap at CV_WRK + CW_LG (0x8000)
+    assert len(lgb) <= 0x1000
+    m[o(0x60fa3000 + 0x8000):o(0x60fa3000 + 0x8000) + len(lgb)] = lgb
     vf_end = 0x60fa3000 + 0x9000
     assert vf_end <= 0x6103f000, hex(vf_end)
     struct.pack_into('<I', m, o(0x60045e9c), vf_end)

@@ -4432,4 +4432,15 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   ext12 260,112 / 262,144. Package (private) `test-builds/2026-11-15-rgb-curves-1`. om-emu on 1b: engine bit-exact,
   storage (film switch, power cycle, the packed record read back), the page and the v0.29.5 pixel comparison as above.
   Open for the owner: dial directions, step size, the page's colours.
+- **Test 1b camera (owner, 2026-11-15): "This is looking good"**; no freeze, debug log normal (cad). Notes: (1) "the B
+  in RGB isn't blue and the line isn't blue either"; (2) "it is cumbersome to use in a way ... there isn't clear guide
+  to using those dials".
+- **Test 2 (emulator only):** (1) om-emu stripe tests: in the row's cell, entries 105 and 125 do not show blue (125 is a
+  dark grey there, as the owner saw); 53 shows blue in the cell and the header -> the "B" is 53. The curve layer: each
+  of its fillers 27..31 made magenta alone in v0.29.5 over 29 screens: 31 is the whole-screen fill, 27..30 changed
+  nothing -> build.py makes 29 / 30 (and 157 / 158) blue in the palette at 0x614a5fe0 only, for the blue curve (bright /
+  dim). (2) A legend in the curve picture, top left: "Front dial: point" / "Rear dial: up / down" (rgbpics.legend, 2 bits
+  a pixel, 176 x 40, in the image at the work area's +0x8000, loaded with section 6; cv_draw draws it after the
+  points). om-emu: 17 screens (shooting screen info views, quick panel, menus, playback) and the camera's own rows
+  pixel-identical to v0.29.5; engine bit-exact; storage as 1b.
 

@@ -646,7 +646,13 @@ cv_v0:
  .set CW_HI, 1800
  .set CW_ROW, 3600                /* one row of palette indices */
  .set CW_ST, 4096                 /* the stream */
- .set CW_END, 0x9000
+ .set CW_END, 0x8000              /* ... up to here */
+ .set CW_LG, 0x8000               /* test 2: the dials' legend (rgbpics.legend, 2 bits a pixel; build.py writes it
+                                   * into the image there, loaded at start-up with the rest of section 6) */
+ .set LG_W, 176                   /* its size (build.py checks it against rgbpics.legend) and place in the picture */
+ .set LG_H, 40
+ .set LG_X, 6
+ .set LG_Y, 4
 
 /* cv_case: the column's update switch for RG_IT (as H&S's case 0x611d04e5; d0 free there) */
 cv_case:
@@ -1496,6 +1502,35 @@ cv_draw:
  mov d0,(88,sp)
  cmp 6,d0
  bcs 40b
+ mov (16,sp),d0                   /* test 2: the dials' legend, top left (its clear pixels leave the row) */
+ add -LG_Y,d0
+ cmp LG_H,d0
+ bcc 45f
+ mov LG_W / 4,d1
+ mul d1,d0
+ mov CV_WRK + CW_LG,a1
+ add d0,a1
+ mov CV_WRK + CW_ROW + LG_X,a0
+ mov cv_lgc,a2
+ mov LG_W / 4,d3
+46:
+ movbu (a1),d0
+ mov 4,d2
+47:
+ mov d0,d1
+ and 3,d1
+ beq 48f
+ movbu (d1,a2),d1
+ movbu d1,(a0)
+48:
+ inc a0
+ lsr 2,d0
+ add -1,d2
+ bne 47b
+ inc a1
+ add -1,d3
+ bne 46b
+45:
  mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
  clr d3
 50:
@@ -1602,12 +1637,16 @@ cv_tok:
 
  .balign 4
 cv_col:                           /* per colour: dim, bright. The curve layer has 32 colours, none red or blue (its
-                                   * palette 0x614a5fe0; 27..31 fill whole screens: om-emu): red = orange 6 / 4, green
-                                   * 8 / 9, blue = grey 15 / white 14 (the header's "B" is blue) */
- .byte 6, 4, 8, 9, 15, 14
+                                   * palette 0x614a5fe0): red = orange 6 / 4, green 8 / 9; test 2 (owner: "the line
+                                   * isn't blue"): blue = 30 / 29, unused fillers made blue by build.py (31 fills
+                                   * whole screens; 27..30 changed nothing on 29 screens in om-emu) */
+ .byte 6, 4, 8, 9, 30, 29
  .balign 4
 cv_px:
  .long 0, 30, 75, 150, 224, 299
+cv_lgc:                           /* the legend's 2-bit values: clear, black edge, white, soft grey */
+ .byte 0, 2, 14, 15
+ .balign 4
 cv_h0:
  .long 0, 410, 1024, 2048, 3072, 4095
 cv_pd:
