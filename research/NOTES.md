@@ -4472,3 +4472,8 @@ half-press, nothing at start-up. VERSION "v0.29.6-dev (debug log, dl9)"; report 
   f/22, S at 1/100, exp comp -1.3, WB Auto -> Cloudy -> Auto, FILM 1 -> FILM 4, screens menu / camera (settings) /
   panel, the arrow pad's Direct Function, C2 assigned; "Look at: nothing unusual"; card files all match. Drive read
   32 -> 30 (codes not named). Not in that power-on's report: P, M, a custom mode, video.
+- **Second camera run (owner, same day): passed.** One power-on, 26 events: P (f/2.0 -> f/1.8, the "set" screen), M
+  (1/2 f/11 as set), C1 (code 53; the camera's own C1 drive 0 and quality 15 read), a fast dial turn M -> S -> A, then
+  A video (code 10, the switch at 1), one clip recorded. Photos 3 = the 3 RAW + JPG pairs of that power-on on the card.
+  Drive at #18 (A) still showed C1's 0: the rotating read (lg_fv) is up to 2 events old, as designed; right at #19.
+  "Look at: nothing unusual". The camera's clock runs about an hour ahead of the Mac's (file times), not ours.
