@@ -4360,3 +4360,10 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   C1's values at the P reset and P's Contrast at the power-off. P's later edits and film switches never reach C1.
   Before the first half-press: 4 screens and 99 settings-manager calls identical. Video / S&Q switches in P and C1:
   179 manager writes (v0.29.4 183), none more per switch; P's Contrast kept through video.
+- **Assign > Reset is not caught (v0.29.2..v0.29.4 too):** the menu's Reset calls the facade's entry 19 (vtable word
+  0x60e574c0, stock 0x60b86aaf) with d0 = the custom mode 0..4 (om-emu trace), not entry 18 with d1 != 0 as cm_rec
+  assumed. p1's CADLOG check showed it: after a Reset of C1, entering C1 found 44 camera COLOR values that differed from
+  C1's noted ones (the camera's defaults against our films). Hook entry 19 in p2.
+- Package p1: `E1479999.BIN` e5dfded3… (VERSION "v0.29.5-dev (per-mode settings, p1)"), go-back v0.29.4 757e2d39….
+  Emulator: Hold (C1 keeps its own change over the dial and a power-off; P never shows it); go-back to v0.29.4 starts
+  normally with the films and changes of the last mode.
