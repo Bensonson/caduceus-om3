@@ -77,11 +77,8 @@ Branches: `main` = released and safe. `feature/...` = work meant to ship (README
   a build that uses it must raise the loader's end word to 0x60f99800 as that branch does.
 - **Calling convention:** `call f,[regs],N` writes the return address at `(0,sp)` and overwrites MDR (details in
   `research/NOTES.md`, "Picture-mode sliders").
-- **Test order (owner, 2026-11-14):** build → emulator (`tools/emulator/session_ed1.mjs`; the project session runs it
-  until it passes) → cad's review → package for the owner → the owner's real-world camera test → only then done,
-  released or closed. Nothing goes to cad for review before it has passed the emulator; nothing skips the camera test
-  after that; **nothing counts as done until it passes the owner's in-camera test.** The owner flashes; Claude
-  sessions only prepare files.
+- **Test order (owner, 2026-11-15):** build → emulator where it can show something → the owner's camera test → done.
+  **Nothing counts as done until it passes the owner's in-camera test.** The owner flashes; Claude only prepares files.
 
 ## Delivering to the camera card
 
@@ -101,37 +98,24 @@ camera-tested package byte for byte (`SHA256SUMS`). Update `CHANGELOG.md` (its s
 "Latest" line) and the docs; rebuild LookLab into `looklab/` when `webapp/` changes
 (`VITE_DEFAULT_CAMERA=om3 npx vite build`, copy `dist/` to `looklab/`, remove the old asset JS).
 
-## How the work is organised (owner, 2026-11-14)
+## How the work is organised (owner, 2026-11-15; replaces the 2026-11-14 set-up)
 
-- **The main chat** ("Caduceus OM3"; the owner calls it **cad**) is the owner's long-running manager session. It
-  manages, reviews and releases; it does not do project work itself:
-  - starts one session per project (a feature, an experiment, a piece of research) with a brief, and **chooses its
-    model**: whichever cad judges best for getting that task done well (owner, 2026-11-14), weighing how hard the
-    task is and what a mistake would cost on a camera, **but never Fable**: only cad itself runs on Fable, the most
-    expensive model. It keeps a status list of every session: what it is on, its model,
-    its branch and folder, what it waits for;
-  - passes each session's results to the owner and the owner's decisions to the session;
-  - **reviews everything the project sessions do, critically.** This firmware goes on other people's cameras. A
-    session's report is a claim, not proof. Before a test build goes on the owner's card, and again before a release,
-    cad checks it itself: reads the branch's whole diff against `main` (each hook's stock bytes, calling convention
-    and stack frames, the proven code space, alignment, value ranges, the start-up rule, what happens with no card,
-    no films, custom modes and video), rebuilds it and compares the checksum with the package, re-runs the key
-    emulator checks, and checks that TEST-STEPS and the notes say "camera-tested", "emulator only" or "guess"
-    honestly. Anything wrong, unproven or sloppy goes back to the session with the findings, said plainly, and the
-    owner hears what was found. cad clears a build only when it would put it on its own camera;
-  - releases: when a project is camera-tested, reviewed and the owner says so, it brings that branch into `main`,
-    makes the release (see Releasing) and pushes with the owner's OK.
-  New work of any kind goes to a session of its own, not into the main chat.
-- **Project sessions** build and test only. Each works in its own folder (a git worktree of this repo) on its own
-  `feature/...` or `experiment/...` branch, tests with the owner (emulator, then a test package for the camera),
-  commits on that branch and reports back to cad. **A test build goes on the owner's card only after cad has reviewed
-  it and told the session it is cleared** (naming the package's sha256). Project sessions don't merge into `main`,
-  release or push, and leave the main checkout on `main`. Sessions the owner starts by hand follow the same rules.
-- **Standing helpers** (set up by cad): a roadmap session keeps the owner's private roadmap (kept outside the repo; not
-  `ROADMAP.md`) up to date from what cad passes on and from the repo; a scheduled GitHub monitor reads new issues,
-  feature requests and pull requests, writes a private digest with triage and draft replies, and reports to cad.
-  Neither changes the repo or anything on GitHub. A pull request that touches firmware gets cad's full review, then
-  the emulator and the owner's camera test, before it is merged.
+**Keep it lean.** Do what the owner asks, and nothing more. The 2026-11-14 set-up (plans first, review rounds, review
+agents, many sessions) burned a day and many tokens on two small pull requests that the owner then merged and tested
+in twenty minutes.
+
+- **The main chat** ("Caduceus OM3", **cad**) does the owner's requests itself when they are small: merging pull
+  requests, fixing conflicts, test builds, copying to the card, releases. Bigger projects get one session each, with a
+  short brief; cad picks its model (never Fable: only cad runs on Fable).
+- **No plan documents, research rounds or review agents** unless the owner asks for them. No review round goes back to
+  a session for wording or notes.
+- **cad's check before a build goes on the card:** one read of what changed, for what could harm a camera (hooks and
+  their stock bytes, code space, the start-up rule, video, no card / no films), and a rebuild that matches the package's
+  sha256. A real risk goes back to the owner in plain words; everything else is the owner's camera test to judge.
+- **Pull requests from contributors:** when the owner says, merge them as their authors wrote them, fix conflicts,
+  make a test build, the owner tests, then release. Don't add changes of our own to them unless the owner asks.
+- **Behaviour that differs from the current release** is the owner's call: tell them, don't decide it.
+- Project sessions build and test only: their own worktree and branch, no merging into `main`, no releases, no pushing.
 
 ## Keeping the record
 
