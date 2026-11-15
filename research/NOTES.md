@@ -4450,4 +4450,27 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   -7 / +7 zig-zag); cv_draw keeps each drawn curve rising as st_run does (a lift at black now shows flat until the
   curve rises again, as in the photo; the points stay where they are set). Blue (palette 29 / 30, "B" 53) as test 2.
   om-emu: the 17 screens and the camera's own rows pixel-identical to v0.29.5; storage as before.
+- **Test 3 camera (owner, 2026-11-15): froze and rebooted.** "The changes made the camera freeze and reboot. so lets go
+  back to the other version. it worked well and I think the changes would be too much anyways." Test 2 (34ba622e) is
+  back on the camera and is the line; test 3's package renamed `WITHDRAWN-2026-11-15-rgb-curves-3`. Which step the
+  owner was on is not known; the card's CADLOG.TXT only has the power-on after the reboot (3 events; the rest of the
+  file is an older log's text, the camera's fopen does not truncate).
+- **Why (code + om-emu only; not proven on the camera):** test 3's own changes give no path to a freeze:
+  - step 48 -> 96: the maths stays in range (largest products ~3.6e8 in cv_prm, no divide by zero: a + b is never 0
+    for same-sign non-zero slopes), and om-emu ncall is bit-exact with the model at -7 / +7 zig-zags; the tables stay
+    0..4095 and rising. The shapes it makes (black raised to 672, white lowered to 3423, flat stretches) are inside
+    what the camera's own curves already have: of the 70 curve objects in the row table 0x606d3d3c, art-filter curves
+    start at up to 1347, end at down to 2866, with up to 233 flat steps.
+  - the running max in cv_draw and the legend's removal: our page picture only, bounded loops.
+  - CW_END 0x8000 -> 0x9000: the picture never gets there (om-emu, all three curves zig-zag -7 / +7: 10,660 B in test
+    3, 13,140 B in test 2, of 28 KB).
+  - **A risk shared by 1b, 2 and 3:** `cv_put` packs and checksums the curves record inside ub_wr's / ss_wr's locked
+    section, and LOCK (0x60075f73 with d0 = 0) sets the PSW interrupt mask to 0: om-emu counts **212,851 instructions
+    with interrupts off** at each films-block save (a change, then a half-press or leaving Picture Mode) and each
+    custom-mode record save, against 5,870 for one ub_cpy of the 3,912-B block there in v0.29.5 (two of them, and the
+    11,896-B OM3S copies, ~18k each). A time-critical interrupt missed in that window could freeze the camera; it would
+    be rare and timing-dependent, which fits test 2 passing twice and test 3 failing once. Test 2 can reach it the same
+    way (it does not depend on +-7 or on the doubled values).
+  - Fix, if the owner wants one: pack and checksum into a buffer before LOCK and copy only inside it (~1.7k
+    instructions), as ub_wr does with ub_stg. Not built (owner: test 2 is the line).
 
