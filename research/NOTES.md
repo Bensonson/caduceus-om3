@@ -4481,4 +4481,6 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   11,740); cv_hdr 208,100 with interrupts on. The record after the same edits is byte-identical to test 2's; it reloads
   after a power cycle; ss_wr's path (ncall) writes a valid record (CRC, both aliases). 14 screens incl. the RGB page
   (edits in R / G / B, a reset) pixel-identical to test 2. No loader-word change; ext12 260,176 / 262,144.
+- **Test 2b camera (owner, 2026-11-15): "Looking good!"** No freeze or reboot (debug log: 37 shutter events, saves
+  fine). Camera-tested: the RGB page as test 2, with the curves record packed before the locked save.
 
