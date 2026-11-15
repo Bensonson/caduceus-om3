@@ -4498,4 +4498,8 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     value 1 zero, nothing before; test 4 saves and reloads after a power cycle; 2b reads test 4's record.
   - Interrupts off per save 10,062 instructions (as 2b). 14 screens vs 2b: identical except the RGB page's curve
     picture (no legend, 5 points).
+- **Test 4 camera (owner, 2026-11-15): "This looks good!"** No freeze (debug log: 51 shutter events, the films block
+  written 8 times, saves fine). Camera-tested: no text on the grid, 5 even points. Owner's note for the next round:
+  "it doesnt update the live view dynamially. I have to make adjustments, half press and then those adjustments show
+  up" (the live view takes the curves only at the next set-up of the picture; test 5 looks at that).
 
