@@ -45,6 +45,9 @@ mx_go:
  cmp 0,d0
  bne 80f
 1:
+ call mx_photo,[],0               /* mix test 2 (owner: "Photos only"): video (recording, its live view) stays stock */
+ cmp 0,d0
+ beq 80f
  call mx_any,[d2],8               /* no mix on any COLOR: no getter call */
  cmp 0,d0
  beq 80f
@@ -160,6 +163,34 @@ mx_go:
  add 32,sp
  movm (sp),[d2,d3,a2,a3]
  jmp MX_BACK
+
+/* mx_photo: `call mx_photo,[],0` -> d0 1 in a photo mode (owner, mix test 1's clip: the mix and the curves are for
+ * photos only): the mode's code 1..5 / 53..57, or, while it is 0 (power-on, or the movie / S&Q position in om-emu),
+ * the photo / movie / S&Q switch 0xa32d9d0d = 2. ss_photo's test (camera-tested, custom modes) without its diagnostic
+ * write, so the image task only reads. Uses d0, a0. */
+mx_photo:
+ mov (rc_in),a0
+ cmp 0,a0
+ beq 3f
+ movbu (24,a0),d0
+ cmp 0,d0
+ beq 3f
+ cmp 6,d0
+ bcs 1f
+ cmp 53,d0
+ bcs 8f
+ cmp 58,d0
+ bcc 8f
+1:
+ mov 1,d0
+ ret [],0
+3:
+ movbu (0xa32d9d0d),d0
+ cmp 2,d0
+ beq 1b
+8:
+ clr d0
+ ret [],0
 
 /* mx_any: `call mx_any,[d2],8` -> d0 != 0 when any COLOR has a mix. Uses d0, d1, a0, a1. */
 mx_any:

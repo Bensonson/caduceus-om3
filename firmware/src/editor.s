@@ -8257,8 +8257,15 @@ st_run:
  cmp 91,d3                        /* then Highlights: slot +57 / +58 */
  bne 2b
  mov d2,(56,sp)                   /* rgb-curves: COLOR k's curves (blocks, cv_pp), as a mask */
+ call mx_photo,[],0               /* colour mix test 2 (owner: "Photos only"): the curves in photo modes only, video */
+ cmp 0,d0                         /* stays as it was (split toning unchanged) */
+ beq 341f
  mov (96,sp),d0
  call cv_set,[d2,d3,a2,a3],20
+ bra 342f
+341:
+ clr d0
+342:
  mov d0,(96,sp)
  mov (56,sp),d2
  or d0,d2

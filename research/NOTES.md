@@ -4607,4 +4607,11 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     Test 1's Mix page already paired them the same way (main -> strength on the left, sub -> hue on the right, same
     directions), so the slots are unchanged; a swap (tried) would break that. The RGB page pairs the same way too
     (sub -> point, right; main -> offset, left). What "doesn't line up" for the owner is asked (cad).
+  - **Video (owner, mix test 1's clip: "the video clip carried over the mix changes"; owner's choice "Photos only"):**
+    so video jobs go through the development function 0x605196b4 / the caller 0x605196f6 (camera result), which is
+    also where split toning and the RGB curves run (its stage list). mx_photo (ss_photo's test without its write:
+    the mode code 1..5 / 53..57, else the switch byte 0xa32d9d0d = 2) now gates mx_go and st_run's curves (cv_set ->
+    no curved channel); split toning is left as released (it very likely reaches video as well, since v0.26: not
+    checked on the camera; owner's call). om-emu (pset:1909:2 = photo, the default is movie): photo -> mix and curves
+    as model.py; movie -> mix stock, curves none, split toning alone identical to v0.29.5, split + curves = split only.
 
