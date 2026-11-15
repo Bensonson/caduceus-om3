@@ -231,9 +231,11 @@ def build(defaults, testfile, out):
     rg = ['.balign 4', 'cv_ent:', ' .long ' + ', '.join(f'cvp_d{i}' for i in range(len(rp)))]
     for i, (name, w, h, st) in enumerate(rp):
         rg += [f'cvp_d{i}:                          /* {name} */', f' .short 14, {w}, {h}, 8, 0, 0', f' .long {len(st)}, cvp_s{i} + 0x40000000, 0']
+    rg2 = []                                      # colour mix: the Mix page's pictures (7..) live with its code (ext12)
     for i, (name, w, h, st) in enumerate(rp):
-        rg += [' .balign 4', f'cvp_s{i}:', db(st).rstrip('\n')]
+        (rg if i < 7 else rg2).extend([' .balign 4', f'cvp_s{i}:', db(st).rstrip('\n')])
     (out / 'rgbpics.inc').write_text('\n'.join(rg) + '\n')
+    (out / 'rgbpics2.inc').write_text('\n'.join(rg2) + '\n')
     (out / 'mixtab.inc').write_text('\n'.join(rgbpics.mixtables()) + '\n')   # colour mix: the Mix page's tables
     (out / 'films.inc').write_text('.balign 4\nfl_top:\n' + db(mkicons.pack4(mkicons.film_top())) + 'fl_tops:\n' +
                                    db(mkicons.pack4(mkicons.film_top(True))) + 'fl_dig:\n' +

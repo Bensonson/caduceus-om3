@@ -4596,4 +4596,15 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   writes fine). Tweaks: (1) "the words sat and hue get cut off"; (2) "the dial symbols don't line up with what is
   changing". One ISO 6400 photo with a mix and one video clip were taken (owner's PB152714 / PB152715.MOV, not kept);
   no comment on them yet. Camera-tested: the Mix row, its page, the mix in photos and live view.
+- **Mix test 2 work (om-emu; not packaged yet):**
+  - "Cut off": the camera shows a header label in a 38 px box: test 1's "Sat" / "Hue" were squeezed into 38 px with
+    their dark edge cut at both sides; a 58 px picture is cut to the same 38 px box (om-emu screenshot). Now drawn
+    smaller (rgbpics.small_label: cap 17, ink inside columns 2..35), whole. The Mix page's pictures moved to ext12 with
+    its code (rgbpics2.inc).
+  - Dials (om-emu, WATCH on cv_ev and the manager): the emulator's "main" dial posts 0x9032 (EVT_ST_CHANGE_MAIN_DIAL),
+    "sub" 0x9031 (SUB); which physical dial each is, om-emu does not know. On the camera's own Highlight & Shadow page
+    main changes Sh (the left value, writes 978 + 3k) and sub Hi (the right one, 976 + 3k), "+" on sub lowering Hi.
+    Test 1's Mix page already paired them the same way (main -> strength on the left, sub -> hue on the right, same
+    directions), so the slots are unchanged; a swap (tried) would break that. The RGB page pairs the same way too
+    (sub -> point, right; main -> offset, left). What "doesn't line up" for the owner is asked (cad).
 

@@ -25,9 +25,9 @@ import mkguides
 RED, GREEN, BLUE, WHITE, EDGE = 122, 40, 53, 10, 7   # test 2: blue 53 (105 / 125 do not show blue: camera, om-emu)
 
 
-def letters(parts, w, h, cap, base, gap=1):
+def letters(parts, w, h, cap, base, gap=1, maxw=None, sx=1.0):
     """parts = [(text, fill index)] side by side, centred: fill where coverage >= 0.45, a dark edge round the ink"""
-    covs = [(mkicons.word(t, cap, w, 1.0)[0], mkicons.word(t, cap, w, 1.0)[1], f) for t, f in parts]
+    covs = [(mkicons.word(t, cap, maxw or w, sx)[0], mkicons.word(t, cap, maxw or w, sx)[1], f) for t, f in parts]
     total = sum(c.shape[1] for c, _, _ in covs) + gap * (len(covs) - 1)
     x = (w - total) // 2
     px = np.zeros((h, w), dtype=np.uint8)
@@ -62,6 +62,15 @@ def cell():
     return letters([('R', RED), ('G', GREEN), ('B', BLUE)], 100, 76, 26, 50, gap=2)
 
 
+def small_label(t, fill):
+    """colour mix test 2 (owner: "the words sat and hue get cut off"): the camera shows a header label in a 38 px box
+    (a wider picture is cut there too, om-emu), so "Sat" / "Hue" are drawn smaller to fit it whole: ink inside 2..35"""
+    a = letters([(t, fill)], 38, 30, 17, 26, maxw=30, sx=0.92)
+    cols = np.nonzero(a.any(axis=0))[0]
+    assert cols.min() >= 2 and cols.max() <= 35, (t, cols.min(), cols.max())
+    return a
+
+
 def mixcell():
     return letters([('Mix', WHITE)], 100, 76, 26, 50)
 
@@ -71,8 +80,8 @@ def pictures():
     return [('blank', np.zeros((2, 2), dtype=np.uint8)),
             ('R', label([('R', RED)])), ('G', label([('G', GREEN)])), ('B', label([('B', BLUE)])),
             ('Pt', label([('Pt', WHITE)])), ('guide', guide()), ('cell', cell())] + \
-           [('Sat ' + n, label([('Sat', c)])) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
-           [('Hue ' + n, label([('Hue', c)])) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
+           [('Sat ' + n, small_label('Sat', c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
+           [('Hue ' + n, small_label('Hue', c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
            [('Mix cell', mixcell())]
 
 

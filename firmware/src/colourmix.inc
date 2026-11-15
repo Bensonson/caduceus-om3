@@ -208,8 +208,9 @@ mx_n:                             /* matrices put in (a count, for om-emu) */
 
 /* ------------------------------------------------------------------ the Mix page (mockup C, owner 2026-11-15)
  * Row MX_IT under the RGB row: the RGB page's machinery (rgbcurves.inc) with cv_on = 2. INFO = the colour (cv_c,
- * shared with the RGB page), the front dial its hue (Hi, the right header slot, label "Hue" in that colour), the rear
- * dial its strength (Sh, the left slot, "Sat"), hold OK = COLOR k's mix off. The picture: a ring with the three
+ * shared with the RGB page), the sub dial (event 0x9031) its hue (Hi, the right header slot under that dial's symbol,
+ * label "Hue" in that colour), the main dial (0x9032) its strength (Sh, the left slot, "Sat"), as the camera's own page
+ * pairs them (om-emu); hold OK = COLOR k's mix off. The picture: a ring with the three
  * colours as dots (where each sits now: angle = its start + MX_DEG x hue, radius MXR + 4 x strength), marks where they
  * start, spokes from the centre; the chosen one bigger, ringed white (mx_pre, mx_line, from cv_draw). */
 .section .ext12,"ax"
@@ -270,7 +271,9 @@ mx_star:
  jmp STAR_END
 
 /* mx_val: (jumped to from cv_val, its frame `ret [d2,d3],12`) d1 = the slot (0 Hi, 1 Mid, 2 Sh), d2 = k -> d0 = the
- * Mix page's value: Hi = the chosen colour's hue, Sh = its strength, Mid = CV_MIDV. */
+ * Mix page's value: Hi (the right slot) = the chosen colour's hue, Sh (the left slot) = its strength, Mid = CV_MIDV.
+ * As the camera's own page (om-emu): the sub dial (event 0x9031) changes Hi, the right value, the main dial (0x9032)
+ * Sh, the left one, each under its dial's symbol; mx_ev uses the same pairing. */
 mx_val:
  cmp 1,d1
  bne 1f
@@ -285,7 +288,7 @@ mx_val:
  add d0,a0
  cmp 0,d3
  beq 2f
- inc a0                           /* Sh: the strength */
+ inc a0                           /* Sh: the strength (Hi: the hue) */
 2:
  movbu (a0),d0
  extb d0
@@ -698,5 +701,7 @@ mx_py:
  .long 0, 0, 0
  .include "mixtab.inc"            /* mx_ux / mx_uy (each colour's direction for hue -7..+7, x 1024), mx_ro / mx_ri
                                    * (the ring's half widths by |dy|), mx_tk (the start marks): firmware/rgbpics.py */
+ .balign 4
+ .include "rgbpics2.inc"          /* the Mix page's pictures ("Sat", "Hue", the "Mix" cell; rgbpics.py, cv_ent) */
  .balign 4
 .section .ext12,"ax"
