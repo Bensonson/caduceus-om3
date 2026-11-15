@@ -8,6 +8,7 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 | Version | Released | What's new |
 |---|---|---|
+| [v0.29.5](#v0295) | 2026-11-15 | Custom modes keep their own copy of everything: films, all their changes and the picture settings |
 | [v0.29.4](#v0294) | 2026-11-15 | Fixes: Picture Mode stars and saving on leaving it; a film's Custom WB Kelvin kept in the WB screen |
 | [v0.29.3](#v0293) | 2026-11-14 | The Delete button takes a function while shooting (photo and video) |
 | [v0.29.2](#v0292) | 2026-11-14 | Fix: custom modes (C1–C5) keep their own films and no longer change yours |
@@ -35,6 +36,20 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 Versions are named v0.N from v0.18 on. Earlier builds were called "test N" while they were tried on the camera; the
 same number is used here (test 17 = v0.17).
+
+## v0.29.5
+v0.29.4 plus one change. Firmware camera-tested (2026-11-15, builds p1 and p2; only its name was changed).
+
+- **Custom modes keep their own copy of everything:** Assign › Set now copies into that custom mode the films, every
+  change made to them (all our rows) and the camera's own picture settings (Contrast and the rest). Nothing you do in
+  another mode changes it: not an edit, not a film reset, not a film pick. P / A / S / M share one set and keep their
+  own changes (v0.29.4 could lose a Contrast change in P after a trip through a custom mode). Assign › Reset puts a
+  custom mode back to the films as built.
+- **Changes made inside a custom mode follow its Save Settings**, as the camera's own settings do: on Reset (the
+  default) they are forgotten when you turn the dial away or switch off, and the mode comes back as assigned; on Hold
+  they stay. Until now our rows kept every change.
+- **After updating, Assign your custom modes once** so each gets its full copy.
+  Details: [release notes](releases/v0.29.5/NOTES.md).
 
 ## v0.29.4
 v0.29.3 plus two pull requests' fixes and a clean-up. Firmware camera-tested (2026-11-15, build t1; only its name was

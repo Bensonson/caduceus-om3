@@ -4380,3 +4380,9 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
 - **Camera (owner, 2026-11-15, p2 27f44762…): "it works"** (camera-tested): Assign > Reset puts the custom mode back to
   the films as built; the p1 scenario still holds. CADLOG (as reported by the main chat): 23 events, saves 1, built from
   the films 1, 0 differences in Reset custom modes.
+
+### v0.29.5: per-mode settings (2026-11-15; camera-tested)
+- **Released as v0.29.5** (owner) from `feature/per-mode-settings-2` (p2, 9a92cc1, camera-tested; notes 0820c13).
+  VERSION "v0.29.5 (per-mode settings, tested)" (same length as p2's; byte diff: only the name, the code-block tag, the
+  built-in GUIDES CRC). `releases/v0.29.5`: patch.json (175 runs, 342,144 bytes), extras as v0.29.4. `patch.py` makes
+  01ea3d14….

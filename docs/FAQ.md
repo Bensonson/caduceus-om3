@@ -93,10 +93,12 @@ Your films were in `PROFILES.BIN`: rename it to `LOOKS.BIN`.
 
 ### Do custom modes (C1–C5) keep my films?
 
-Yes, from v0.29.2. When you Assign a custom mode (Shooting menu 1 › Custom Mode › Cn › Assign › Set), the films you're
-using then are kept with it, and turning to it brings them back; P / A / S / M keep their own. A custom mode set to Save
-Settings: Hold keeps the films you pick in it, one set to Reset goes back to its assigned films. Assign your custom modes
-once after updating to v0.29.2.
+Yes, and from v0.29.5 everything else too. When you Assign a custom mode (Shooting menu 1 › Custom Mode › Cn › Assign ›
+Set), it keeps its own copy of the films you're using, every change you made to them and the camera's picture settings.
+Turning to it brings that copy back, and nothing you do in another mode (an edit, a film reset, a film pick) changes it.
+P / A / S / M share one set of their own. Changes made inside a custom mode follow its Save Settings: Reset (the
+default) forgets them when you leave the mode or switch off, Hold keeps them. Assign › Reset puts a custom mode back to
+the films as built. Assign your custom modes once after updating to v0.29.5.
 
 ### Do I still need to half-press after switching on?
 

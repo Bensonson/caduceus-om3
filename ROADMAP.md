@@ -79,6 +79,7 @@ WB per film, the Blacks / Whites grid) the colour profiles are complete for now;
 | Feature | Released |
 |---|---|
 | **Remappable Delete button:** in photo and video mode the Delete button takes any Fn function ([#37](https://github.com/androidfanman/caduceus-om3/issues/37), by crombach, [#40](https://github.com/androidfanman/caduceus-om3/pull/40)) | v0.29.3 (released 2026-11-14) |
+| **Custom modes keep their own copy of everything:** Assign › Set copies the films, all their changes and the picture settings into that custom mode; nothing done in another mode changes it; Assign › Reset puts it back to the films as built | v0.29.5 (released 2026-11-15) |
 | **Custom modes keep their films:** each custom mode (C1–C5) brings back the films it was assigned with, and no longer changes your films ([#41](https://github.com/androidfanman/caduceus-om3/issues/41)) | v0.29.2 (released 2026-11-14) |
 | **Films with no card:** the films load from the camera's memory with no card in the camera ([#38](https://github.com/androidfanman/caduceus-om3/issues/38)) | v0.29.1 (released 2026-11-13) |
 | **Films in the camera:** films, on-camera changes and Extras kept in the camera's own memory, guide pictures / code / labels / tone pictures built into the firmware: any card works ([#35](https://github.com/androidfanman/caduceus-om3/issues/35)) | v0.29 (released 2026-11-13) |

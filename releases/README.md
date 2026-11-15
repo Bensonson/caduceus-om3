@@ -5,6 +5,7 @@ card files it needs, the expected checksums, and short notes. No OM firmware is 
 
 | Version | What's new | Status |
 |---|---|---|
+| [v0.29.5](v0.29.5/NOTES.md) | v0.29.4 plus custom modes that keep their own copy of everything (films, all their changes, the picture settings); Assign › Reset puts one back to the films as built | Camera-tested |
 | [v0.29.4](v0.29.4/NOTES.md) | v0.29.3 plus fixes: Picture Mode stars and saving on leaving it, "FILM n*" on the shooting screen (by crombach); a film's Custom WB Kelvin kept in the WB screen (by buburun) | Camera-tested |
 | [v0.29.3](v0.29.3/NOTES.md) | v0.29.2 plus a remappable Delete button: in photo and video mode Delete takes any Fn function (by crombach) | Camera-tested |
 | [v0.29.2](v0.29.2/NOTES.md) | v0.29.1 with one fix: custom modes (C1–C5) no longer change your films, and each brings back the films it was assigned with (Save Settings: Hold and Recall too) | Camera-tested |

@@ -394,6 +394,19 @@ Stock: OLY_E_147_1100_0000_0000_3.BIN sha 8c133084…696d, main 5e8d376e…7d59.
 - The looks are only as good as the preview model (`src/preview.ts`) is of the camera; check a film on the camera
   before trusting it for anything critical.
 
+## v0.29.5 release (feature/per-mode-settings-2; builds p1 and p2, camera-tested 2026-11-15)
+
+v0.29.4 plus per-mode settings: record 'OM3S' at M+0x3D000 holds one set per C1..C5 and one for P / A / S / M / B (our
+4 COLOR slots, the films' saved changes and the camera's 18 COLOR settings x 4). `rc_go` calls `ss_pre` / `ss_post`
+around `cm_go`; `rc_put` writes back only the COLORs `ss_post` leaves (`ss_mask`), and its record choice moved to
+`rc_rec`; Assign › Set copies the mode now (`ss_asg` from `cm_rec`); Assign › Reset goes through facade entry 19
+(`cm_rst`, word 0x60e574c0, stock 0x60b86aaf) and marks the set to be built from the films as built (`ss_rst`); Reset vs
+Hold as the camera's 1880+n. No new hooks; no new settings-manager writes. Details: `research/NOTES.md`,
+`research/per-mode-settings/PLAN.md`.
+- `firmware/VERSION` "v0.29.5 (per-mode settings, tested)", the same length as p2's: main.bin differs only in that
+  string, the code-block tag and the built-in GUIDES copy's CRC / tag (checked, 37 bytes). E1479999.BIN 01ea3d14…;
+  `patch.py` makes it by default.
+
 ## v0.29.4 release (PRs #45, #46 by crombach and #48 by buburun, merged; build t1, camera-tested 2026-11-15)
 
 v0.29.3 plus #45 (dead card save / load code removed), #46 (Picture Mode stars `ed_isdef` / `ed_isd0` / `fl_isdef`,
