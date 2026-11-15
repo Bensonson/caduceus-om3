@@ -1036,8 +1036,15 @@ cv_ev5:
  clr d2
 51:
  movbu d2,(cv_c)
- jmp 80f                          /* ... and goes on to the camera: its panel toggles 2191 (cv_inf lets it reach */
-                                  /* the panel on our row; cv_sv refuses the write) and redraws the page */
+ mov (cv_gen),d0                  /* drawn again */
+ inc d0
+ mov d0,(cv_gen)
+ mov (8,sp),d0                    /* ... and goes on to the camera: its panel (cv_inf lets INFO reach it on our rows) */
+ mov (12,sp),d1                   /* redraws the page. Colour mix test 3 (owner's photo: a dial over the middle */
+ mov (16,sp),a0                   /* number): the panel flips its own Sh / Hi <-> Mid mode at each INFO, whatever */
+ mov (20,sp),a1                   /* cv_sv does with its 2191 write (om-emu: the writes alternate 887 / 886), and the */
+ calls pm_ev                      /* camera then puts the dial over the middle slot; so INFO goes to it twice (as two */
+ bra 90f                          /* quick presses): it ends in the Sh / Hi mode, dials over our two values */
 6:
  cmp 0xf802,d0                    /* OK held */
  bne 90f

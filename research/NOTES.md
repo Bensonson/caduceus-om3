@@ -4626,4 +4626,19 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 - **Mix test 2 (package, emulator only):** Sat / Hue whole (smaller), the mix and RGB curves in photos only; dial
   pairing and everything else as test 1. 14 screens vs test 1: the same except the smaller labels. Save 10,062.
   ext11 60,528 / 65,536, ext12 260,480 / 262,144.
+- **Mix test 2 camera (owner, 2026-11-15):** "The words look good but this is what I'm talking about. The middle
+  number has a dial over it but that middle number never gets adjusted" (owner's photo, not kept: green chosen, so
+  INFO was pressed once; the header showed the full dial over the middle "±0", none over Sat / Hue, all values white).
+- **Why (om-emu, WATCH on cv_sv):** the camera's H&S panel keeps its own Sh / Hi <-> Mid mode and flips it at every
+  INFO, whatever happens to its 2191 write (our refused writes ask 887, 886, 887, ... in turn); it starts in Sh / Hi
+  when the row opens. om-emu always draws our header in the Sh / Hi mode (5 ms .. 1.2 s after INFO, from the H&S
+  row's Mid mode, entering from below), so the camera's Mid drawing after an odd number of INFO presses was not
+  reproducible here; the panel's flip is the difference that matches the photo.
+- **Mix test 3:** on our pages (RGB and Mix) cv_ev hands INFO to the panel twice (calls pm_ev, then the usual jmp):
+  it flips there and back, ends in the Sh / Hi mode with the dials over our two values; our colour steps once (as
+  two quick presses for the camera). om-emu: each INFO on Mix / RGB -> 2191 asks 887 then 886; the page redraws in
+  the new colour; the camera's own H&S row still flips once (Mid mode as stock); 14 screens identical to test 2.
+- **The middle "±0" stays** (grey, no dial, as the camera's own unused middle value in the Sh / Hi mode): it is the
+  camera's slot, drawn with the same "±" / digit pictures as Sat / Hue (picture 1131 "±" etc.; om-emu), so it cannot
+  be blanked by picture without blanking ours; its value must stay in -7..+7 (our picture rides on its object).
 
