@@ -4677,4 +4677,9 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   right's from 0x61466680), returns a clear 50 x 34 picture (a 2 x 2 one left parts of the old number, om-emu). The
   other lookups (return 0x610eb160) are left alone. om-emu: the middle gone on the RGB and Mix pages, our values and
   their dials kept; the camera's own H&S row unchanged; 14 screens vs test 2 differ only at that spot.
+- **Mix test 5 camera (owner, 2026-11-15; a 5 s video, not kept):** "Do you see how the dial changes but isn't
+  actually needed for the circle? Likewise the text by sat and hue are greyed out." On the camera the header still
+  flips with INFO between the panel's outer look (dials over Sat / Hue, values white, middle empty: what the owner
+  wants) and its middle look (one dial in the middle, still drawn: test 5's clearing misses it there; Sat / Hue
+  greyed). Wanted (test 6): always the outer look on our pages; INFO only changes our colour.
 
