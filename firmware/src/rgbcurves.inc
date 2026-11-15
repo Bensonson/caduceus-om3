@@ -31,12 +31,6 @@
  .set CV_U, 0xa295b800
  .set CV_MAGIC, 0x52334d4f        /* "OM3R" */
  .set CV_STEP, 48
- .set HD_BAND, 64                 /* mix test 4, our page header (colourmix.inc): its rows; the graph / ring below */
- .set HD_K, 3761                  /* the RGB graph: row = 299 - (t x HD_K >> 16), t 0..4095 -> rows 299..64 */
- .set HD_BG, 19                   /* the curve layer's background (the camera's box); grid / diagonal 20, white 14 */
- .set CW_HD, 0x8000               /* the header's glyphs in the work area (build.py writes them into the image) */
- .set HD_TY, 30                   /* the names' and values' top row; the dial symbols at row 4 */
- .set HD_MAX, 10
 
 .section .ext12,"ax"
 
@@ -656,6 +650,9 @@ cv_v0:
  .set HS_DHI, 0x6128821b
  .set HS_DMD, 0x61288245
  .set HS_DIAL, 0x611b43ad         /* the dial handler's read before its write */
+ .set HS_HDRAW, 0x610daa1f        /* mix test 5: the page header's picture draw (its return into the lookup) */
+ .set HS_MID0, 0x6146656c         /* its layout records of the middle slot: the dial symbol (Mid look), "Mid", the */
+ .set HS_MIDN, 0x61466680 - HS_MID0  /* sign, the digits; the left slot's records lie below, the right's from 0x61466680 */
  .set CVI0, 0x7f60                /* our picture ids (cv_ent order, rgbpics.py; 0x7f60.. is free) */
  .set CVI_N, 14                   /* + colour mix: "Sat" R / G / B, "Hue" R / G / B, the "Mix" cell */
  .set CVI_CELL, CVI0 + 6
@@ -1042,8 +1039,8 @@ cv_ev5:
  clr d2
 51:
  movbu d2,(cv_c)
- jmp 80f                          /* ... and goes on to the camera: its panel (cv_inf lets INFO reach it on our rows) */
-                                  /* redraws the page (its own Sh / Hi <-> Mid flip no longer shows: our header) */
+ jmp 80f                          /* ... and goes on to the camera: its panel toggles 2191 (cv_inf lets it reach */
+                                  /* the panel on our row; cv_sv refuses the write) and redraws the page */
 6:
  cmp 0xf802,d0                    /* OK held */
  bne 90f
@@ -1164,22 +1161,25 @@ cv_ic:
  add d1,a0
  retf [],0
 1:
+ mov mdr,d1                       /* mix test 5 (owner: "turn the center dial and number black"): on our pages the */
+ cmp HS_HDRAW,d1                  /* H&S header's middle (its dial symbol, name, number) clear. The header's draw */
+ bne 12f                          /* (return HS_HDRAW) passes in a0 the layout record of the spot: the middle's are */
+ mov a0,d1                        /* HS_MID0.. (om-emu, in both of the panel's looks); the left and right values' */
+ add -HS_MID0,d1                  /* records lie below and above, so their pictures, which the middle shares, stay */
+ cmp HS_MIDN,d1
+ bcc 12f
+ mov (cv_on),d1
+ cmp 0,d1
+ beq 12f
+ mov cv_ent + 4 * CVI_N,a0        /* a clear picture the size of the slot (a small one left old pixels, om-emu) */
+ retf [],0
+12:
+ mov d0,d1
+ exthu d1
  mov (cv_on),a0
  cmp 0,a0
  beq 8f
  mov cv_ent,a0                    /* entry 0: clear */
- cmp 10772,d1                     /* mix test 4: the camera's header hidden on our pages (ours is in our picture): */
- beq 7f                           /* its "0", */
- cmp 1111,d1                      /* the other digits and signs 1111..1132 (om-emu: the left column's numbers are */
- bcs 32f                          /* other pictures), */
- cmp 1133,d1
- bcs 7f
-32:
- cmp 10912,d1                     /* the dial symbols 10912..10919 */
- bcs 33f
- cmp 10920,d1
- bcs 7f
-33:
  cmp 4147,d1
  bcs 3f
  cmp 4177,d1
@@ -1189,10 +1189,34 @@ cv_ic:
 3:
  cmp 4331,d1
  beq 7f
- cmp 4208,d1                      /* "Sh", "Hi": clear (mix test 4: our header names them) */
- beq 7f
+ cmp 4208,d1
+ bne 4f
+ movbu (cv_c),d1                  /* "Sh" -> R / G / B; colour mix: "Sat" R / G / B */
+ inc d1
+ mov (cv_on),a0
+ cmp 2,a0
+ bne 31f
+ add 6,d1
+31:
+ asl2 d1
+ mov cv_ent,a0
+ add d1,a0
+ retf [],0
+4:
  cmp 4207,d1
- beq 7f
+ bne 5f
+ mov (cv_on),a0
+ cmp 2,a0
+ beq 41f
+ mov cv_ent + 16,a0               /* "Hi" -> "Pt" */
+ retf [],0
+41:
+ movbu (cv_c),d1                  /* colour mix: "Hue" R / G / B */
+ add 10,d1
+ asl2 d1
+ mov cv_ent,a0
+ add d1,a0
+ retf [],0
 5:
  cmp 16247,d1
  beq 6f
@@ -1235,7 +1259,6 @@ cv_pic:
  * (76) flat, (80) r, (84) dy, (88) point i. */
  .set CV_PX0, 0
 cv_draw:
- call hd_pre,[d2,d3,a2,a3],20     /* mix test 4: our header's items */
  mov (cv_on),d0                   /* colour mix: the Mix page's picture (mx_pre, mx_line) */
  cmp 2,d0
  bne cvd_rgb
@@ -1317,7 +1340,7 @@ cvd_rgb:
  ble 162f
  mov 4095,d2
 162:
- mov HD_K,d1                      /* mix test 4: the graph's rows HD_BAND..299, under our header */
+ mov 4787,d1
  mul d1,d2
  lsr 16,d2
  mov 299,d0
@@ -1397,7 +1420,7 @@ cvd_rgb:
  ble 22f
  mov 4095,d0
 22:
- mov HD_K,d1
+ mov 4787,d1
  mul d1,d0
  lsr 16,d0
  mov 299,d1
@@ -1427,8 +1450,8 @@ cvd_st:
  mov d0,(cv_desc + 12)            /* too big: nothing shown */
  jmp 99f
 31:
- mov CV_WRK + CW_ROW,a0           /* the row clear: mix test 4, the background colour (our picture covers the */
- mov HD_BG * 0x01010101,d0        /* camera's grid: its look hid our header on the camera) */
+ mov CV_WRK + CW_ROW,a0           /* the row clear */
+ clr d0
  mov 75,d1
 32:
  mov d0,(a0)
@@ -1442,8 +1465,12 @@ cvd_st:
  call mx_line,[d2,d3,a2,a3],20
  jmp cvd_enc
 cvd_crv:
- mov (16,sp),d0                   /* mix test 4: our grid and the diagonal, in the graph's rows */
- call rg_grid,[d2,d3,a2,a3],20
+ mov CV_WRK + CW_ROW,a0           /* the diagonal */
+ mov 299,d0
+ mov (16,sp),d1
+ sub d1,d0
+ mov 20,d1
+ movbu d1,(d0,a0)
  clr d3                           /* the curves: the other two, then the selected one */
 33:
  mov (8,sp),d2
@@ -1577,11 +1604,6 @@ cvd_crv:
  cmp 5,d0
  bcs 40b
 cvd_enc:
- mov (16,sp),d0                   /* mix test 4: our header in the top rows (both pages) */
- cmp HD_BAND,d0
- bcc cvd_enc2
- call hd_row,[d2,d3,a2,a3],20
-cvd_enc2:
  mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
  clr d3
 50:

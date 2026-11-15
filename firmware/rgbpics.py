@@ -82,7 +82,8 @@ def pictures():
             ('Pt', label([('Pt', WHITE)])), ('guide', guide()), ('cell', cell())] + \
            [('Sat ' + n, small_label('Sat', c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
            [('Hue ' + n, small_label('Hue', c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
-           [('Mix cell', mixcell())]
+           [('Mix cell', mixcell())] + \
+           [('clear 50 x 34', np.zeros((34, 50), dtype=np.uint8))]   # mix test 5: the H&S header's middle, cleared
 
 
 def streams():
@@ -95,8 +96,7 @@ def streams():
 
 MX_ANG = (-90, 30, 150)      # the Mix page: red at the top; clockwise yellow, green, cyan, blue, purple (screen y down)
 MX_DEG = 5                    # degrees a hue step
-MXR = 70                      # the ring's radius (editor's MXR); centre MXCX, MXCY (mix test 4: below our header)
-MXCX, MXCY = 150, 182
+MXR = 90                      # the ring's radius (editor's MXR); centre 150, 150
 
 
 def mixtables():
@@ -112,72 +112,11 @@ def mixtables():
     tk = []
     for j in range(3):
         c, sn = math.cos(math.radians(MX_ANG[j])), math.sin(math.radians(MX_ANG[j]))
-        tk += [round(MXCX + (MXR - 9) * c), round(MXCY + (MXR - 9) * sn), round(MXCX + (MXR + 9) * c), round(MXCY + (MXR + 9) * sn)]
+        tk += [round(150 + (MXR - 9) * c), round(150 + (MXR - 9) * sn), round(150 + (MXR + 9) * c), round(150 + (MXR + 9) * sn)]
     assert max(ro) < 256 and len(ux) == 45
     return [' .balign 4', 'mx_ux:', ' .short ' + ', '.join(map(str, ux)), 'mx_uy:', ' .short ' + ', '.join(map(str, uy)),
             ' .balign 4', 'mx_tk:', ' .long ' + ', '.join(map(str, tk)),
             'mx_ro:', ' .byte ' + ', '.join(map(str, ro)), 'mx_ri:', ' .byte ' + ', '.join(map(str, ri)), ' .balign 4']
-
-
-# mix test 4: our own page header (the camera's header numbers, labels and dial symbols are hidden on our pages; the
-# owner's camera drew them in its middle-value look). 2 bits a pixel: 0 clear, 1 dark edge, 2 the item's colour.
-HD_TEXT = ['0', '1', '2', '3', '4', '5', '6', '7', '+', '\u2212', '\u00b1', 'Sat', 'Hue', 'R', 'G', 'B', 'Pt']
-HD_H, HD_CAP, HD_BASE = 30, 20, 25
-
-
-def _edge(px):
-    from scipy import ndimage
-    ink = px == 2
-    e = ndimage.distance_transform_edt(~ink)
-    px[(e > 0) & (e <= 2.0)] = 1
-    return px
-
-
-def hd_text(t):
-    c, b = mkicons.word(t, HD_CAP, 200, 1.0)[:2]
-    w = c.shape[1] + 4
-    px = np.zeros((HD_H, w), dtype=np.uint8)
-    y0 = int(round(HD_BASE - b))
-    for yy in range(c.shape[0]):
-        for xx in range(c.shape[1]):
-            if 0 <= y0 + yy < HD_H and c[yy, xx] >= 0.45:
-                px[y0 + yy, 2 + xx] = 2
-    return _edge(px)
-
-
-def hd_icon(bottom):
-    """our own dial symbol (not the camera's picture): a half ring with teeth, open at the top (the main dial, under
-    which the camera puts its left value) or at the bottom (the sub dial, right value)"""
-    import math
-    w, h = 36, 20
-    cy = 2 if bottom else h - 3
-    px = np.zeros((h, w), dtype=np.uint8)
-    for y in range(h):
-        for x in range(w):
-            dx, dy = x + 0.5 - 18, y + 0.5 - cy
-            if (dy < 0) if bottom else (dy > 0):
-                continue
-            r = math.hypot(dx, dy)
-            a = math.degrees(math.atan2(dy, dx)) % 22.5
-            tooth = a < 7 or a > 15.5
-            if 9 <= r <= (16 if tooth else 14):
-                px[y, x] = 2
-    return _edge(px)
-
-
-def hd_glyphs():
-    """[(name, w, h, 2-bit rows packed four a byte, low pixel first)] in the editor's order: HD_TEXT, then the
-    main dial's symbol, the sub dial's"""
-    out = []
-    for name, a in [(t, hd_text(t)) for t in HD_TEXT] + [('main dial', hd_icon(True)), ('sub dial', hd_icon(False))]:
-        h, w = a.shape
-        st = (w + 3) // 4
-        b = bytearray(st * h)
-        for y in range(h):
-            for x in range(w):
-                b[y * st + x // 4] |= int(a[y, x]) << (2 * (x % 4))
-        out.append((name, w, h, bytes(b)))
-    return out
 
 
 if __name__ == '__main__':

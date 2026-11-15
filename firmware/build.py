@@ -237,13 +237,6 @@ def build(defaults, testfile, out):
     (out / 'rgbpics.inc').write_text('\n'.join(rg) + '\n')
     (out / 'rgbpics2.inc').write_text('\n'.join(rg2) + '\n')
     (out / 'mixtab.inc').write_text('\n'.join(rgbpics.mixtables()) + '\n')   # colour mix: the Mix page's tables
-    hdg = rgbpics.hd_glyphs()                     # mix test 4: our page header's glyphs (2 bits a pixel) -> CV_WRK + 0x8000
-    hd_off, hd_blob = [], b''
-    for name, w, h, b in hdg:
-        hd_off.append(len(hd_blob)); hd_blob += b
-    assert len(hdg) == 19 and len(hd_blob) <= 0x1000, (len(hdg), len(hd_blob))
-    (out / 'hdtab.inc').write_text(' .balign 4\nhd_tab:\n' + ''.join(f' .short {w}, {h}, {off}, 0   /* {name} */\n'
-                                   for (name, w, h, b), off in zip(hdg, hd_off)))
     (out / 'films.inc').write_text('.balign 4\nfl_top:\n' + db(mkicons.pack4(mkicons.film_top())) + 'fl_tops:\n' +
                                    db(mkicons.pack4(mkicons.film_top(True))) + 'fl_dig:\n' +
                                    ''.join(db(mkicons.pack4(d)) for d in digs) +
@@ -790,7 +783,6 @@ def build(defaults, testfile, out):
     # rgb-curves: the curve page's work area (editor's CV_WRK, uncached) right after, loaded too (GX4-proven space)
     assert vf_end <= 0x60fa3000 and sy['CV_WRK'] == 0xa0fa3000, (hex(vf_end), hex(sy['CV_WRK']))
     assert set(m[o(at):o(0x60fa3000 + 0x9000)]) <= {0xff}, 'the work area is not free in the firmware image'
-    m[o(0x60fa3000 + 0x8000):o(0x60fa3000 + 0x8000) + len(hd_blob)] = hd_blob   # mix test 4: our header's glyphs
     vf_end = 0x60fa3000 + 0x9000
     assert vf_end <= 0x6103f000, hex(vf_end)
     struct.pack_into('<I', m, o(0x60045e9c), vf_end)

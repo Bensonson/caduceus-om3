@@ -4664,4 +4664,17 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   - om-emu: both pages show our header, values follow the dials (main +1 -> left +1, sub +1 -> right -1, as the
     camera's own page), INFO changes the colour; screens outside our pages identical to test 3. ext11 61,552 / 65,536,
     ext12 260,416 / 262,144.
+- **Mix test 4 camera (owner, 2026-11-15):** "that looks so much worse, and it affected how the RGB grid looks. Can you
+  not just have the old grid and turn the center dial and number black?" Our own header is dropped. Mix test 5: test
+  2's code again (the camera's header, the old grid and circle; no double INFO), with only the middle dial symbol and
+  the middle number hidden.
+- **Mix test 5 (emulator only):** test 2's code (`git checkout 86b567b -- firmware/`: the camera's header, the old RGB
+  grid and Mix circle, no double INFO) plus only this: on our pages the H&S header's middle (its dial symbol in the Mid
+  look, "Mid", the number) is cleared. The middle number shares its pictures with ours, but the header's draw passes
+  the spot's layout record: cv_ic, when its return is HS_HDRAW 0x610daa1f and a0 lies in HS_MID0 0x6146656c ..
+  0x61466680 (om-emu: the middle's records in both of the panel's looks, e.g. the Mid look's dial 10912 at
+  0x6146656c, "Mid" 0x61466580, its sign 0x61466594, its "0" 0x614665cc; the left value's records lie below, the
+  right's from 0x61466680), returns a clear 50 x 34 picture (a 2 x 2 one left parts of the old number, om-emu). The
+  other lookups (return 0x610eb160) are left alone. om-emu: the middle gone on the RGB and Mix pages, our values and
+  their dials kept; the camera's own H&S row unchanged; 14 screens vs test 2 differ only at that spot.
 
