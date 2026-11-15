@@ -4503,3 +4503,25 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   "it doesnt update the live view dynamially. I have to make adjustments, half press and then those adjustments show
   up" (the live view takes the curves only at the next set-up of the picture; test 5 looks at that).
 
+### RGB curves: live view refresh while turning the dial (2026-11-15; analysis + om-emu, nothing built)
+- Owner (test 4): the live view takes a curve change only after a half-press. Asked (cad): how do our other rows get
+  the live view to refresh, and is there a camera-tested way to reuse.
+- **Our rows all use one path, and it has no refresh step:** sliders (ed_set / s_dirty), split toning (tn_set ->
+  s_dirty) and the RGB row (cv_sv) store our value, then hand the camera's setting manager (0x60bb528f) the camera's
+  own, unchanged value (sget), so the page redraws. Nothing else is sent after a change.
+- om-emu (WATCH on the manager, its writer tail 0x60aea1de and the change notifier 0x60063519, which the setting
+  writer reaches only on a real change): the camera's own tone-curve row, rear dial -> value changes -> 0x60063519 and
+  a tone-specific chain (0x603f03f0, 0x603f1a7c, 0x603f32a8, 0x60404f35, 0x60405752, 0x60b86e44, 0x60bb4a28) run. Our
+  RGB row, same dial -> the manager runs with the unchanged value, none of those. The editor's "poke" (k_cur +
+  SetValue 2197 + k with its own value, after a wheel page change / reset; sd2's sdl_poke did the same after the load)
+  -> manager and 0x60aea1de run, 0x60063519 does not (only the writes that really change 2199 reach it). The manager
+  sends the "picture mode" message (0x6041b019 with 111) for ids 111, 897..901 and 988 whatever the value; nothing of
+  ours sends it.
+- om-emu cannot show live view itself (no live view jobs: no hits at the builder 0x60518615 or st_run while idle,
+  nor at the half-press). sd2 (camera-tested 2026-11-09: live view followed the film after the automatic load) is the
+  only camera result for the poke; with the emulator showing no change notice from it, why it worked is not known.
+- So: no camera-tested way to refresh live view on a change of ours exists; split toning and the sliders most likely
+  show in live view only after the next half-press too (not checked on the camera). Every way to do it per dial step is
+  new (a real change of a camera setting and back, re-writing the picture mode / film setting so the manager sends its
+  picture-mode message, or calling the camera's set-up ourselves, as video-sharp v1 did). Waiting for the owner (cad).
+
