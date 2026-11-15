@@ -245,8 +245,9 @@ mx_n:                             /* matrices put in (a count, for om-emu) */
  * colours as dots (where each sits now: angle = its start + MX_DEG x hue, radius MXR + 4 x strength), marks where they
  * start, spokes from the centre; the chosen one bigger, ringed white (mx_pre, mx_line, from cv_draw). */
 .section .ext12,"ax"
- .set MXC, 150                    /* the ring's centre and radius in the 300 x 300 picture */
- .set MXR, 90
+ .set MXCX, 150                   /* the ring's centre and radius in the 300 x 300 picture (mix test 4: below */
+ .set MXCY, 182                   /* our header, HD_BAND rows) */
+ .set MXR, 70
  .set MXG, 20                     /* curve-layer colours: grey (as the curves' diagonal), white */
  .set MXW, 14
 
@@ -400,10 +401,12 @@ mx_pre:
  add d1,d0
  add d0,d0
  mov d0,a3                        /* its offset in mx_ux / mx_uy */
- movbu (1,a2),d0                  /* strength -> the radius MXR + 4 s */
+ movbu (1,a2),d0                  /* strength -> the radius MXR + 3 s */
  extb d0
  call mx_c7,[],0
- asl2 d0
+ mov d0,d1
+ add d0,d0
+ add d1,d0
  add MXR,d0
  mov d0,d2
  mov mx_ux,a0
@@ -413,7 +416,7 @@ mx_pre:
  mov d2,d0
  mul d1,d0
  asr 10,d0
- add MXC,d0
+ add MXCX,d0
  mov d3,d1
  asl2 d1
  mov mx_px,a1
@@ -426,7 +429,7 @@ mx_pre:
  mov d2,d0
  mul d1,d0
  asr 10,d0
- add MXC,d0
+ add MXCY,d0
  mov d3,d1
  asl2 d1
  mov mx_py,a1
@@ -455,8 +458,8 @@ mx_c7:
  * then its colour). Uses d0, d1, a0, a1, MDR. */
 mx_line:
  mov d0,(mx_y)
- mov d0,d2                        /* the ring: dy = |y - MXC| */
- add -MXC,d2
+ mov d0,d2                        /* the ring: dy = |y - MXCY| */
+ add -MXCY,d2
  bge 1f
  not d2
  inc d2
@@ -474,31 +477,31 @@ mx_line:
  mov MXG,a1
  cmp 0,d2
  bne 2f
- mov MXC,d0
+ mov MXCX,d0
  sub d3,d0
- mov MXC,d1
+ mov MXCX,d1
  add d3,d1
  call mx_fill,[d2,d3],12
  bra 3f
 2:
- mov MXC,d0
+ mov MXCX,d0
  sub d3,d0
- mov MXC,d1
+ mov MXCX,d1
  sub d2,d1
  call mx_fill,[d2,d3],12
- mov MXC,d0
+ mov MXCX,d0
  add d2,d0
- mov MXC,d1
+ mov MXCX,d1
  add d3,d1
  call mx_fill,[d2,d3],12
 3:
  mov (mx_y),d0                    /* the centre: 5 x 5 */
- add -MXC,d0
+ add -MXCY,d0
  add 2,d0
  cmp 5,d0
  bcc 4f
- mov MXC - 2,d0
- mov MXC + 2,d1
+ mov MXCX - 2,d0
+ mov MXCX + 2,d1
  mov MXG,a1
  call mx_fill,[d2,d3],12
 4:
@@ -523,8 +526,9 @@ mx_line:
  bcs 5b
  clr d3                           /* the spokes, each colour's dim */
 6:
- mov MXC,d0
+ mov MXCX,d0
  mov d0,(mx_sg)
+ mov MXCY,d0
  mov d0,(mx_sg + 4)
  mov d3,d0
  asl2 d0
@@ -734,5 +738,328 @@ mx_py:
                                    * (the ring's half widths by |dy|), mx_tk (the start marks): firmware/rgbpics.py */
  .balign 4
  .include "rgbpics2.inc"          /* the Mix page's pictures ("Sat", "Hue", the "Mix" cell; rgbpics.py, cv_ent) */
+ .balign 4
+.section .ext12,"ax"
+
+/* ------------------------------------------------------------------ our page header (mix test 4)
+ * Owner (mix test 3's photo): on the camera our pages showed the camera's header in its middle-value look (the dial
+ * over the unused middle number, none over ours), which om-emu never draws. So on both pages the camera's header is
+ * hidden (cv_ic: its labels, numbers, dial symbols) and ours is drawn in the top HD_BAND rows of our picture: over
+ * each of our two values the symbol of the dial that changes it (left: the main dial's, right: the sub dial's, as the
+ * camera pairs them), under it the value's name in the chosen colour and the value (RGB: "R +2" / "Pt 3"; Mix: "Sat
+ * +3" / "Hue -2"); nothing in the middle. The glyphs: firmware/rgbpics.py hd_glyphs (2 bits a pixel), written by
+ * build.py into the image at CV_WRK + CW_HD (loaded with section 6); their sizes / offsets: hd_tab (hdtab.inc). */
+/* (HD_BAND, HD_K, HD_BG, CW_HD, HD_TY, HD_MAX: rgbcurves.inc's constants, before their first use) */
+.section .ext11,"ax"
+
+/* hd_add: `call hd_add,[d2,d3],12`, d0 = glyph | colour << 8 | row << 16, d1 = x: one item. Uses d0, d1, a0. */
+hd_add:
+ mov (hd_n),d2
+ cmp HD_MAX,d2
+ bcc 9f
+ mov d2,d3
+ inc d3
+ mov d3,(hd_n)
+ asl 3,d2
+ mov hd_it,a0
+ add d2,a0
+ movhu d1,(a0)
+ movhu d0,(2,a0)
+ lsr 16,d0
+ movhu d0,(4,a0)
+9:
+ ret [d2,d3],12
+
+/* hd_gw: `call hd_gw,[],0`, d0 = glyph -> d0 = its width. Uses a0. */
+hd_gw:
+ asl 3,d0
+ mov hd_tab,a0
+ add d0,a0
+ movhu (a0),d0
+ ret [],0
+
+/* hd_grp: `call hd_grp,[d2,d3,a2,a3],20`: a name and a value centred on hd_gx: hd_gl the name's glyph, hd_gc its
+ * colour, hd_gv the value, hd_gs 1 = signed (+ / - / +-), 0 = a bare digit. Uses d0, d1, a0, a1, MDR. */
+hd_grp:
+ mov (hd_gv),d3                   /* |v| -> the digit's glyph 0..7 */
+ cmp 0,d3
+ bge 1f
+ not d3
+ inc d3
+1:
+ cmp 7,d3
+ ble 2f
+ mov 7,d3
+2:
+ mov (hd_gl),d0                   /* the width: name + 3 + (sign) + digit */
+ call hd_gw,[],0
+ mov d0,d2
+ add 3,d2
+ mov d3,d0
+ call hd_gw,[],0
+ add d0,d2
+ mov (hd_gs),d0
+ cmp 0,d0
+ beq 3f
+ call hd_sgn,[],0
+ call hd_gw,[],0
+ add d0,d2
+3:
+ mov (hd_gx),d1                   /* x0 = centre - width / 2 */
+ asr 1,d2
+ sub d2,d1
+ mov d1,(hd_x)
+ mov (hd_gc),d0                   /* the name */
+ asl 8,d0
+ mov (hd_gl),d2
+ or d2,d0
+ or HD_TY << 16,d0
+ call hd_add,[d2,d3],12
+ mov (hd_gl),d0
+ call hd_gw,[],0
+ add 3,d0
+ mov (hd_x),d1
+ add d0,d1
+ mov d1,(hd_x)
+ mov (hd_gs),d0                   /* the sign, white */
+ cmp 0,d0
+ beq 4f
+ call hd_sgn,[],0
+ mov d0,d2
+ or 14 << 8 | HD_TY << 16,d0
+ call hd_add,[d2,d3],12
+ mov d2,d0
+ call hd_gw,[],0
+ mov (hd_x),d1
+ add d0,d1
+ mov d1,(hd_x)
+4:
+ mov d3,d0                        /* the digit, white */
+ or 14 << 8 | HD_TY << 16,d0
+ mov (hd_x),d1
+ call hd_add,[d2,d3],12
+ ret [d2,d3,a2,a3],20
+
+/* hd_sgn: `call hd_sgn,[],0` -> d0 = the sign's glyph for hd_gv: 8 "+", 9 "-", 10 "+-" */
+hd_sgn:
+ mov (hd_gv),d0
+ cmp 0,d0
+ beq 1f
+ blt 2f
+ mov 8,d0
+ ret [],0
+1:
+ mov 10,d0
+ ret [],0
+2:
+ mov 9,d0
+ ret [],0
+
+/* hd_pre: `call hd_pre,[d2,d3,a2,a3],20` (cv_draw, before the rows): the header's items for the open page.
+ * Uses d0, d1, a0, a1, MDR. */
+hd_pre:
+ clr d0
+ mov d0,(hd_n)
+ mov 17 | 14 << 8 | 4 << 16,d0    /* the dials' symbols: main over the left value, sub over the right */
+ mov 75 - 18,d1
+ call hd_add,[d2,d3],12
+ mov 18 | 14 << 8 | 4 << 16,d0
+ mov 225 - 18,d1
+ call hd_add,[d2,d3],12
+ mov (cv_k),d2                    /* k (cv_draw's clamp), the chosen colour c and its bright curve colour */
+ cmp 4,d2
+ bcs 1f
+ clr d2
+1:
+ mov d2,d1                        /* the left value: Sh (the RGB offset / the Mix strength) */
+ add d1,d1
+ add d2,d1
+ add 2,d1
+ call cv_val,[d2,d3],12
+ mov d0,(hd_gv)
+ mov 1,d0
+ mov d0,(hd_gs)
+ mov 75,d0
+ mov d0,(hd_gx)
+ movbu (cv_c),d0
+ cmp 3,d0
+ bcs 2f
+ clr d0
+2:
+ mov d0,d3
+ asl 1,d0
+ inc d0
+ mov cv_col,a0
+ add d0,a0
+ movbu (a0),d0
+ mov d0,(hd_gc)
+ mov (cv_on),d0
+ cmp 2,d0
+ beq 3f
+ mov d3,d0                        /* RGB: "R" / "G" / "B" */
+ add 13,d0
+ bra 4f
+3:
+ mov 11,d0                        /* Mix: "Sat" */
+4:
+ mov d0,(hd_gl)
+ call hd_grp,[d2,d3,a2,a3],20
+ mov (cv_k),d2                    /* the right value: Hi (the RGB point 1..5 / the Mix hue) */
+ cmp 4,d2
+ bcs 5f
+ clr d2
+5:
+ mov d2,d1
+ add d1,d1
+ add d2,d1
+ call cv_val,[d2,d3],12
+ mov d0,(hd_gv)
+ mov 225,d0
+ mov d0,(hd_gx)
+ mov (cv_on),d0
+ cmp 2,d0
+ beq 6f
+ mov 16,d0                        /* RGB: "Pt" (white) and the point's number, no sign */
+ mov d0,(hd_gl)
+ mov 14,d0
+ mov d0,(hd_gc)
+ clr d0
+ mov d0,(hd_gs)
+ bra 7f
+6:
+ mov 12,d0                        /* Mix: "Hue" in the colour, signed */
+ mov d0,(hd_gl)
+ mov 1,d0
+ mov d0,(hd_gs)
+7:
+ call hd_grp,[d2,d3,a2,a3],20
+ ret [d2,d3,a2,a3],20
+
+/* hd_row: `call hd_row,[d2,d3,a2,a3],20`, d0 = a row < HD_BAND: the header's items on it, into CV_WRK + CW_ROW.
+ * Uses d0, d1, a0, a1, MDR. */
+hd_row:
+ mov d0,(hd_y)
+ clr d2                           /* item i */
+1:
+ mov (hd_n),d0
+ cmp d0,d2
+ bcc 9f
+ mov d2,d0
+ asl 3,d0
+ mov hd_it,a2
+ add d0,a2
+ movhu (4,a2),d1                  /* the item's top row */
+ mov (hd_y),d0
+ sub d1,d0                        /* dy */
+ blt 8f
+ movbu (2,a2),d1                  /* its glyph */
+ asl 3,d1
+ mov hd_tab,a3
+ add d1,a3
+ movhu (2,a3),d1                  /* h */
+ cmp d1,d0
+ bge 8f
+ movhu (a3),d1                    /* stride = (w + 3) / 4 */
+ add 3,d1
+ lsr 2,d1
+ mul d1,d0
+ movhu (4,a3),d3
+ add d3,d0
+ add CV_WRK + CW_HD,d0
+ mov d0,a0                        /* the glyph's row */
+ movhu (a2),d0
+ add CV_WRK + CW_ROW,d0
+ mov d0,a1                        /* the picture row at x */
+ mov d1,d3                        /* bytes */
+2:
+ movbu (a0),d0
+ mov 4,d1
+3:
+ mov d0,(hd_b)
+ and 3,d0
+ beq 5f
+ cmp 1,d0
+ bne 4f
+ mov 2,d0                         /* the dark edge */
+ bra 41f
+4:
+ movbu (3,a2),d0                  /* the item's colour */
+41:
+ movbu d0,(a1)
+5:
+ inc a1
+ mov (hd_b),d0
+ lsr 2,d0
+ add -1,d1
+ bne 3b
+ inc a0
+ add -1,d3
+ bne 2b
+8:
+ inc d2
+ bra 1b
+9:
+ ret [d2,d3,a2,a3],20
+
+/* rg_grid: `call rg_grid,[d2,d3,a2,a3],20`, d0 = row y: on the RGB page's graph (rows HD_BAND..299) our grid (the
+ * quarter lines) and the diagonal, colour 20, into CV_WRK + CW_ROW. Uses d0, d1, a0, MDR. */
+rg_grid:
+ cmp HD_BAND,d0
+ bcs 9f
+ mov CV_WRK + CW_ROW,a0
+ mov 20,d1
+ cmp 123,d0                       /* the quarter rows: 299 - 235 k / 4 */
+ beq 1f
+ cmp 182,d0
+ beq 1f
+ cmp 240,d0
+ bne 2f
+1:
+ mov 300,d2
+ mov a0,a1
+11:
+ movbu d1,(a1)
+ inc a1
+ add -1,d2
+ bne 11b
+2:
+ movbu d1,(75,a0)                 /* the quarter columns */
+ movbu d1,(150,a0)
+ movbu d1,(224,a0)
+ mov 299,d2                       /* the diagonal: x = (299 - y) x 299 / 235 */
+ sub d0,d2
+ mov 83384,d3
+ mul d3,d2
+ lsr 16,d2
+ cmp 299,d2
+ bls 3f
+ mov 299,d2
+3:
+ movbu d1,(d2,a0)
+9:
+ ret [d2,d3,a2,a3],20
+
+ .balign 4
+hd_n:
+ .long 0
+hd_y:
+ .long 0
+hd_b:
+ .long 0
+hd_x:
+ .long 0
+hd_gx:
+ .long 0
+hd_gl:
+ .long 0
+hd_gc:
+ .long 0
+hd_gv:
+ .long 0
+hd_gs:
+ .long 0
+hd_it:
+ .space HD_MAX * 8
+ .include "hdtab.inc"             /* hd_tab: per glyph .short w, h, offset at CV_WRK + CW_HD, 0 (build.py) */
  .balign 4
 .section .ext12,"ax"

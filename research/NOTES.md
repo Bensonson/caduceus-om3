@@ -4649,4 +4649,19 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   left and right values (sat and hue) and the middle number and icon should be hidden." So on the camera our page
   is drawn in the panel's Mid look even without INFO, which om-emu never shows; the double INFO did not help.
   Mix test 4: our own header (cad's plan): the camera's header pictures blanked on our pages, ours drawn.
+- **Mix test 4 (emulator only): our own header on both pages.**
+  - Hidden while our page is on (cv_ic -> clear): the camera's header labels (4207 / 4208 / 4331), its numbers
+    (glyphs 1111..1119 and 1121..1129 digits, 1120 "-", 1131 "+-", 1132 "+", 10772 "0"; om-emu: the left column's
+    numbers are other pictures and stay) and its dial symbols 10912..10919. The double INFO of test 3 is out.
+  - Ours, in the top HD_BAND = 64 rows of our 300 x 300 picture (hd_pre / hd_row, ext11): over each of our values
+    the symbol of the dial that changes it (left: the main dial's, right: the sub dial's; our own drawings, rgbpics
+    hd_icon), under it the name in the chosen colour and the value (RGB "R +3" / "Pt 1"; Mix "Sat -2" / "Hue +5");
+    nothing in the middle. Glyphs (rgbpics.hd_glyphs, 2 bits a pixel, 3,180 B) written by build.py into the image at
+    the work area + 0x8000 (free since test 4 of the curves), sizes / offsets in hd_tab (hdtab.inc).
+  - Our picture is now opaque (the camera's box colour 19), so the camera's grid no longer shows through: the RGB
+    graph is drawn in rows 64..299 with our own quarter grid and diagonal (colour 20; HD_K 3761), the Mix ring smaller
+    (radius 70 + 3 x strength, centre 150, 182).
+  - om-emu: both pages show our header, values follow the dials (main +1 -> left +1, sub +1 -> right -1, as the
+    camera's own page), INFO changes the colour; screens outside our pages identical to test 3. ext11 61,552 / 65,536,
+    ext12 260,416 / 262,144.
 
