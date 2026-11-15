@@ -4644,4 +4644,9 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 - **Mix test 2 camera, the rest (owner, 2026-11-15):** words in full: good ("The words look good"). Video: "yes the
   video looked normal": **photos only works on the camera** (no mix and no curves in video; mx_photo camera-tested).
   The dial over the unused middle number: fixed in mix test 3 (above), not camera-tested yet.
+- **Mix test 3 camera (owner, 2026-11-15):** the header still showed the dial only over the middle value ("Sat" /
+  "Hue" red: likely no INFO pressed): "Ok now the dial icon is only over the middle value. It needs to be over the
+  left and right values (sat and hue) and the middle number and icon should be hidden." So on the camera our page
+  is drawn in the panel's Mid look even without INFO, which om-emu never shows; the double INFO did not help.
+  Mix test 4: our own header (cad's plan): the camera's header pictures blanked on our pages, ours drawn.
 
