@@ -2688,7 +2688,7 @@ pm_list:                          /* item ids, in the order the owner reads them
                                    * the colour wheel), tone (Contrast, Highlight & Shadow, Blacks, Whites), white balance
                                    * (A-B, G-M), detail (Sharpness, Noise Filter = NR), lens (Vignette Correction =
                                    * VigFix, Shading), finish (Film Grain Effect = Grain) */
- .long 111, 5397, TB_IT, 8, 5398, RG_IT, MX_IT, BK_IT, AB_IT, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT, 5400   /* rgb-curves: RG_IT under H&S. v0.25: Shading back,
+ .long 111, MX_IT, RG_IT, 5397, TB_IT, AB_IT, 5398, BK_IT, 8, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT, 5400   /* colour menu (test 7, owner-approved spec): pages of five: the film and its colour in the camera's order (mix, curves, wheel, split tone balance), white balance and tone, detail / lens / light, grain. v0.25: Shading back,
                                     Glow / Clarity and Frame rows; AB_IT = the WB grid (no G-M row) */
 .set PM_N, (. - pm_list) / 4
 
@@ -3095,18 +3095,18 @@ bks_str:                          /* "Blacks / Whites" (v0.28 the grid row) */
  .short 66, 108, 97, 99, 107, 115, 32, 47, 32, 87, 104, 105, 116, 101, 115, 0
 whs_str:
  .short 87, 104, 105, 116, 101, 115, 0
-abs_str:                          /* v0.25 the WB grid row's title "WB" */
- .short 87, 66, 0
+abs_str:                          /* v0.25 the WB grid row's title; colour menu (test 7): "WB Compensation" */
+ .short 87, 66, 32, 67, 111, 109, 112, 101, 110, 115, 97, 116, 105, 111, 110, 0
 gms_str:                          /* "G-M" */
  .short 71, 45, 77, 0
-glc_str:                          /* "Glow" (v0.25 owner: + Glow, - Clarity; the row is named for its + side) */
- .short 71, 108, 111, 119, 0
+glc_str:                          /* "Glow" (v0.25 owner: + Glow, - Clarity; the row is named for its + side); test 7 "Glow Effect" */
+ .short 71, 108, 111, 119, 32, 69, 102, 102, 101, 99, 116, 0
 frm_str:                          /* "Frame" */
  .short 70, 114, 97, 109, 101, 0
-hal_str:                          /* v0.28 "Halation" */
- .short 72, 97, 108, 97, 116, 105, 111, 110, 0
-tbl_str:                          /* v0.28 "Tone Balance" */
- .short 84, 111, 110, 101, 32, 66, 97, 108, 97, 110, 99, 101, 0
+hal_str:                          /* v0.28 "Halation"; colour menu (test 7): "Halation Effect" */
+ .short 72, 97, 108, 97, 116, 105, 111, 110, 32, 69, 102, 102, 101, 99, 116, 0
+tbl_str:                          /* v0.28 "Tone Balance"; colour menu (test 7): "Split Tone Balance" */
+ .short 83, 112, 108, 105, 116, 32, 84, 111, 110, 101, 32, 66, 97, 108, 97, 110, 99, 101, 0
  .balign 16
 std_str:                          /* "Std" */
  .short 83, 116, 100, 0
@@ -5309,7 +5309,7 @@ fw_apply:
 .section .ext12,"ax"               /* v0.28: moved out of the full ext11 */
  .balign 8
 ic_pay:
- .space 16384                     /* v0.25: 14 pictures (build.py checks the fit; A-B / G-M blank; v0.28: "Halo" in Frame's place) */
+ .space 16640                     /* v0.25: 14 pictures (build.py checks the fit; A-B / G-M blank; v0.28: "Halo" in Frame's place; colour menu test 7: + 256 for the pictures) */
 ic_pend:
 .section .ext11,"ax"
 

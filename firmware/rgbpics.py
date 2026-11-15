@@ -58,8 +58,41 @@ def guide():
     return g
 
 
+ORANGE = 34                   # colour menu (test 7): the cells' red-orange (the left column's 34, as the page's red dot)
+
+
+def _disc(px, cx, cy, r, c):
+    for y in range(int(cy - r - 1), int(cy + r + 2)):
+        for x in range(int(cx - r - 1), int(cx + r + 2)):
+            if 0 <= y < px.shape[0] and 0 <= x < px.shape[1] and (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r:
+                px[y, x] = c
+
+
+def _line(px, pts, c, wd):
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        n = int(max(abs(x1 - x0), abs(y1 - y0)) * 3) + 1
+        for i in range(n + 1):
+            _disc(px, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, wd / 2, c)
+
+
+def _bez(p0, p1, p2, p3, n=40):
+    return [tuple(((1 - t) ** 3) * a + 3 * ((1 - t) ** 2) * t * b + 3 * (1 - t) * t * t * cc + t ** 3 * d
+                  for a, b, cc, d in zip(p0, p1, p2, p3)) for t in (i / n for i in range(n + 1))]
+
+
 def cell():
-    return letters([('R', RED), ('G', GREEN), ('B', BLUE)], 100, 76, 26, 50, gap=2)
+    """the RGB row's cell (colour menu, test 7): a small picture of its page, the curve box (white outline) with a
+    red-orange curve bowed up, a green straight one and a blue one bowed down (the list shows x 9..90)"""
+    px = np.zeros((76, 100), dtype=np.uint8)
+    x0, y0, s = 24, 12, 52
+    px[y0 - 2:y0 + s + 2, x0 - 2:x0 + s + 2] = 7
+    px[y0:y0 + s, x0:x0 + s] = 10
+    px[y0 + 3:y0 + s - 3, x0 + 3:x0 + s - 3] = 0
+    a, b = (x0 + 2, y0 + s - 2), (x0 + s - 2, y0 + 2)
+    _line(px, _bez(a, (x0 + 16, y0 + 29), (x0 + 29, y0 + 11), b), ORANGE, 2.6)
+    _line(px, [a, b], GREEN, 2.6)
+    _line(px, _bez(a, (x0 + 23, y0 + 41), (x0 + 36, y0 + 23), b), BLUE, 2.6)
+    return px
 
 
 def small_label(t, fill):
@@ -72,7 +105,21 @@ def small_label(t, fill):
 
 
 def mixcell():
-    return letters([('Mix', WHITE)], 100, 76, 26, 50)
+    """the Mix row's cell (colour menu, test 7): a small picture of its page, a thin grey ring with spokes to three
+    dots, red-orange (top, larger), green (lower right), blue (lower left)"""
+    import math
+    px = np.zeros((76, 100), dtype=np.uint8)
+    cx, cy, R = 50, 38, 19
+    for y in range(76):
+        for x in range(100):
+            if abs(math.hypot(x + 0.5 - cx, y + 0.5 - cy) - R) <= 1.0:
+                px[y, x] = 97
+    for ang, c, r in ((-90, ORANGE, 6.0), (30, GREEN, 4.6), (150, BLUE, 4.6)):
+        ex, ey = cx + R * math.cos(math.radians(ang)), cy + R * math.sin(math.radians(ang))
+        _line(px, [(cx, cy), (ex, ey)], c, 2.0)
+        _disc(px, ex, ey, r + 1.3, 7)
+        _disc(px, ex, ey, r, c)
+    return px
 
 
 def pictures():
@@ -123,7 +170,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser(); ap.add_argument('--preview')
     a = ap.parse_args()
     COL = {0: (40, 40, 40), 7: (0, 0, 0), 9: (30, 30, 30), 10: (254, 254, 254), 11: (170, 170, 170), 12: (85, 85, 85),
-           RED: (255, 1, 1), GREEN: (0, 255, 0), BLUE: (20, 116, 248), 125: (0, 0, 254)}
+           RED: (255, 1, 1), GREEN: (0, 255, 0), BLUE: (40, 44, 205), 125: (0, 0, 254), 34: (253, 104, 0), 97: (147, 147, 147)}
     for name, w, h, s in streams():
         print(name, w, h, len(s))
     if a.preview:

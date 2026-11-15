@@ -4695,3 +4695,28 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   over Sat / Hue, values white, middle empty). Camera-tested: the selector set in cv_inf, the middle clearing. **Test 6
   (E1479999.BIN f85e7f86…, f4a053b) is the line for the RGB curves + colour mix.**
 
+### Colour menu: order, cell pictures, titles (test 7, 2026-11-15; emulator only)
+- Owner: "build the mockup that color menu design has done"; spec (owner-approved, private):
+  color-menu-design/SPEC.md. Built on test 6 (e1ede86); its section 4 (new RGB / Mix headers) skipped: test 6's
+  headers stay (owner: "perfect").
+- **Order (pm_list):** 111, MX_IT, RG_IT, 5397, TB_IT, AB_IT, 5398, BK_IT, 8, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT,
+  5400 (pages of five: the film and its colour in the camera's order, white balance and tone, detail / lens / light,
+  Film Grain Effect alone). The camera allocates the row list to its count, so no size limit.
+- **The left column's palette (om-emu, a 16 x 16 probe in a cell; the list shows the cell's x 9..90):** 0 clear, 7
+  black, 10 / 13 white, 11 (170) / 12 (85) greys, more greys 43..46, 49..51, 56..60, 93, 97..100, 121, 124; orange 16 /
+  34 (253,104,0), 17 / 35, 18 / 36, 55, 102; red 122; yellow 123; yellow-green 38 / 39; green 40 / 41 / 42 / 54; blue
+  53; many entries a lime filler (the selection border's colour). No cyan, magenta or purple.
+- **Cells (mkicons CUSTOM drawings, rgbpics):** Color wheel (82 x 62, "HSL"'s place) a 12-colour pie, yellow at 12
+  o'clock clockwise, the missing hues two palette colours alternated (yellow-orange 123 / 34, magenta 122 / 53, purple
+  and blue-cyan 2:1 of blue with red / green, cyan 53 / 40, green-cyan 41 / 53), white rim, dark edge; Split Tone
+  Balance a dark-to-light bar (greys) in a white outline with a white triangle under it; Glow a white dot in a grey
+  glow; Halation a white dot in an orange ring (34 / 55 / 17 / 18); B/W the plate's letters -> a black and an outlined
+  white square (bw_top and the 0 / 0 cell); Mix a grey ring (97) with spokes to an orange (34, larger), a green and a
+  blue dot; RGB the curve box (white) with an orange curve bowed up, a green straight one, a blue one bowed down.
+  ic_pay +256 B (16,640; the pie's alternating pixels cost tokens).
+- **Titles:** "Split Tone Balance", "WB Compensation", "Glow Effect", "Halation Effect". Film Grain Effect unchanged.
+- om-emu: the 16 rows in the new order on 4 pages, each row's cell and page title as specified, every page opens
+  (Mix / RGB / wheel / grids / sliders / choices); the screens outside Picture Mode identical to test 6. (The WB
+  fine-tune screen's INFO gives om-emu an "event storm" in test 6 too: not new.) ext11 60,720 / 65,536, ext12 260,288 /
+  262,144.
+
