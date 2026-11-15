@@ -140,6 +140,7 @@ refresh       = 0x611b20ea;
 facade        = 0x60b8696a;
 cm_stock      = 0x60b8764c;   /* k2: the facade's Assign (entry 18), after cm_asg */
 cm_rstock     = 0x60b871f3;   /* k6: the facade's Recall (entry 20), from cm_rcl */
+cm_xstock     = 0x60b86aaf;   /* p2: the facade's Assign > Reset (entry 19), after cm_rst */
 fwrite        = 0x608d4da9;
 EMARK         = 680;
 AXIS          = 684;

@@ -4371,3 +4371,9 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   modes, a film reset in P: C1 keeps its copy), P keeping its own changes, video, start-up. CADLOG (as reported by the
   main chat): 35 events, saves 1, sets saved 8, 0 differences in Reset custom modes. Not camera-tested: Assign > Reset
   (not handled, see above), every row besides those the owner changed.
+- **p2: Assign > Reset** (`cm_rst`, facade entry 19, vtable word 0x60e574c0 -> `cm_xstock` 0x60b86aaf, build.py WORDS):
+  cm_rec's clear path (the custom mode loses its films of ours; ss_rst: its set dropped, built from the films at its
+  next entry), then the camera's own Reset. Emulator (p2): P Halation +2 / Contrast +1, Assign C1, Reset C1: C1 shows
+  the films as built with no changes (all four COLORs; FILM 15 Halation 0, Sharp +1, Contrast 0), at each entry and
+  after a power-off; P keeps +2 / +1; 0 differences. The p1 scenario gives p1's results. VERSION "v0.29.5-dev
+  (per-mode settings, p2)".

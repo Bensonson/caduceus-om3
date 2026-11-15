@@ -13840,6 +13840,26 @@ cm_asg:                           /* facade entry 18 (Assign), entered by `calls
  movm (sp),[d2,d3,a2,a3]
  jmp cm_stock                     /* the camera's own Assign (0x60b8764c, editor.ld) */
 
+cm_rst:                           /* per-mode p2: facade entry 19 (Assign > Reset; vtable word 0x60e574c0, stock 0x60b86aaf,
+                                   * om-emu: the menu's Reset > OK calls it with d0 = the custom mode 0..4; Set is entry 18),
+                                   * entered by `calls`: no films of ours for it any more, and its rows built from the
+                                   * films as built at its next entry (cm_rec's clear path, ss_rst); then the camera's own */
+ movm [d2,d3,a2,a3],(sp)
+ add -20,sp                       /* (0) call slot, (4) d0, (8) d1, (12) a0, (16) a1 */
+ mov d0,(4,sp)
+ mov d1,(8,sp)
+ mov a0,(12,sp)
+ mov a1,(16,sp)
+ mov 1,d1
+ call cm_rec,[d2,d3,a2,a3],20
+ mov (4,sp),d0
+ mov (8,sp),d1
+ mov (12,sp),a0
+ mov (16,sp),a1
+ add 20,sp
+ movm (sp),[d2,d3,a2,a3]
+ jmp cm_xstock
+
 cm_rec:                           /* `call cm_rec,[d2,d3,a2,a3],20`: d0 = slot 0..4, d1 = 0 (Set) or other (clear) */
  mov d0,d2
  mov d1,d3
