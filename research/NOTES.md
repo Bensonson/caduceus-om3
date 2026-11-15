@@ -4424,7 +4424,7 @@ clearer, complete `CADLOG.TXT` (lines had been added piecemeal, some as hex word
   LOOKS.BIN), settings block missing (STATE poked 0xFFFF), every custom mode filled (cm_ram / ss_ram poked, emulator
   only). All read right; the "missing" case prints the card files with "not checked" and skips NOW's film lines.
 
-### Debug log dl9: the camera's own state too (2026-11-15; emulator only, camera test pending)
+### Debug log dl9: the camera's own state too (2026-11-15; camera-tested)
 Owner (via cad): "I want it to cover everything the camera does!" Read only (sget), never a settings write; no slower
 half-press, nothing at start-up. VERSION "v0.29.6-dev (debug log, dl9)"; report 8192 B (was 5120).
 - **Setting ids found (om-emu, E147):** the quick panel (OK in shooting) writes the highlighted item's own setting id
@@ -4466,3 +4466,9 @@ half-press, nothing at start-up. VERSION "v0.29.6-dev (debug log, dl9)"; report 
   and keys).
 - Cases (om-emu): P, a power-on in C1, video / S&Q, no films, settings block missing, every custom mode filled (8,106 B
   with all 32 events), a 1 KB-buffer variant (1024 B with CR LF at every event).
+- **Camera test (owner, 2026-11-15): passed.** Owner: half-presses "felt normal" (as quick as v0.29.5, no freeze).
+  The report (69 events, one power-on, A and S) read right against what was done: 20 photos counted = 20 RAW + JPG
+  pairs on the card (so ex_fill runs once per photo with RAW + JPG; RAW-only still not checked); aperture f/1.8 ->
+  f/22, S at 1/100, exp comp -1.3, WB Auto -> Cloudy -> Auto, FILM 1 -> FILM 4, screens menu / camera (settings) /
+  panel, the arrow pad's Direct Function, C2 assigned; "Look at: nothing unusual"; card files all match. Drive read
+  32 -> 30 (codes not named). Not in that power-on's report: P, M, a custom mode, video.
