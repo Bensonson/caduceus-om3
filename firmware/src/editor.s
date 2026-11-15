@@ -13260,9 +13260,12 @@ pm_save:                          /* `call pm_save,[d2,d3,a2,a3],24` from gx_map
  bne 9f
  call ub_put,[d2,d3,a2,a3],20
  cmp 0,d0
- bne 9f
+ bne 8f
  mov 1,d0                         /* not written (held back, or the other task's write): ed_trig tries again */
  movbu d0,(DIRTY,a2)
+ bra 9f
+8:
+ call ss_pm,[d2,d3,a2,a3],20      /* per-mode settings p1: the set's copy too */
 9:
  ret [d2,d3,a2,a3],24
 
@@ -13697,9 +13700,16 @@ rc_go:                            /* `call rc_go,[d2,d3,a2,a3],24` from sx_set's
  beq 01f
  call cm_wr,[d2,d3,a2,a3],20      /* k2: a held-back record write */
 01:
+ call ss_pre,[d2,d3,a2,a3],24     /* p1: per-mode settings, before the films switch */
  call cm_go,[d2,d3,a2,a3],24      /* k2: the custom mode's films (film saved with Assign), a2 = P */
+ call ss_post,[d2,d3,a2,a3],24    /* p1: the set's own rows; ss_mask = the COLORs still put back */
  clr d2
 1:
+ mov 1,d0                         /* p1: only the COLORs ss_post left to put back */
+ asl d2,d0
+ movbu (ss_mask),d1
+ and d1,d0
+ beq 2f
  mov a2,a0
  add d2,a0
  movbu (LIDX,a0),d3
@@ -13716,6 +13726,9 @@ rc_go:                            /* `call rc_go,[d2,d3,a2,a3],24` from sx_set's
  inc d2
  cmp 4,d2
  bcs 1b
+ clr d0
+ movbu d0,(rc_ab)
+ call ss_wr,[d2,d3,a2,a3],20      /* p1 */
 9:
  clr d0
  movbu d0,(rc_busy)
@@ -13728,41 +13741,7 @@ rc_put:                           /* `call rc_put,[d2,d3,a2,a3],40`, a2 = P, d2 
                                    * (4) k, (8) the record, (12) i, (16) id, (20) the film's value (frame 40: the four
                                    * saved registers sit above them, at (24..39)). */
  mov d2,(4,sp)
- mov d2,d0                        /* r = 5k + look - 1 */
- asl2 d0
- add d2,d0
- add d3,d0
- add -1,d0
- mov d0,d1
- asl 6,d1
- add 32,d1
- mov (LPTR,a2),a3
- add d1,a3                        /* the film as built */
- mov (TORG,a2),a1
- add TWO,a1
- mov 1,d1
- asl d0,d1
- mov (12,a1),d3
- and d1,d3
- beq 8f                           /* no saved changes: as built */
- mov d0,d1                        /* the saved record: TWO + 16 + 68 r, its check at +64 */
- asl 6,d1
- asl2 d0
- add d0,d1
- add 16,d1
- add d1,a1
- mov a1,(8,sp)
- mov a3,a0                        /* only changes made from this build of the film (fl_sw's test) */
- mov -1,d0
- mov 64,d1
- call sd_crc,[d2,d3],12
- not d0
- mov (8,sp),a1
- mov (64,a1),d1
- cmp d0,d1
- bne 8f
- mov a1,a3
-8:
+ call rc_rec,[d2,d3,a2],20       /* p1: the record choice moved to rc_rec */
  mov a3,(8,sp)
  clr d0
  mov d0,(12,sp)
@@ -13875,6 +13854,8 @@ cm_rec:                           /* `call cm_rec,[d2,d3,a2,a3],20`: d0 = slot 0
  not d1                           /* not Set: no films for that custom mode */
  and d1,d0
  movbu d0,(cm_ram + CM_FL)
+ mov d2,d0
+ call ss_rst,[d2,d3,a2,a3],20     /* p1: its rows built from the films at its next entry */
  bra 8f
 1:
  PVAL 9f
@@ -13900,8 +13881,11 @@ cm_rec:                           /* `call cm_rec,[d2,d3,a2,a3],20`: d0 = slot 0
  mov (cm_na),d0
  inc d0
  mov d0,(cm_na)
+ mov d2,d0
+ call ss_asg,[d2,d3,a2,a3],20     /* p1: its rows <- the mode now */
 8:
  call cm_wr,[d2,d3,a2,a3],20
+ call ss_wr,[d2,d3,a2,a3],20      /* p1 */
 9:
  ret [d2,d3,a2,a3],20
 
@@ -14123,6 +14107,12 @@ cm_load:
  cmp d3,d0
  beq 8f
  movbu d3,(LIDX,a0)               /* what the wheel and readout show */
+ movbu (ss_tm),d0                 /* p1: a trusted set: the camera already holds its values; only our slot */
+ cmp 0,d0
+ beq 81f
+ call ss_lib,[d2,d3,a2,a3],20
+ bra 82f
+81:
  mov (TORG,a2),a0
  add TWO,a0
  mov 1,d0
@@ -14131,6 +14121,7 @@ cm_load:
  mov (rc_in),a0
  mov 0,a1
  call fl_sw,[d2,d3,a2,a3],40
+82:
  mov 1,d0
  movbu d0,(DIRTY,a2)              /* the selection saved at the next half-press */
  mov (cm_sw),d0
@@ -14366,6 +14357,7 @@ cm_txt:                           /* `call cm_txt,[d2,d3,a2,a3],24`: CADLOG.TXT 
  inc d2
  cmp 8,d2
  bcs 1b
+ call ss_txt,[d2,d3,a2,a3],24     /* p1 */
  ret [d2,d3,a2,a3],24
 
  .balign 4
@@ -14473,6 +14465,7 @@ cm_hp:                            /* k4..k6: `call cm_hp,[d2,d3,a2,a3],24` from 
  inc d0
  mov d0,(cm_nhp)
 7:
+ call ss_hp,[d2,d3,a2,a3],20      /* p1: and its rows (d2 = the set) */
  clr d0
  movbu d0,(rc_busy)
 9:
@@ -14557,6 +14550,926 @@ cm_gnow:
 3:
  mov 5,d0
  ret [],0
+
+/* ---- Per-mode settings, p1 (feature/per-mode-settings, owner 2026-11-14: "Every setting in each custom mode should be
+ * independant of the other custom modes and the apsm modes"). The camera already keeps COLOR 1..4's 18 settings per
+ * set (P / A / S / M / B one set, C1..C5 one each; om-emu, stock firmware) with its own Save Settings: Reset / Hold.
+ * Our rows live in COLOR k's slot (P+32+64k), one copy only. p1 gives each set its own copy of the four slots (and the
+ * looks they belong to), swapped in RAM at the dial change, and stops putting the films' shared records over the
+ * camera's own values (rc_put) when the camera holds them for the set. Sets: 0..4 C1..C5, 5 P group. A set is
+ * "trusted" (the camera's values belong to its films) for P and for a custom mode with films of its own (Assign);
+ * a custom mode without (never assigned through us, or after Assign > Reset) is put back as before every time it is
+ * entered (after Assign > Reset: the films as built, neutral rows). Video / S&Q (mode code 10): exactly as before.
+ * Record 'OM3S' in M's free tail at +0x3D000 (the films block is at +0x3A000, 'OM3C' at +0x3B000, other branches use
+ * +0x3C000): +0 magic, +4 u16 1, +6 u16 len, +8 CRC-32 of 12.., +12 sets kept (bit n), +13 sets to build from the films
+ * after Assign > Reset (bit n), +14 zero, +16 6 sets x 332 B {+0 looks[4], +4 slots[256], +260 the camera's 18
+ * settings x 4 when the set was made (Assign, or its first entry; only for the Reset check below), +332 the set's own
+ * film changes (an EDITS image: every film's and COLOR k's own saved changes; owner 2026-11-15: Assign copies every
+ * setting, and nothing done in another mode, edits or a film reset, changes a custom mode's copy)}. */
+ .set SS_C, 0x6295d700            /* M image 0x62920700 + 0x3D000 */
+ .set SS_U, 0xa295d700
+ .set SS_MAGIC, 0x53334d4f        /* "OM3S" */
+ .set SS_VER, 1
+ .set SS_SZ, 332 + TW_LEN         /* + the set's own film changes (an EDITS image, 1648 B) */
+ .set SS_LEN, 16 + 6 * SS_SZ      /* 11896: ends at M + 0x3FE78 */
+
+/* rc_rec: `call rc_rec,[d2,d3,a2],20`, a2 = P, d2 = k, d3 = look 1..5 -> a3 = that film's record: its saved changes
+ * when valid and made from this build of the film, else the film as built (as built always while rc_ab). rc_put's
+ * own choice before p1. Uses d0, d1, a0, a1. Local (4) the saved record. */
+rc_rec:
+ mov d2,d0                        /* r = 5k + look - 1 */
+ asl2 d0
+ add d2,d0
+ add d3,d0
+ add -1,d0
+ mov d0,d1
+ asl 6,d1
+ add 32,d1
+ mov (LPTR,a2),a3
+ add d1,a3                        /* the film as built */
+ movbu (rc_ab),d1
+ cmp 0,d1
+ bne 8f
+ mov (TORG,a2),a1
+ add TWO,a1
+ mov 1,d1
+ asl d0,d1
+ mov (12,a1),d3
+ and d1,d3
+ beq 8f                           /* no saved changes: as built */
+ mov d0,d1                        /* the saved record: TWO + 16 + 68 r, its check at +64 */
+ asl 6,d1
+ asl2 d0
+ add d0,d1
+ add 16,d1
+ add d1,a1
+ mov a1,(4,sp)
+ mov a3,a0                        /* only changes made from this build of the film (fl_sw's test) */
+ mov -1,d0
+ mov 64,d1
+ call sd_crc,[d2,d3],12
+ not d0
+ mov (4,sp),a1
+ mov (64,a1),d1
+ cmp d0,d1
+ bne 8f
+ mov a1,a3
+8:
+ ret [d2,d3,a2],20
+
+/* ss_slot: `call ss_slot,[d2,d3,a2,a3],20`, a2 = P, d2 = k, a3 = a record (0 = neutral): COLOR k's slot <- the record,
+ * as pf_put1 fills it, without the camera's 18 settings (no settings-manager call). */
+ss_slot:
+ mov d2,d0
+ asl 6,d0
+ add 32,d0
+ mov a2,a0
+ add d0,a0                        /* slot entry */
+ mov a3,a1
+ mov 24,d1
+2:
+ clr d0
+ cmp 0,a1
+ beq 3f
+ movbu (a1),d0
+ inc a1
+3:
+ movbu d0,(a0)
+ inc a0
+ add -1,d1
+ bne 2b
+ mov pf_bt,a1
+8:
+ movbu (a1),d2
+ movbu (1,a1),d3
+ clr d0
+ cmp 0,a3
+ beq 7f
+ movbu (d2,a3),d0
+7:
+ movbu d0,(d3,a0)
+ add 2,a1
+ cmp pf_bt+42,a1
+ bne 8b
+ movbu (7,a0),d0
+ or 2,d0
+ movbu d0,(7,a0)                  /* +31 flags: H/L on */
+ ret [d2,d3,a2,a3],20
+
+/* ss_lib: `call ss_lib,[d2,d3,a2,a3],20`, a2 = P, d2 = k, d3 = look 0..5: COLOR k's slot <- that film's record
+ * (rc_rec), or neutral for look 0. No settings-manager call. */
+ss_lib:
+ mov 0,a3
+ cmp 0,d3
+ beq 1f
+ call rc_rec,[d2,d3,a2],20
+1:
+ call ss_slot,[d2,d3,a2,a3],20
+ ret [d2,d3,a2,a3],20
+
+/* ss_ld: `call ss_ld,[d2,d3,a2,a3],20`: the record into ss_ram, once per power-on (none valid: all zero). */
+ss_ld:
+ movbu (ss_ok),d0
+ cmp 0,d0
+ bne 9f
+ mov 1,d0
+ movbu d0,(ss_ok)
+ mov SS_C,a3
+ mov (a3),d0
+ cmp SS_MAGIC,d0
+ bne 8f
+ movhu (4,a3),d0
+ cmp SS_VER,d0
+ bne 8f
+ movhu (6,a3),d0
+ cmp SS_LEN,d0
+ bne 8f
+ mov -1,d0
+ mov a3,a0
+ add 12,a0
+ mov SS_LEN - 12,d1
+ call sd_crc,[d2,d3],12
+ not d0
+ mov (8,a3),d1
+ cmp d1,d0
+ bne 8f
+ mov ss_ram,a0
+ mov a3,a1
+ mov SS_LEN,d1
+ call ub_cpy,[],0
+ mov 1,d0
+ movbu d0,(ss_v0)
+ bra 9f
+8:
+ mov ss_ram,a0
+ mov SS_LEN,d1
+ call ub_zero,[],0
+9:
+ ret [d2,d3,a2,a3],20
+
+/* ss_wr: `call ss_wr,[d2,d3,a2,a3],20`: when ss_dirty, ss_ram -> M (both aliases), as cm_wr writes; held back while
+ * the camera saves M (cm_pend: gx_map runs rc_go again, which ends with ss_wr). */
+ss_wr:
+ movbu (ss_dirty),d0
+ cmp 0,d0
+ beq 9f
+ mov SS_MAGIC,d0
+ mov d0,(ss_ram)
+ mov SS_VER,d0
+ movhu d0,(ss_ram + 4)
+ mov SS_LEN,d0
+ movhu d0,(ss_ram + 6)
+ mov -1,d0
+ mov ss_ram + 12,a0
+ mov SS_LEN - 12,d1
+ call sd_crc,[d2,d3],12
+ not d0
+ mov d0,(ss_ram + 8)
+ clr d0
+ call LOCK,[d2],8
+ mov d0,d3
+ movbu (UB_BUSY),d0
+ cmp 0,d0
+ bne 8f
+ mov SS_C,a0
+ mov ss_ram,a1
+ mov SS_LEN,d1
+ call ub_cpy,[],0
+ mov SS_U,a0
+ mov ss_ram,a1
+ mov SS_LEN,d1
+ call ub_cpy,[],0
+ mov 1,d0
+ movbu d0,(UB_DIRTY)              /* M changed: the camera saves it at the next return to shooting or power-off */
+ clr d0
+ movbu d0,(ss_dirty)
+ mov (ss_nw),d0
+ inc d0
+ mov d0,(ss_nw)
+ mov d3,d0
+ call UNLOCK,[d2],8
+ bra 9f
+8:
+ mov 1,d0
+ movbu d0,(cm_pend)
+ mov d3,d0
+ call UNLOCK,[d2],8
+9:
+ ret [d2,d3,a2,a3],20
+
+/* ss_photo: `call ss_photo,[],0` -> d0 1 when the mode now is a photo mode: the mode's code 1..5 / 53..57, or, while
+ * the code is still 0 after a power-on, the photo / movie / S&Q switch (UI_IN index 0xa32d9d0d, beside the mode
+ * dial's 0xa32d9d0c: 2 photo, 1 movie, 0 S&Q; om-emu). Video / S&Q read 10. Notes ss_ph. Uses d0, d1, a0. */
+ss_photo:
+ mov (rc_in),a0
+ cmp 0,a0
+ beq 8f
+ movbu (24,a0),d0
+ movbu d0,(ss_ph)
+ cmp 0,d0
+ beq 3f
+ cmp 6,d0
+ bcs 1f
+ cmp 53,d0
+ bcs 8f
+ cmp 58,d0
+ bcc 8f
+1:
+ mov 1,d0
+ ret [],0
+3:
+ movbu (0xa32d9d0d),d0
+ mov d0,d1
+ or 0xc0,d1
+ movbu d1,(ss_ph)
+ cmp 2,d0
+ beq 1b
+8:
+ clr d0
+ ret [],0
+
+/* ss_trust: `call ss_trust,[],0`, d0 = a set -> d0 1 when the camera's values belong to its films: P group, or a
+ * custom mode with films of its own (OM3C flag). Uses d0, d1. */
+ss_trust:
+ cmp 5,d0
+ beq 1f
+ bcc 8f
+ mov 1,d1
+ asl d0,d1
+ movbu (cm_ram + CM_FL),d0
+ and d1,d0
+ beq 8f
+1:
+ mov 1,d0
+ ret [],0
+8:
+ clr d0
+ ret [],0
+
+/* ss_base: `call ss_base,[],0`, d0 = a set -> a0 = its 332 bytes in ss_ram. Uses d0, d1, a0 (and MDR). */
+ss_base:
+ mov SS_SZ,d1
+ mul d1,d0
+ mov ss_ram + 16,a0
+ add d0,a0
+ ret [],0
+
+/* ss_cc: `call ss_cc,[d2],8`: d1 bytes from a1 to a0, ss_chg = 1 when any differed. Uses d0, d1, a0, a1. */
+ss_cc:
+1:
+ movbu (a1),d0
+ movbu (a0),d2
+ cmp d0,d2
+ beq 2f
+ movbu d0,(a0)
+ mov 1,d2
+ movbu d2,(ss_chg)
+2:
+ inc a0
+ inc a1
+ add -1,d1
+ bne 1b
+ ret [d2],8
+
+/* ss_id: `call ss_id,[],0`, d2 = k, d3 = i 0..17 -> d0 = COLOR k's camera setting i (pf_ids). Uses d0, d1, a0. */
+ss_id:
+ mov pf_ids,a0
+ mov d3,d0
+ asl2 d0
+ add d0,a0
+ movbu (2,a0),d1
+ mul d2,d1
+ movhu (a0),d0
+ add d1,d0
+ ret [],0
+
+/* ss_put: `call ss_put,[d2,d3,a2,a3],32`, a2 = P, d0 = a set, d1 = 1: also note the camera's 18 settings x 4 now.
+ * The set <- P+LIDX and the four slots; kept bit set; ss_dirty when anything changed. Locals (4) set, (8) flag,
+ * (12) its base. */
+ss_put:
+ mov d0,(4,sp)
+ mov d1,(8,sp)
+ call ss_ld,[d2,d3,a2,a3],20
+ clr d0
+ movbu d0,(ss_chg)
+ mov (4,sp),d0
+ call ss_base,[],0
+ mov a0,(12,sp)
+ mov a2,a1
+ add LIDX,a1
+ mov 4,d1
+ call ss_cc,[d2],8
+ mov (12,sp),a0
+ add 4,a0
+ mov a2,a1
+ add 32,a1
+ mov 256,d1
+ call ss_cc,[d2],8
+ mov (TORG,a2),a1                 /* the film changes in use (live EDITS image) */
+ cmp 0,a1
+ beq 4f
+ add TWO,a1
+ mov (12,sp),a0
+ add 332,a0
+ mov TW_LEN,d1
+ call ss_cc,[d2],8
+4:
+ mov (8,sp),d0
+ cmp 0,d0
+ beq 5f
+ clr d2
+1:
+ clr d3
+2:
+ call ss_id,[],0
+ call sget,[],4                   /* d0 = the camera's value now (keeps d2, d3, a2, a3) */
+ and 255,d0
+ mov (12,sp),a0
+ add 260,a0
+ mov d2,d1
+ asl 4,d1
+ add d1,a0
+ add d2,a0
+ add d2,a0                        /* + 18 k */
+ add d3,a0
+ movbu (a0),d1
+ cmp d0,d1
+ beq 3f
+ movbu d0,(a0)
+ mov 1,d0
+ movbu d0,(ss_chg)
+3:
+ inc d3
+ cmp 18,d3
+ bcs 2b
+ inc d2
+ cmp 4,d2
+ bcs 1b
+5:
+ mov (4,sp),d0
+ mov 1,d1
+ asl d0,d1
+ movbu (ss_ram + 12),d0
+ mov d0,d2
+ or d1,d0
+ cmp d0,d2
+ beq 6f
+ movbu d0,(ss_ram + 12)
+ mov 1,d0
+ movbu d0,(ss_chg)
+6:
+ movbu (ss_chg),d0
+ cmp 0,d0
+ beq 7f
+ movbu d0,(ss_dirty)
+ mov (ss_np),d0
+ inc d0
+ mov d0,(ss_np)
+7:
+ ret [d2,d3,a2,a3],32
+
+/* ss_get: `call ss_get,[d2,d3,a2,a3],24`, a2 = P, d0 = a set -> d1 1 when it is kept (else d0 = d1 = 0); then each
+ * COLOR k whose look now (P+LIDX) is the set's gets the set's slot; d0 = those COLORs (bit k). Locals (4) set,
+ * (8) its base. */
+ss_get:
+ mov d0,(4,sp)
+ call ss_ld,[d2,d3,a2,a3],20
+ mov (4,sp),d0
+ mov 1,d1
+ asl d0,d1
+ movbu (ss_ram + 12),d0
+ and d1,d0
+ bne 1f
+ clr d0
+ clr d1
+ ret [d2,d3,a2,a3],24
+1:
+ mov (4,sp),d0
+ call ss_base,[],0
+ mov a0,(8,sp)
+ clr d2
+ clr d3
+2:
+ mov (8,sp),a0
+ movbu (d2,a0),d0
+ mov a2,a1
+ add d2,a1
+ movbu (LIDX,a1),d1
+ cmp d0,d1
+ bne 3f
+ mov d2,d0
+ asl 6,d0
+ mov (8,sp),a1
+ add 4,a1
+ add d0,a1
+ mov a2,a0
+ add 32,a0
+ add d0,a0
+ mov 64,d1
+ call ub_cpy,[],0
+ mov 1,d0
+ asl d2,d0
+ or d0,d3
+ mov (ss_ng),d0
+ inc d0
+ mov d0,(ss_ng)
+3:
+ inc d2
+ cmp 4,d2
+ bcs 2b
+ mov d3,d0
+ mov 1,d1
+ ret [d2,d3,a2,a3],24
+
+/* ss_chk: `call ss_chk,[d2,d3,a2,a3],36`, d0 = a custom mode on Reset, d1 = its COLORs put back: each of their 18
+ * camera settings now against the values noted when the set was made; a difference counts in ss_nm, the last in
+ * ss_ml (set << 24 | k << 16 | id). Diagnostic only (CADLOG). Locals (4) set, (8) COLORs, (12) base, (16) id. */
+ss_chk:
+ mov d0,(4,sp)
+ mov d1,(8,sp)
+ call ss_base,[],0
+ mov a0,(12,sp)
+ clr d2
+1:
+ mov (8,sp),d0
+ mov 1,d1
+ asl d2,d1
+ and d1,d0
+ beq 5f
+ clr d3
+2:
+ call ss_id,[],0
+ mov d0,(16,sp)
+ call sget,[],4
+ and 255,d0
+ mov (12,sp),a0
+ add 260,a0
+ mov d2,d1
+ asl 4,d1
+ add d1,a0
+ add d2,a0
+ add d2,a0
+ add d3,a0
+ movbu (a0),d1
+ cmp d0,d1
+ beq 3f
+ mov (ss_nm),d0
+ inc d0
+ mov d0,(ss_nm)
+ mov (4,sp),d0
+ asl 8,d0
+ or d2,d0
+ asl 16,d0
+ mov (16,sp),d1
+ or d1,d0
+ mov d0,(ss_ml)
+3:
+ inc d3
+ cmp 18,d3
+ bcs 2b
+5:
+ inc d2
+ cmp 4,d2
+ bcs 1b
+ ret [d2,d3,a2,a3],36
+
+/* ss_pre: `call ss_pre,[d2,d3,a2,a3],24` from rc_go before cm_go, a2 = P: photo or not, Recall or not; the set the
+ * slots belong to (ss_cur) is kept when leaving it, if the camera's values belong to it and it holds its changes
+ * (P group always, a custom mode on Hold); ss_tm = the set entered is trusted (cm_load then switches films without the
+ * camera's 18 settings). Not photo: the slots belong to no set any more. */
+ss_pre:
+ clr d0
+ movbu d0,(ss_tm)
+ movbu d0,(rc_ab)
+ mov 0x0f,d0
+ movbu d0,(ss_mask)
+ mov 0xff,d0
+ movbu d0,(ss_fn)
+ call cm_ld,[d2,d3,a2,a3],20
+ call ss_ld,[d2,d3,a2,a3],20
+ call ss_photo,[],0
+ movbu d0,(ss_phv)
+ movbu (cm_force),d1
+ cmp 0,d1
+ beq 1f
+ add -1,d1                        /* a Recall of C(d1 + 1): its film changes now, as before, then its rows */
+ movbu d1,(ss_fn)
+ mov d1,d0
+ call ss_ed,[d2,d3,a2,a3],20
+ bra 9f
+1:
+ cmp 0,d0
+ bne 2f
+ clr d0                           /* video / S&Q: at the P / A / S / M / B position the camera shows photo P's own */
+ movbu d0,(ss_mvp)                /* COLOR values (one block, om-emu): with the slots P's, nothing is put back there */
+ call cm_gnow,[],0                /* (else they would overwrite P's own); anything else: as before, and the slots */
+ cmp 5,d0                         /* belong to no set any more */
+ bne 11f
+ movbu (ss_cur),d1
+ cmp 5,d1
+ bne 11f
+ mov 1,d0
+ movbu d0,(ss_mvp)
+ bra 9f
+11:
+ mov 0xff,d0
+ movbu d0,(ss_cur)
+ bra 9f
+2:
+ call cm_gnow,[],0
+ mov d0,d2
+ movbu (ss_cur),d3
+ cmp 6,d3
+ bcc 5f
+ cmp d2,d3
+ beq 5f
+ mov d3,d0
+ call ss_trust,[],0
+ cmp 0,d0
+ beq 5f
+ mov d3,d0
+ call cm_hold,[d2,d3,a2,a3],20
+ cmp 0,d0
+ beq 5f
+ mov d3,d0                        /* leaving a set that holds: its slots and looks now (our slots are not swapped by */
+ clr d1                           /* the camera, and cm_go has not switched the films yet) */
+ call ss_put,[d2,d3,a2,a3],32
+5:
+ mov d2,d0
+ call ss_trust,[],0
+ movbu d0,(ss_tm)
+ cmp 0,d0
+ beq 9f
+ cmp d2,d3
+ beq 9f
+ mov d2,d0                        /* entering another trusted set: its own film changes before cm_go switches films */
+ call ss_ed,[d2,d3,a2,a3],20
+9:
+ ret [d2,d3,a2,a3],24
+
+/* ss_post: `call ss_post,[d2,d3,a2,a3],24` from rc_go after cm_go, a2 = P: ss_mask = the COLORs rc_put still puts
+ * back (0x0f = all, as before p1). Photo, a set change: trusted -> the set's slots where its looks are the films now
+ * (first time for the set: the set made from what is shown now), nothing put back; a custom mode on Reset is checked
+ * against its noted camera values (CADLOG). Untrusted custom mode: as before; after Assign > Reset its films as built
+ * and neutral rows (rc_ab). The same set again (P <-> A, a GUI retry): nothing. Recall: as before, then the custom
+ * mode's slots, kept when the mode now holds. Video / S&Q: as before. */
+ss_post:
+ movbu (ss_fn),d0
+ cmp 0xff,d0
+ beq 3f
+ movbu (ss_phv),d1
+ cmp 0,d1
+ beq 9f
+ call ss_get,[d2,d3,a2,a3],24
+ movbu (cm_grp),d0
+ mov d0,d2
+ movbu d0,(ss_cur)
+ call ss_trust,[],0
+ cmp 0,d0
+ beq 9f
+ mov d2,d0
+ call cm_hold,[d2,d3,a2,a3],20
+ cmp 0,d0
+ beq 9f
+ mov d2,d0
+ clr d1
+ call ss_put,[d2,d3,a2,a3],32
+ bra 9f
+3:
+ movbu (ss_phv),d0
+ cmp 0,d0
+ bne 31f
+ movbu (ss_mvp),d0                /* video / S&Q at P with P's slots: nothing put back */
+ cmp 0,d0
+ beq 9f
+ clr d0
+ movbu d0,(ss_mask)
+ bra 9f
+31:
+ movbu (cm_grp),d0
+ mov d0,d2
+ movbu (ss_cur),d1
+ cmp d1,d0
+ bne 4f
+ clr d0
+ movbu d0,(ss_mask)
+ bra 9f
+4:
+ movbu d2,(ss_cur)
+ movbu (ss_tm),d0
+ cmp 0,d0
+ beq 6f
+ clr d0
+ movbu d0,(ss_mask)
+ mov (ss_ntr),d0
+ inc d0
+ mov d0,(ss_ntr)
+ mov d2,d0
+ call ss_get,[d2,d3,a2,a3],24
+ cmp 0,d1
+ bne 5f
+ mov d2,d0                        /* the set's first time: made from what it shows now */
+ mov 1,d1
+ call ss_put,[d2,d3,a2,a3],32
+ mov (ss_nl),d0
+ inc d0
+ mov d0,(ss_nl)
+ bra 9f
+5:
+ mov d0,d3
+ cmp 5,d2
+ bcc 9f
+ mov d2,d0
+ call cm_hold,[d2,d3,a2,a3],20
+ cmp 0,d0
+ bne 9f
+ mov d2,d0
+ mov d3,d1
+ call ss_chk,[d2,d3,a2,a3],36
+ bra 9f
+6:
+ movbu (ss_ram + 13),d0
+ mov 1,d1
+ asl d2,d1
+ and d1,d0
+ beq 9f
+ mov 1,d0
+ movbu d0,(rc_ab)
+ mov (ss_nab),d0
+ inc d0
+ mov d0,(ss_nab)
+ mov (TORG,a2),a0                 /* the films as built: no saved changes in use while in it */
+ cmp 0,a0
+ beq 70f
+ add TWO,a0
+ clr d0
+ mov d0,(12,a0)
+ mov 1,d0
+ movbu d0,(TW_LEN,a0)
+ movbu d0,(DIRTY,a2)
+70:
+ clr d2
+7:
+ mov a2,a0
+ add d2,a0
+ movbu (LIDX,a0),d3
+ extb d3
+ cmp 1,d3
+ blt 71f
+ cmp 5,d3
+ ble 72f
+71:
+ clr d3
+72:
+ call ss_lib,[d2,d3,a2,a3],20
+ inc d2
+ cmp 4,d2
+ bcs 7b
+9:
+ ret [d2,d3,a2,a3],24
+
+/* ss_hp: `call ss_hp,[d2,d3,a2,a3],20` from cm_hp (a set that holds, its films just kept), d2 = the set, a2 = P:
+ * photo, the slots belong to it and it is trusted -> its slots and looks kept (written when changed). */
+ss_hp:
+ call ss_photo,[],0
+ cmp 0,d0
+ beq 9f
+ movbu (ss_cur),d0
+ cmp d2,d0
+ bne 9f
+ mov d2,d0
+ call ss_trust,[],0
+ cmp 0,d0
+ beq 9f
+ mov d2,d0
+ clr d1
+ call ss_put,[d2,d3,a2,a3],32
+ call ss_wr,[d2,d3,a2,a3],20
+9:
+ ret [d2,d3,a2,a3],20
+
+/* ss_ed: `call ss_ed,[d2,d3,a2,a3],20`, a2 = P, d0 = a set: when it is kept, its film changes become the ones in use
+ * (live EDITS image <- the set's; to be saved with the films block). */
+ss_ed:
+ mov d0,d2
+ call ss_ld,[d2,d3,a2,a3],20
+ mov 1,d1
+ asl d2,d1
+ movbu (ss_ram + 12),d0
+ and d1,d0
+ beq 9f
+ mov (TORG,a2),a3
+ cmp 0,a3
+ beq 9f
+ mov d2,d0
+ call ss_base,[],0
+ mov a0,a1
+ add 332,a1
+ mov a3,a0
+ add TWO,a0
+ mov TW_LEN,d1
+ call ub_cpy,[],0
+ mov a3,a0
+ add TWO,a0
+ mov 1,d0
+ movbu d0,(TW_LEN,a0)             /* EDITS image to save */
+ movbu d0,(DIRTY,a2)
+ mov (ss_ne),d0
+ inc d0
+ mov d0,(ss_ne)
+9:
+ ret [d2,d3,a2,a3],20
+
+/* ss_pm: `call ss_pm,[d2,d3,a2,a3],20` from pm_save after the films block was written (leaving Picture Mode, GUI
+ * task), a2 = P: the set now keeps its slots and film changes when it holds (as at a half-press), so a power-off
+ * without a half-press finds them at the next start. Not before the first look, not while rc_go runs. */
+ss_pm:
+ movbu (cm_init),d0
+ cmp 0,d0
+ beq 9f
+ call cm_gnow,[],0
+ mov d0,d2
+ movbu (ss_cur),d1
+ cmp d2,d1
+ bne 9f
+ mov d2,d0
+ call cm_hold,[d2,d3,a2,a3],20
+ cmp 0,d0
+ beq 9f
+ clr d0
+ call LOCK,[d2],8
+ mov d0,d3
+ movbu (rc_busy),d0
+ cmp 0,d0
+ beq 2f
+ mov d3,d0
+ call UNLOCK,[d2],8
+ bra 9f
+2:
+ mov 1,d0
+ movbu d0,(rc_busy)
+ mov d3,d0
+ call UNLOCK,[d2],8
+ call ss_hp,[d2,d3,a2,a3],20
+ clr d0
+ movbu d0,(rc_busy)
+9:
+ ret [d2,d3,a2,a3],20
+
+/* ss_asg / ss_rst: `call ss_asg,[d2,d3,a2,a3],20` (Assign > Set of C(d0 + 1), a2 = P): the set <- the mode now, its
+ * camera values noted, built-from-films bit cleared. `call ss_rst,[d2,d3,a2,a3],20` (Assign > Reset): not kept, built
+ * from the films at its next entry. */
+ss_asg:
+ mov d0,d2
+ mov 1,d1
+ call ss_put,[d2,d3,a2,a3],32
+ mov 1,d1
+ asl d2,d1
+ not d1
+ movbu (ss_ram + 13),d0
+ and d1,d0
+ movbu d0,(ss_ram + 13)
+ mov 1,d0
+ movbu d0,(ss_dirty)
+ ret [d2,d3,a2,a3],20
+
+ss_rst:
+ mov d0,d2
+ call ss_ld,[d2,d3,a2,a3],20
+ mov 1,d1
+ asl d2,d1
+ mov d1,d3
+ not d3
+ movbu (ss_ram + 12),d0
+ and d3,d0
+ movbu d0,(ss_ram + 12)
+ movbu (ss_ram + 13),d0
+ or d1,d0
+ movbu d0,(ss_ram + 13)
+ mov 1,d0
+ movbu d0,(ss_dirty)
+ ret [d2,d3,a2,a3],20
+
+/* ss_txt: `call ss_txt,[d2,d3,a2,a3],24`: CADLOG.TXT lines */
+ss_txt:
+ LGS ss_s1
+ movbu (ss_v0),d0
+ LGY
+ LGS ss_s2
+ movbu (ss_ram + 12),d0
+ LGD
+ LGS ss_s3
+ movbu (ss_ram + 13),d0
+ LGD
+ LGS ss_s4
+ movbu (ss_cur),d0
+ LGD
+ LGS ss_s5
+ movbu (ss_ph),d0
+ LGD
+ LGS ss_s6
+ mov (ss_ntr),d0
+ LGD
+ LGS ss_s7
+ mov (ss_nl),d0
+ LGD
+ LGS ss_s8
+ mov (ss_ng),d0
+ LGD
+ LGS ss_s9
+ mov (ss_np),d0
+ LGD
+ LGS ss_s10
+ mov (ss_nw),d0
+ LGD
+ LGS ss_s11
+ mov (ss_nab),d0
+ LGD
+ LGS ss_s14
+ mov (ss_ne),d0
+ LGD
+ LGS ss_s12
+ mov (ss_nm),d0
+ LGD
+ LGS ss_s13
+ mov (ss_ml),d0
+ call lg_h,[],0
+ ret [d2,d3,a2,a3],24
+
+ .balign 4
+ss_ram:
+ .space SS_LEN
+ss_ntr:
+ .long 0
+ss_nl:
+ .long 0
+ss_ng:
+ .long 0
+ss_np:
+ .long 0
+ss_nw:
+ .long 0
+ss_nab:
+ .long 0
+ss_nm:
+ .long 0
+ss_ne:
+ .long 0
+ss_ml:
+ .long 0
+ss_ok:
+ .byte 0
+ss_v0:
+ .byte 0
+ss_cur:
+ .byte 0xff
+ss_dirty:
+ .byte 0
+ss_chg:
+ .byte 0
+ss_tm:
+ .byte 0
+ss_mask:
+ .byte 0x0f
+ss_phv:
+ .byte 0
+ss_ph:
+ .byte 0
+ss_fn:
+ .byte 0xff
+ss_mvp:
+ .byte 0
+rc_ab:
+ .byte 0
+ss_s1:
+ .asciz "\r\nPer-mode settings (p1): a valid record at the first look: "
+ss_s2:
+ .asciz "; sets kept (C1 = 1 .. C5 = 16, P group = 32): "
+ss_s3:
+ .asciz "; to build from the films (Assign > Reset): "
+ss_s4:
+ .asciz "\r\nPer-mode settings: set now (0..4 C1..C5, 5 P group, 255 none): "
+ss_s5:
+ .asciz ", photo check (mode code, or 192 + switch): "
+ss_s6:
+ .asciz "\r\nPer-mode settings: entries on the camera's own values: "
+ss_s7:
+ .asciz ", sets made: "
+ss_s8:
+ .asciz ", COLOR rows put back: "
+ss_s9:
+ .asciz ", sets saved: "
+ss_s10:
+ .asciz ", record writes: "
+ss_s11:
+ .asciz ", built from the films: "
+ss_s12:
+ .asciz "\r\nPer-mode settings: camera COLOR values that differed from a Reset custom mode's own: "
+ss_s13:
+ .asciz " (last: set, COLOR, id): "
+ss_s14:
+ .asciz ", film changes swapped in: "
+ .balign 2
 
 /* gd_s11 (moved here from ext10 for room): the Saturation / WB / Glow guide pictures, as before */
 .section .ext11,"ax"

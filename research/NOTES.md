@@ -4334,3 +4334,29 @@ Branch `feature/film-cwb-kelvin` (buburun), from v0.29.3.
 - **Released as v0.29.4** (owner): VERSION "v0.29.4 (PRs 45 46 48, tested)" (same length as t1's; byte diff: only the
   name, the code-block tag, the built-in GUIDES CRC). `releases/v0.29.4`: patch.json (175 runs, 327,352 bytes), extras
   as v0.29.3. `patch.py` makes 757e2d39….
+
+## Per-mode settings p1: each custom mode keeps its own copy of everything (2026-11-15; emulator only)
+
+Branch `feature/per-mode-settings-2` (from main v0.29.4; the r4-based first try is kept on `feature/per-mode-settings`).
+Owner (2026-11-15): Assign > Set to Cn copies every setting of ours; nothing done in another mode (edits, a film reset,
+picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings/PLAN.md`.
+- **Camera facts (om-emu):** stock firmware: P / A / S / M share one COLOR block, each photo custom mode has its own.
+  Video / S&Q at the P position shows the same block as photo P (v0.29.4's movie switch wrote nothing there because
+  rc_put had already forced the films into it); movie custom modes have their own. Mode code: P..B 1..5, C1..C5 53..57,
+  video / S&Q 10; the photo / movie / S&Q switch's position is the byte 0xa32d9d0d (2 / 1 / 0), next to the dial's.
+- **p1 (`ss_*`, end of the custom-mode code, ext12):** six sets (C1..C5, P group), record 'OM3S' at M + 0x3D000
+  (11,896 B; M + 0x3C000 is taken by film-rolls and screen-info, which clash with each other there). A set = the looks,
+  the four slots (our rows), the camera's 18 values when it was made (diagnostic), and its own EDITS image (every
+  film's changes). At a photo dial change (rc_go): the set being left is kept when it holds (P always, Cn on Hold);
+  entering a "trusted" set (P, or a Cn with films of its own) loads its EDITS image before cm_go, switches films
+  without the camera's 18 settings (`ss_lib`, no manager writes), puts its slots back, and rc_put writes nothing (the
+  camera's own per-mode values are right). First entry of a set: made from what is shown (migration: nothing changes
+  at the update). Cn without films of its own: as before (rc_put); after Assign > Reset its films as built, no changes.
+  Assign > Set copies everything (`ss_asg`); Recall takes Cn's set. Kept at every half-press (`cm_hp`) and on leaving
+  Picture Mode (`pm_save` -> `ss_pm`). Video / S&Q: as before, except at the P position with P's slots, where nothing
+  is put back (else rc_put overwrote P's own values: found by the video write count).
+- **Emulator (p1 vs v0.29.4, same scripts):** the owner's scenario (P: Halation +2, Contrast +1, Assign C1; C2, C3, A,
+  S, P, C1; reset the film in P; C1; power-off; C1, P): p1 C1 keeps +2 / +1 throughout and P stays reset; v0.29.4 loses
+  C1's values at the P reset and P's Contrast at the power-off. P's later edits and film switches never reach C1.
+  Before the first half-press: 4 screens and 99 settings-manager calls identical. Video / S&Q switches in P and C1:
+  179 manager writes (v0.29.4 183), none more per switch; P's Contrast kept through video.
