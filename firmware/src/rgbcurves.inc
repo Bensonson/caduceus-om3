@@ -650,6 +650,9 @@ cv_v0:
  .set HS_DHI, 0x6128821b
  .set HS_DMD, 0x61288245
  .set HS_DIAL, 0x611b43ad         /* the dial handler's read before its write */
+ .set HS_PSEL, 124               /* mix test 6: the H&S panel's selector of its look (outer / middle) */
+ .set SEL_N, 92                   /* a selector's entry count (u16) and current entry (u16) */
+ .set SEL_I, 94
  .set HS_HDRAW, 0x610daa1f        /* mix test 5: the page header's picture draw (its return into the lookup) */
  .set HS_MID0, 0x6146656c         /* its layout records of the middle slot: the dial symbol (Mid look), "Mid", the */
  .set HS_MIDN, 0x61466680 - HS_MID0  /* sign, the digits; the left slot's records lie below, the right's from 0x61466680 */
@@ -1112,10 +1115,23 @@ cv_inf:
  cmp 5398,d2
  beq 1f
  cmp RG_IT,d2
- beq 1f
+ beq 2f
  cmp MX_IT,d2
- beq 1f
+ beq 2f
  jmp INF_NO
+2:
+ mov (8,sp),a0                    /* mix test 6 (owner: always the outer look): the H&S panel ((4, the column)) keeps */
+ mov (4,a0),a0                    /* its look in a two-entry selector ((124, panel); om-emu): INFO sends it "up" and */
+ cmp 0,a0                         /* OK, and the entry it lands on (0 outer: dials over our two values, 1 middle) goes */
+ beq 1f                           /* to +122 and 2191. On our rows the selector is put on entry 1 first, so INFO always */
+ mov (HS_PSEL,a0),a0              /* lands on the outer look; INFO still reaches the panel, which redraws the page */
+ cmp 0,a0
+ beq 1f
+ movhu (SEL_N,a0),d0
+ cmp 2,d0
+ bne 1f
+ mov 1,d0
+ movhu d0,(SEL_I,a0)
 1:
  jmp INF_GO
 cv_rsi:
@@ -1179,6 +1195,16 @@ cv_ic:
  mov (cv_on),a0
  cmp 0,a0
  beq 8f
+ cmp 10912,d1                     /* mix test 6, a backstop: the middle look's full dial pictures (10912 / 10913, */
+ beq 13f                          /* 10919) cleared on our pages, by any lookup */
+ cmp 10913,d1
+ beq 13f
+ cmp 10919,d1
+ bne 14f
+13:
+ mov cv_ent + 4 * CVI_N,a0
+ retf [],0
+14:
  mov cv_ent,a0                    /* entry 0: clear */
  cmp 4147,d1
  bcs 3f

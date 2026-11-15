@@ -4682,4 +4682,13 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   flips with INFO between the panel's outer look (dials over Sat / Hue, values white, middle empty: what the owner
   wants) and its middle look (one dial in the middle, still drawn: test 5's clearing misses it there; Sat / Hue
   greyed). Wanted (test 6): always the outer look on our pages; INFO only changes our colour.
+- **Mix test 6 (emulator only): the panel kept in its outer look.** om-emu, the H&S panel (= (4, the column) in the
+  INFO path; 0x6247a800 in om-emu): its look is a two-entry selector at (124, panel) (count u16 at +92 = 2, current
+  entry u16 at +94: 0 outer = 886, 1 middle = 887). Its INFO handler (0x61226702) sends the selector "up" (0x9004) and
+  OK (0x900c), then writes the selector's value to (122, panel) (output only: never read; setting it did nothing) and
+  2191. So cv_inf, on our rows only and just before INF_GO, puts the selector on entry 1 (when its count is 2): INFO's
+  "up" always lands on entry 0, the outer look. om-emu: INFO on Mix / RGB asks 886 every time (before: 887 / 886 in
+  turn), the page redraws in the new colour; the camera's own H&S row still flips (887 / 886, its Mid look). Test 5's
+  middle clearing stays, plus the Mid look's full dial pictures 10912 / 10913 / 10919 cleared by id on our pages as a
+  backstop. 14 screens identical to test 5.
 
