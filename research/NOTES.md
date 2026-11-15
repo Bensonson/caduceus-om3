@@ -4614,4 +4614,16 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     no curved channel); split toning is left as released (it very likely reaches video as well, since v0.26: not
     checked on the camera; owner's call). om-emu (pset:1909:2 = photo, the default is movie): photo -> mix and curves
     as model.py; movie -> mix stock, curves none, split toning alone identical to v0.29.5, split + curves = split only.
+  - **Dial highlight (owner: "the dial symbols wernt being highlighted when the values were being adjusted"):** om-emu,
+    the camera's own H&S page: the active values are white with their dial symbols above (Sh / Hi; the dial pictures
+    10915 bottom arc, 10914 top arc, 36 x 24), the inactive one grey without a symbol (Mid); INFO swaps to Mid (white,
+    the full dial picture above it), Sh / Hi grey. Nothing else lights up after a dial step (screens 5 ms .. 1.2 s
+    after: only the value and the row cell, which turns to its "editing" look, change). Our pages keep the Sh / Hi
+    mode (2191 read 886), so both symbols stay above Sat / Hue, white, and the row cell changes as the camera's. The
+    camera's lists hold the dial pictures with palette 7 and 0x4c (a second colour), so a lit state may exist, but
+    om-emu shows none on the camera's own page: not reproducible here. Not changed; a photo of the camera's own page
+    and of ours while turning a dial is asked (cad).
+- **Mix test 2 (package, emulator only):** Sat / Hue whole (smaller), the mix and RGB curves in photos only; dial
+  pairing and everything else as test 1. 14 screens vs test 1: the same except the smaller labels. Save 10,062.
+  ext11 60,528 / 65,536, ext12 260,480 / 262,144.
 
