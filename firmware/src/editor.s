@@ -13688,6 +13688,10 @@ rc_go:                            /* `call rc_go,[d2,d3,a2,a3],24` from sx_set's
  mov (rc_in),d0
  cmp 0,d0
  beq 9f                           /* no manager handle seen yet */
+ call ss_photo,[],0
+ cmp 0,d0
+ beq 9f                           /* video / S&Q: no film work. Films are photo only, and the camera's settings written
+                                   * while video live view starts freeze its image (#53); the next photo look does it */
  PVAL 9f
  mov (LPTR,a2),d0
  cmp 0,d0
@@ -14579,7 +14583,7 @@ cm_gnow:
  * camera's own values (rc_put) when the camera holds them for the set. Sets: 0..4 C1..C5, 5 P group. A set is
  * "trusted" (the camera's values belong to its films) for P and for a custom mode with films of its own (Assign);
  * a custom mode without (never assigned through us, or after Assign > Reset) is put back as before every time it is
- * entered (after Assign > Reset: the films as built, neutral rows). Video / S&Q (mode code 10): exactly as before.
+ * entered (after Assign > Reset: the films as built, neutral rows). Video / S&Q (mode code 10): no film work (rc_go).
  * Record 'OM3S' in M's free tail at +0x3D000 (the films block is at +0x3A000, 'OM3C' at +0x3B000, other branches use
  * +0x3C000): +0 magic, +4 u16 1, +6 u16 len, +8 CRC-32 of 12.., +12 sets kept (bit n), +13 sets to build from the films
  * after Assign > Reset (bit n), +14 zero, +16 6 sets x 332 B {+0 looks[4], +4 slots[256], +260 the camera's 18
@@ -15056,7 +15060,7 @@ ss_chk:
 /* ss_pre: `call ss_pre,[d2,d3,a2,a3],24` from rc_go before cm_go, a2 = P: photo or not, Recall or not; the set the
  * slots belong to (ss_cur) is kept when leaving it, if the camera's values belong to it and it holds its changes
  * (P group always, a custom mode on Hold); ss_tm = the set entered is trusted (cm_load then switches films without the
- * camera's 18 settings). Not photo: the slots belong to no set any more. */
+ * camera's 18 settings). Photo only (rc_go). */
 ss_pre:
  clr d0
  movbu d0,(ss_tm)
@@ -15067,33 +15071,13 @@ ss_pre:
  movbu d0,(ss_fn)
  call cm_ld,[d2,d3,a2,a3],20
  call ss_ld,[d2,d3,a2,a3],20
- call ss_photo,[],0
- movbu d0,(ss_phv)
  movbu (cm_force),d1
  cmp 0,d1
- beq 1f
+ beq 2f
  add -1,d1                        /* a Recall of C(d1 + 1): its film changes now, as before, then its rows */
  movbu d1,(ss_fn)
  mov d1,d0
  call ss_ed,[d2,d3,a2,a3],20
- bra 9f
-1:
- cmp 0,d0
- bne 2f
- clr d0                           /* video / S&Q: at the P / A / S / M / B position the camera shows photo P's own */
- movbu d0,(ss_mvp)                /* COLOR values (one block, om-emu): with the slots P's, nothing is put back there */
- call cm_gnow,[],0                /* (else they would overwrite P's own); anything else: as before, and the slots */
- cmp 5,d0                         /* belong to no set any more */
- bne 11f
- movbu (ss_cur),d1
- cmp 5,d1
- bne 11f
- mov 1,d0
- movbu d0,(ss_mvp)
- bra 9f
-11:
- mov 0xff,d0
- movbu d0,(ss_cur)
  bra 9f
 2:
  call cm_gnow,[],0
@@ -15132,14 +15116,11 @@ ss_pre:
  * (first time for the set: the set made from what is shown now), nothing put back; a custom mode on Reset is checked
  * against its noted camera values (CADLOG). Untrusted custom mode: as before; after Assign > Reset its films as built
  * and neutral rows (rc_ab). The same set again (P <-> A, a GUI retry): nothing. Recall: as before, then the custom
- * mode's slots, kept when the mode now holds. Video / S&Q: as before. */
+ * mode's slots, kept when the mode now holds. Photo only (rc_go). */
 ss_post:
  movbu (ss_fn),d0
  cmp 0xff,d0
  beq 3f
- movbu (ss_phv),d1
- cmp 0,d1
- beq 9f
  call ss_get,[d2,d3,a2,a3],24
  movbu (cm_grp),d0
  mov d0,d2
@@ -15156,16 +15137,6 @@ ss_post:
  call ss_put,[d2,d3,a2,a3],32
  bra 9f
 3:
- movbu (ss_phv),d0
- cmp 0,d0
- bne 31f
- movbu (ss_mvp),d0                /* video / S&Q at P with P's slots: nothing put back */
- cmp 0,d0
- beq 9f
- clr d0
- movbu d0,(ss_mask)
- bra 9f
-31:
  movbu (cm_grp),d0
  mov d0,d2
  movbu (ss_cur),d1
@@ -15451,14 +15422,10 @@ ss_tm:
  .byte 0
 ss_mask:
  .byte 0x0f
-ss_phv:
- .byte 0
 ss_ph:
  .byte 0
 ss_fn:
  .byte 0xff
-ss_mvp:
- .byte 0
 rc_ab:
  .byte 0
 ss_s1:
