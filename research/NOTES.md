@@ -4297,3 +4297,29 @@ the default of its profile or film, and a change on one row never stars another 
   others) show their defaults and do not store an edit, so they get no '*'. A later change is planned on its own
   branch: gray out "-" / "+" by giving each of our bars min = max until the load. The emulator reaches Picture Mode
   before the half-press with `ok wait ok wait ok wait` (see Display).
+
+## Film WB: Custom WB Kelvin lost on OK in the WB screen (2026-11-14, camera-tested)
+
+Branch `feature/film-cwb-kelvin` (buburun), from v0.29.3.
+
+- **Camera (v0.29.1, reproduced since in om-emu on v0.29.3):** pick a film whose WB is Custom WB (here 3800 K): the
+  shooting screen shows CWB 3800 K. Open the WB screen (Super Control Panel › WB) and press OK on "CWB*": the Kelvin
+  jumps to an old value (2700 K on the camera where it was found), and the film gets a '*' (fw_keep stores the
+  camera's WB into it) and keeps the wrong Kelvin until reset (OK held).
+- **Cause:** fw_apply writes 107 MODE_CUSTOM_WB_KELVIN_1 and 1578 MODE_WB_STILL. The stills Custom WB keeps its own
+  Kelvin, **1632 MODE_CUSTOM_WB_KELVIN_1_STILL** (1633 for movies), and OK on CWB in the WB screen loads it into 107.
+  Its own shifts are 1592 MODE_WB_REV_CUSTOM_STILL (A-B) and 1605 MODE_WB_REV_G_CUSTOM_STILL (G-M); a film's own
+  shift (slot +25..+27) adds to them. Names from the settings name table (decoded block 02, 52-byte names from
+  0x28803f0, id = index).
+- om-emu, v0.29.3, a film at 3800 K picked: 107 3800, 1632 5400; WB screen, CWB, OK: 107 5400. A card that also
+  carries an old BUNDLES.BIN hides it in the emulator (a later write through the camera's own handle sets 1632 too),
+  so test with a card holding only LOOKS.BIN.
+- **Fix:** fw_apply writes 1632 with the film's Kelvin, then 107 (the mode's local holds K for the two calls; the
+  mode is CWB there). om-emu: 107 / 1632 3800 / 3800 after the pick and after CWB, OK; a film at 6000 K, then the
+  3800 K film: both follow; a film without its own WB: Auto.
+- **Camera:** v0.29.1 + this change (2026-11-14): CWB, OK keeps 3800 K, no '*'; away and back keeps it; a film
+  without its own WB goes back to Auto. v0.29.3 + PR #46 + this change (2026-11-15): CWB, OK keeps 3800 K.
+- **RAW editing:** a photo taken after the jump, and its RAW, carry the old Kelvin (the om3.1 code records it too),
+  so RAW Data Edit with the film's own Kelvin (Custom2 CWB, Picture Mode = the film's COLOR) does not match the
+  in-camera JPEG. RAW Data Edit itself develops the film loaded on that COLOR (colour, tone, split toning, Halation,
+  grain and the film's WB shift; camera, 2026-11-14); its WB mode, Kelvin, Noise Filter and exposure come from Custom2.

@@ -5273,11 +5273,20 @@ fw_apply:
  mov 100,d1
  mul d1,d0
  add 2000,d0
+ mov d0,(12,sp)                   /* K in the mode's local (the mode is CWB, 9, here) */
  mov d0,d1
+ mov 1632,d0                      /* the stills CWB Kelvin too: OK on CWB in the WB screen loads it into 107 (before:
+                                     the camera's old Kelvin came back and the film got a '*') */
+ mov (4,sp),a0
+ mov (8,sp),a1
+ call manager,[d2,d3,a2,a3],68
+ mov (12,sp),d1
  mov 107,d0
  mov (4,sp),a0
  mov (8,sp),a1
  call manager,[d2,d3,a2,a3],68
+ mov 9,d0
+ mov d0,(12,sp)                   /* the mode back */
 2:
  mov 1578,d0
  mov (12,sp),d1
