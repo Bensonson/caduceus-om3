@@ -31,6 +31,7 @@
  .set CV_U, 0xa295b800
  .set CV_MAGIC, 0x52334d4f        /* "OM3R" */
  .set CV_STEP, 48
+ .set CV_CLK, 14                  /* the most clicks one dial event moves: a value's whole -7..+7 */
 
 .section .ext12,"ax"
 
@@ -230,6 +231,237 @@ cv_d:
  mov (4,sp),a0
  mov (8,sp),a1
  ret [d2,d3,a2,a3],44
+
+/* STC c, k, b: st_all's work on entry a0 of channel c (t in a3), k = with split toning, b = with c's block if any */
+ .macro STC c, k, b
+ .if \k
+ mov (16 + 16 * \c,sp),d2
+ mov (80,sp),d1
+ mul d1,d2
+ mov (20 + 16 * \c,sp),d3
+ mov (84,sp),d1
+ mul d1,d3
+ add d3,d2
+ asr 9,d2
+ .else
+ clr d2
+ .endif
+ .if \b
+ mov (24 + 16 * \c,sp),a2
+ cmp 0,a2
+ beq 91f
+ mov (88,sp),d0
+ add d0,a2
+ mov (a2),d3
+ mov (92,sp),d1
+ mul d1,d3
+ mov (4,a2),d0
+ mov (96,sp),d1
+ mul d1,d0
+ add d0,d3
+ mov (24,a2),d0
+ mov (100,sp),d1
+ mul d1,d0
+ add d0,d3
+ mov (44,a2),d0
+ mov (104,sp),d1
+ mul d1,d0
+ add d0,d3
+ asr 12,d3
+ add d3,d2
+91:
+ .endif
+ mov a3,d0
+ add d2,d0
+ bge 92f
+ clr d0
+92:
+ cmp 4095,d0
+ ble 93f
+ mov 4095,d0
+93:
+ mov (28 + 16 * \c,sp),d1
+ cmp d1,d0
+ bge 94f
+ mov d1,d0
+94:
+ mov d0,(28 + 16 * \c,sp)
+ movhu d0,(640 * \c,a0)
+ .endm
+
+/* st_all: `call st_all,[d2,d3,a2,a3],132` (st_run, after its gates), a0 = st_run's sp, a3 = O: the pass over the job's
+ * R, G, B tables (256 + 64 entries each, identical before). Each entry t of channel c gets (Ks ws + Kh wh) >> 9 and
+ * cv_d's D(t) for c's block, then the clamp and the part's running max, as st_run did one channel at a time. The
+ * balance, the weights and the Hermite basis depend on t only: worked out once per entry for the three channels.
+ * Locals: (4) the R entry, (8) the part's end, (12) part, (16 + 16 c) channel c: Ks, Kh, block or 0, running max;
+ * (64) c, (68) f1, (72) f2, (76) t, (80) ws, (84) wh, (88) 4 i, (92..104) h00 h01 h10 h11, (108) any K, (112) any
+ * block. Uses d0, d1, a0, a1, MDR. */
+st_all:
+ mov a3,d0
+ add 1252,d0
+ mov d0,(4,sp)
+ mov a0,a2
+ mov cv_pp,a3
+ mov sp,a1
+ add 16,a1
+ clr d2
+ clr d3
+ mov 3,d1
+1:
+ mov (32,a2),d0
+ mov d0,(a1)
+ or d0,d2
+ mov (44,a2),d0
+ mov d0,(4,a1)
+ or d0,d2
+ mov (a3),d0
+ mov d0,(8,a1)
+ or d0,d3
+ add 4,a2
+ add 4,a3
+ add 16,a1
+ add -1,d1
+ bne 1b
+ mov d2,(108,sp)
+ mov d3,(112,sp)
+ mov (76,a0),d0
+ mov d0,(64,sp)
+ mov (80,a0),d0
+ mov d0,(68,sp)
+ mov (84,a0),d0
+ mov d0,(72,sp)
+ clr d0
+ mov d0,(12,sp)
+ mov (4,sp),d1
+ add 512,d1
+ mov d1,(8,sp)
+2:
+ clr d0
+ mov d0,(28,sp)
+ mov d0,(44,sp)
+ mov d0,(60,sp)
+3:
+ mov (4,sp),a0
+ movhu (a0),d0
+ mov d0,(76,sp)
+ mov d0,a3                        /* t, for STC */
+ mov (108,sp),d1
+ cmp 0,d1
+ beq 5f
+ mov (64,sp),d1                   /* u = t moved by the balance (as st_run v0.28) */
+ cmp d1,d0
+ bcc 4f
+ mov (68,sp),d1
+ mul d1,d0
+ lsr 16,d0
+ bra 41f
+4:
+ sub d1,d0
+ mov (72,sp),d1
+ mul d1,d0
+ lsr 16,d0
+ add 2048,d0
+41:
+ mov 4095,d1
+ sub d0,d1                        /* s */
+ mov d0,d2
+ mul d1,d2
+ lsr 12,d2
+ mul d1,d2
+ lsr 12,d2
+ mov d2,(80,sp)                   /* ws */
+ mov d0,d3
+ mul d0,d3
+ lsr 12,d3
+ mul d1,d3
+ lsr 12,d3
+ mov d3,(84,sp)                   /* wh */
+5:
+ mov (112,sp),d1
+ cmp 0,d1
+ beq 7f
+ mov (76,sp),d0                   /* the Hermite basis at t (as cv_d) */
+ mov d0,d2
+ lsr 10,d2
+ cmp 3,d2
+ bls 6f
+ mov 3,d2
+6:
+ mov d2,d3
+ asl 10,d3
+ sub d3,d0                        /* x */
+ asl2 d2
+ mov d2,(88,sp)
+ mov cv_inv,a2
+ add d2,a2
+ mov (a2),d1
+ mul d1,d0
+ lsr 12,d0                        /* s */
+ mov d0,d3
+ mul d0,d0
+ lsr 12,d0
+ mov d0,d1                        /* s2 */
+ mul d3,d0
+ lsr 12,d0                        /* s3 */
+ mov d0,d2
+ add d2,d2
+ sub d1,d2
+ sub d1,d2
+ sub d1,d2
+ add 4096,d2
+ mov d2,(92,sp)                   /* h00 = 2 s3 - 3 s2 + 4096 */
+ mov d1,d2
+ add d2,d2
+ add d1,d2
+ sub d0,d2
+ sub d0,d2
+ mov d2,(96,sp)                   /* h01 = 3 s2 - 2 s3 */
+ mov d0,d2
+ sub d1,d2
+ sub d1,d2
+ add d3,d2
+ mov d2,(100,sp)                  /* h10 = s3 - 2 s2 + s */
+ mov d0,d2
+ sub d1,d2
+ mov d2,(104,sp)                  /* h11 = s3 - s2 */
+7:
+ mov (4,sp),a0
+ mov (108,sp),d1
+ cmp 0,d1
+ beq 72f
+ mov (112,sp),d1
+ cmp 0,d1
+ beq 71f
+ STC 0,1,1
+ STC 1,1,1
+ STC 2,1,1
+ bra 79f
+71:
+ STC 0,1,0
+ STC 1,1,0
+ STC 2,1,0
+ bra 79f
+72:
+ STC 0,0,1
+ STC 1,0,1
+ STC 2,0,1
+79:
+ mov (4,sp),d0
+ add 2,d0
+ mov d0,(4,sp)
+ mov (8,sp),d1
+ cmp d1,d0
+ bne 3b
+ mov (12,sp),d0
+ cmp 0,d0
+ bne 9f
+ inc d0
+ mov d0,(12,sp)                   /* part 1: the 64 entries after the 256 */
+ add 128,d1
+ mov d1,(8,sp)
+ bra 2b
+9:
+ ret [d2,d3,a2,a3],132
 
 /* cv_set: `call cv_set,[d2,d3,a2,a3],20`, d0 = COLOR k (0..3) -> d0 = its channels with a point set (bit c); their
  * blocks into cv_pb + 64 c and cv_pp[c] = that block, else 0. Uses d0, d1, a0, a1, MDR. */
@@ -627,6 +859,7 @@ cv_v0:
  .set CW_END, 0x6000              /* ... up to here (2b: was 0x8000; the largest seen in om-emu is ~13 KB) */
  .set CW_SU, 0x6000               /* 2b: the curves record packed for the films save (ub_wr), and for the custom */
  .set CW_SS, 0x7000               /* modes' save (ss_wr): 3,348 B each, made before the locked write (cv_hdr) */
+ .set CW_XR, 0x8000               /* u16 xmin, xmax [3][300]: the columns whose span holds the row (empty: 0xffff, 0) */
  .if CV_WRK + CW_SU - CV_STU
  .error "CV_STU (editor.s) is not CV_WRK + CW_SU"
  .endif
@@ -887,7 +1120,7 @@ cv_sv:
 9:
  jmp sl_set
 
-/* cv_ev <- .hook_pme (Picture Mode's event handler, CALLS: d0 event, d1, a0, a1; MDR return). On our page: the front dial (0x9031, a1 its direction) moves the point (the way the camera's
+/* cv_ev <- .hook_pme (Picture Mode's event handler, CALLS: d0 event, d1, a0, a1; MDR return). On our page: the front dial (0x9031, a1 its clicks) moves the point (the way the camera's
  * Highlights value goes for it), the rear dial (0x9032) the offset (as the camera's Shadows), INFO (0x9014) picks the
  * next colour. The events then go on to the camera (pm_ev) as they came: its dial handler writes its own running
  * value and its panel toggles 2191 on INFO (cv_inf), both refused by cv_sv, and it redraws the page as for its own
@@ -929,14 +1162,14 @@ cv_ev:
  movbu d2,(cv_rst)
  jmp 90f
 3:
- mov a1,d3                        /* the dials' direction: -1 / 0 / +1 */
- cmp 0,d3
- beq 31f
- mov 1,d3
- mov a1,d2
- cmp 0,d2
- bgt 31f
- mov -1,d3
+ mov a1,d3                        /* the dials' clicks, signed: a fast turn brings several in one event (the camera's */
+ cmp -CV_CLK,d3                   /* own pages count them all) */
+ bge 30f
+ mov -CV_CLK,d3
+30:
+ cmp CV_CLK,d3
+ ble 31f
+ mov CV_CLK,d3
 31:
  mov (cv_on),d2                   /* colour mix: the Mix page's dials */
  cmp 2,d2
@@ -1258,7 +1491,7 @@ cv_pic:
 /* cv_draw: `call cv_draw,[d2,d3,a2,a3],128`: COLOR cv_k's three curves as a 300 x 300 OSD type-11 picture (the curve
  * layer's palette: white 14, black 2, grey 20, cv_col) at
  * CV_WRK + CW_ST, cv_desc's size and payload. Each column's span of each curve (lo / hi: this and the last column's
- * rows, 3 px for the selected colour), then row by row: the diagonal, the other two, the selected one, its 5 points
+ * rows, 3 px for the selected colour) and each row's range of such columns (CW_XR), then row by row: the diagonal, the other two, the selected one, its 5 points
  * (the selected one white, bigger: radius 8, else 5), runs packed five 12-bit tokens a 64-bit word. Locals: (4) k, (8) c, (12) p,
  * (16) y / x, (20) write pointer, (24) / (28) the word being packed, (32) tokens in it, (36) channel, (40) last row,
  * (44) live[k], (48..59) points' rows (u16), (60) colour, (64) the row's x, (68) run start, (72) half width,
@@ -1325,6 +1558,18 @@ cvd_rgb:
  mov d0,(16,sp)                   /* x */
  mov -1,d0
  mov d0,(40,sp)
+ mov (36,sp),d0                   /* this channel's row ranges: all empty */
+ mov 1200,d1
+ mul d1,d0
+ mov CV_WRK + CW_XR,a0
+ add d0,a0
+ mov 0x0000ffff,d0
+ mov 300,d1
+151:
+ mov d0,(a0)
+ add 4,a0
+ add -1,d1
+ bne 151b
 15:
  mov (16,sp),d0
  mov 14024,d1
@@ -1385,6 +1630,27 @@ cvd_rgb:
  add d0,a0
  movhu d2,(a0)
  movhu d3,(CW_HI,a0)
+ mov (36,sp),d0                   /* rows lo..hi: this x is in their range (x only grows) */
+ mov 1200,d1
+ mul d1,d0
+ mov d2,d1
+ asl2 d1
+ add d1,d0
+ mov CV_WRK + CW_XR,a0
+ add d0,a0
+ sub d2,d3
+ inc d3
+ mov (16,sp),d0
+183:
+ movhu (a0),d1
+ cmp 300,d1
+ bcs 184f
+ movhu d0,(a0)
+184:
+ movhu d0,(2,a0)
+ add 4,a0
+ add -1,d3
+ bne 183b
  mov (16,sp),d0
  inc d0
  mov d0,(16,sp)
@@ -1501,11 +1767,26 @@ cvd_crv:
  mov d0,(60,sp)
  mov 600,d0
  mul d2,d0
+ mov d0,d1
+ add d1,d1
  mov CV_WRK + CW_LO,a1
  add d0,a1                        /* lo[ch] */
- mov CV_WRK + CW_ROW,a0
  mov (16,sp),d2                   /* y */
- mov 300,d1
+ mov d2,d0
+ asl2 d0
+ add d0,d1
+ mov CV_WRK + CW_XR,a0
+ add d1,a0
+ movhu (a0),d0                    /* only columns xmin..xmax can hold this row */
+ movhu (2,a0),d1
+ cmp d0,d1
+ bcs 37f
+ sub d0,d1
+ inc d1
+ mov CV_WRK + CW_ROW,a0
+ add d0,a0
+ add d0,d0
+ add d0,a1
 35:
  movhu (a1),d0
  cmp d0,d2
@@ -1520,6 +1801,7 @@ cvd_crv:
  add 2,a1
  add -1,d1
  bne 35b
+37:
  inc d3
  cmp 3,d3
  bcs 33b
@@ -1613,22 +1895,31 @@ cvd_enc:
  mov CV_WRK + CW_ROW,a2           /* the row's runs (<= 16, never past its end) as tokens */
  clr d3
 50:
- movbu (d3,a2),d0
- mov 1,d1
+ mov a2,a0
+ add d3,a0
+ movbu (a0),d0
+ mov d3,d1                        /* a1: the run's end at most */
+ add 16,d1
+ cmp 300,d1
+ ble 501f
+ mov 300,d1
+501:
+ mov a2,a1
+ add d1,a1
 51:
- cmp 16,d1
+ inc a0
+ cmp a1,a0
  bcc 52f
- mov d3,d2
- add d1,d2
- cmp 300,d2
- bcc 52f
- movbu (d2,a2),d2
+ movbu (a0),d2
  cmp d0,d2
- bne 52f
- inc d1
- bra 51b
+ beq 51b
 52:
- add d1,d3
+ mov a0,d1
+ mov a2,d2
+ sub d2,d1                        /* the next run's start */
+ mov d1,d2
+ sub d3,d1
+ mov d2,d3
  asl 4,d0
  add -1,d1
  or d1,d0
