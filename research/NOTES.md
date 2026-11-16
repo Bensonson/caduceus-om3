@@ -5516,3 +5516,9 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - Ours (`hl_run`) started from their h2 design but has its own changes (h2: chroma weight from a smoothed cell mean;
   h4: the broad layer), so the same ideas would have to be applied to our code and checked bit for bit against our
   model (`research/halation`). Not started.
+- **Camera-tested (owner, 2026-11-17): "The fix works"** (v0.30.2 test 1, `6cb4dfe8…35ae`): no black review, no freeze at
+  the Creative Dial to Vivid. Caveat (owner): "the playback doesn't display the glow settings". Expected from the fix:
+  the camera's playback shows the photo's small embedded preview, one of the shot's small developments (type 0x110 /
+  0x120) that no longer get 0x80; the saved photo itself (0x1000) should keep the glow / halo (to check on the card).
+  Possible refinement (analysis): one of the two small types may be the review picture and the other the embedded
+  preview; keeping 0x80 on the preview's type only would need one camera test per type.
