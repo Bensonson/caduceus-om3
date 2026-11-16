@@ -103,7 +103,8 @@ or `reject`.
 
 `session_ed1.mjs` takes `PSET0` and `MODE0` in its environment, the photo/video switch and mode dial positions
 before boot, and the tokens `pset:N` and `mode:N` to move them during a run. A `Boot` sets them with `photo_switch`
-and `mode_dial`. `photo_switch=None` leaves `PSET0` unset, which is the movie switch.
+and `mode_dial`. `photo_switch=None` leaves `PSET0` unset. om-emu 0819080 (2026-11-14) reads an unset switch as
+photo, so the video test sets the movie position (1) explicitly (v0.30 test 8).
 
 The two custom-mode tests pass on v0.29.5, EL13, and C10 (an older early-load build), emulator only. They are weak:
 neither fails on any build tried. `video-boot-after-photo-boot` does catch its bug: it passes with the #53 fix

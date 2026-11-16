@@ -37,7 +37,9 @@ PHOTO_SWITCH_PHOTO = 2
 MODE_DIAL_P = 2
 MODE_DIAL_C1 = 7
 MODE_DIAL_M = 9
-PHOTO_SWITCH_VIDEO = None
+# The movie position, set explicitly: om-emu 0819080 (2026-11-14) reads an unset switch as photo, so a test that left it
+# unset ran in photo (v0.30 test 8, emulator).
+PHOTO_SWITCH_VIDEO = 1
 
 # From COLOR 1 on the shooting screen, picks FILM 2: the list runs COLOR 1-4, then the films.
 # Keep in sync with FILM_2_LINE.
@@ -58,7 +60,7 @@ GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
 # rc_go does no film work in video (#53): the custom-mode code never sees the mode (code 0, no record write). A build
 # without the fix reads mode code 194 and writes the record.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
-                    r'photo check .*: 193$',
+                    r'photo check .*: (193|10)$',    # 192 + the movie switch, or the video mode's code 10
                     r'^Custom modes: group now .*: 0, mode code 0; .*record writes: 0,']
 
 
@@ -114,10 +116,7 @@ TESTS = {
 }
 
 # Tests the current release fails, with the reason. They do not fail a run. Remove an entry once main passes it.
-KNOWN_FAILURES = {
-    'film-kept-with-no-half-press-after-pick':
-        'v0.29.5 loses a pick made with no half-press after it, fixed on feature/early-load',
-}
+KNOWN_FAILURES = {}   # v0.30 test 8: 'film-kept-with-no-half-press-after-pick' passes with PR #56 (early load)
 
 
 def git(*args, cwd=REPO):
