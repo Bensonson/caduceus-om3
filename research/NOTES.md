@@ -5458,3 +5458,5 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   as v0.30's): main.bin differs from the tested merge build only in the name, the code-block tag (twice) and the
   built-in GUIDES CRC (51 bytes). E1479999.BIN `d1194729…11b7`, rebuilt byte for byte. Package
   `test-builds/2026-11-17-v0301-test1` (private), CURVES.BIN as v0.30, go-back v0.30 (481f3678…).
+- **Camera-tested (owner, 2026-11-17): "looks good".** Test 1 (`d1194729…11b7`) on the owner's OM-3: the B/W and WB
+  Compensation rows leave without the flash. Test 1 is the v0.30.1 candidate.
