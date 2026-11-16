@@ -1,11 +1,7 @@
-> **Branch `feature/rgb-curves` (work in progress, not released):** per-film R / G / B tone curves and a per-film
-> colour mix, both edited on the camera (the RGB and Mix rows in Picture Mode). **Colour menu test 7 is camera-tested
-> and is the line** (2026-11-15, E1479999.BIN `cfd49927…`; owner: "that looks so good. like properly good."): the RGB
-> curves as test 4 (5 even points) and the Mix row (hue and strength of red, green and blue, the circle page), both in
-> photos only (video stays stock), plus the colour menu (new row order in pages of five, cell pictures, titles, and
-> page headers: Mix "Sat / colour name / Hue", RGB "Level / colour name / Pt"; the header stays in its outer look).
-> The live view shows changes at the next half-press, as with our other rows. Details: `research/NOTES.md`, "Per-film
-> R / G / B tone curves: build", "Colour mix per film" and "Colour menu".
+> **Branch `feature/tour-v030` (work in progress, not released):** the v0.30 test build (`try/v0.30`: RGB curves, colour
+> mix and the colour menu of `feature/rgb-curves` test 7, early load #56, #54 / #55 fixes, tests #57) with LookLab's
+> curves / mix editors and new menu order (`feature/looklab-rgb-curves`) and the tour updated for v0.29.4 to v0.30.
+> Details: `research/NOTES.md`, "Colour menu", "LookLab: RGB curves and colour mix" and "The tour for v0.30".
 
 <h1 align="center">Caduceus for OM-3</h1>
 
