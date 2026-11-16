@@ -10,6 +10,7 @@ import { History } from './history';
 import { fromLibrary, libraryOrigin, resetLook } from './reset';
 import { lastHalation, renderLook } from './preview';
 import { makeZip } from './zip';
+import { curvesBin } from './curvesbin';
 import { rrpreset } from './rapidraw';
 import { previewToneLut } from './tone';
 import {
@@ -689,7 +690,7 @@ function rgbPanel(l: Look, changed: () => void): HTMLElement {
     chips,
     h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
     h('p', { class: 'help' }, 'A curve each for red, green and blue: raise a colour\'s points to add it (in the shadows, mids or highlights), lower them to take it away. Drag a point up or down; double-click one to zero it.'),
-    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'RGB curves are not released yet and LookLab can\'t send them to the camera yet. Set the same numbers on the camera: Picture Mode › RGB (under Highlight & Shadow): INFO picks R / G / B, the front dial the point (1–5), the rear dial up / down.'));
+    h('p', { class: 'help' }, h('b', {}, 'Firmware v0.30: '), 'saved with your looks as OM3MOD/CURVES.BIN (Export › Save to the SD card); the camera takes them at the next half-press, for each film that is still as you saved it. On the camera: Picture Mode › RGB: INFO picks R / G / B, the front dial the point (1–5), the rear dial its level.'));
 }
 
 /** Colour mix (the camera's Mix row; feature/rgb-curves, camera-tested test 6, 2026-11-15): for red, green and blue a
@@ -773,7 +774,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
     chips,
     h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
     h('p', { class: 'help' }, 'Mixes the camera\'s red, green and blue into each other, before the curves and the colour wheel: Sat (saturation) makes a colour stronger or weaker (its dot moves out or in), Hue turns it (red toward yellow, green toward cyan, blue toward purple; clockwise on the ring). Greys stay grey.'),
-    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'the colour mix is not released yet and LookLab can\'t send it to the camera yet. Set the same numbers on the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Sat.'));
+    h('p', { class: 'help' }, h('b', {}, 'Firmware v0.30: '), 'saved with your looks as OM3MOD/CURVES.BIN (Export › Save to the SD card); the camera takes it at the next half-press, for each film that is still as you saved it. On the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Sat.'));
 }
 
 /** Blacks / Whites (v0.28, as the camera's grid row): Blacks across (− left, + right), Whites up (+) and down (−),
@@ -1733,7 +1734,7 @@ async function om3ToCard(files: { name: string; data: Uint8Array }[]) {
       const w = await (await om3.getFileHandle(f.name, { create: true })).createWritable();
       await w.write(f.data as BlobPart); await w.close();
     }
-    toast(`Saved ${files.map((f) => f.name).join(' and ')} to ${dir.name === om3.name ? dir.name : `${dir.name}/OM3MOD`}. Put the card in the camera and half-press.`);
+    toast(`Saved ${files.map((f) => f.name).join(', ')} to ${dir.name === om3.name ? dir.name : `${dir.name}/OM3MOD`}. Put the card in the camera and half-press.`);
   } catch (e) { toast(`Could not write to the card: ${(e as Error).message}`, 'err'); }
 }
 
@@ -1760,7 +1761,12 @@ function om3ExportDialog() {
       ...(new28 ? [h('b', {}, 'v0.28 settings left out: '), `${v28.join('; ')}. Older firmware refuses a LOOKS.BIN with them, so this export saves these looks without them (Blacks / Whites as ±5, split toning in whole v0.26 steps). Choose "v0.28 or later" if the camera has v0.28.`] : []));
   };
   wbNote();
-  const cardFiles = async () => [{ name: 'LOOKS.BIN', data: looksBin() }, { name: 'NAMES.BIN', data: await namesBin(O.bank) as Uint8Array }];
+  // v0.30: CURVES.BIN (the films' RGB curves and colour mix) goes with LOOKS.BIN, made from the same bytes; older firmware never reads it
+  const cardFiles = async () => {
+    const lb = looksBin();
+    return [{ name: 'LOOKS.BIN', data: lb }, { name: 'NAMES.BIN', data: await namesBin(O.bank) as Uint8Array },
+      ...(fw >= 28 ? [{ name: 'CURVES.BIN', data: curvesBin(lb, O.bank) }] : [])];
+  };
   const busy = async (b: HTMLButtonElement, f: () => Promise<void>) => { b.disabled = true; try { await f(); } catch (e) { toast((e as Error).message, 'err'); } finally { b.disabled = probs.length > 0; } };
   const looks = O.bank.flat().filter(Boolean) as Look[];
   const rrAll = () => makeZip(looks.map((l, i) => ({ name: `${String(i + 1).padStart(2, '0')}-${rrName(l.name)}.rrpreset`, data: new TextEncoder().encode(rrpreset(bankPack(looks), i)) })));
@@ -1783,15 +1789,16 @@ function om3ExportDialog() {
       fwSel),
     wbBox,
     h('div', { class: 'ex-row' },
-      h('div', {}, h('b', {}, 'Save to the SD card'), h('p', { class: 'help' }, 'Pick the card (or its OM3MOD folder): writes OM3MOD/LOOKS.BIN and NAMES.BIN. Up to v0.28 this replaces the looks on the card, including ones made on the camera: Open… the card\'s LOOKS.BIN first to keep those. From v0.29 the camera keeps its own films and changes in its memory and takes this file only if it never had these films. Chrome / Edge.')),
+      h('div', {}, h('b', {}, 'Save to the SD card'), h('p', { class: 'help' }, 'Pick the card (or its OM3MOD folder): writes OM3MOD/LOOKS.BIN and NAMES.BIN, and for v0.28 or later CURVES.BIN (from v0.30 the camera reads each film\'s RGB curves and colour mix from it). Up to v0.28 this replaces the looks on the card, including ones made on the camera: Open… the card\'s LOOKS.BIN first to keep those. From v0.29 the camera keeps its own films and changes in its memory and takes this file only if it never had these films. Chrome / Edge.')),
       toCard),
     h('div', { class: 'ex-row' },
-      h('div', {}, h('b', {}, 'Card folder (.zip)'), h('p', { class: 'help' }, 'OM3MOD/LOOKS.BIN, OM3MOD/NAMES.BIN and the looks file. Unzip at the card root (never into DCOLYMP/).')),
+      h('div', {}, h('b', {}, 'Card folder (.zip)'), h('p', { class: 'help' }, 'OM3MOD/LOOKS.BIN, OM3MOD/NAMES.BIN, OM3MOD/CURVES.BIN (v0.28 or later) and the looks file. Unzip at the card root (never into DCOLYMP/).')),
       zip),
     h('div', { class: 'ex-row' },
-      h('div', {}, h('b', {}, 'Single files'), h('p', { class: 'help' }, 'LOOKS.BIN: the 20 looks. NAMES.BIN: their names as the camera shows them under the wheel ("Empty" for unused numbers). Both go in OM3MOD/. Still on firmware v0.17–v0.18? It reads the same looks as PROFILES.BIN.')),
+      h('div', {}, h('b', {}, 'Single files'), h('p', { class: 'help' }, 'LOOKS.BIN: the 20 looks. NAMES.BIN: their names as the camera shows them under the wheel ("Empty" for unused numbers). CURVES.BIN (v0.30): each film\'s RGB curves and colour mix, made for this LOOKS.BIN: save them together. All go in OM3MOD/. Still on firmware v0.17–v0.18? It reads the same looks as PROFILES.BIN.')),
       h('div', { class: 'ex-btns' },
         h('button', { disabled: probs.length > 0, onclick: () => download('LOOKS.BIN', looksBin()) }, 'LOOKS.BIN'),
+        h('button', { disabled: probs.length > 0 || fw < 28, title: 'Firmware v0.30: the films\' RGB curves and colour mix, for the LOOKS.BIN above', onclick: () => download('CURVES.BIN', curvesBin(looksBin(), O.bank)) }, 'CURVES.BIN'),
         h('button', { disabled: probs.length > 0, title: 'For firmware v0.17–v0.18', onclick: () => download('PROFILES.BIN', profilesBin(O.bank, 20)) }, 'PROFILES.BIN'),
         names)),
     h('div', { class: 'ex-row' },
