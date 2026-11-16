@@ -5682,3 +5682,13 @@ run to run (an ncall of the camera's RGB stage 0x60516ad9, then our tone hook, o
 - Camera, 2026-11-16 (user, build `5ebd047`): burst, start-up, and video OK. The card log for that power-on (9
   photos on FILM 10 Velvia 50, then M video) says "nothing unusual". Save and reload: curve and mix edits kept
   through a power cycle (user), and the films block read valid at the next power-on (generation 367).
+
+## v0.30.3 test 3: test 2 + PR #69 (2026-11-17; emulator only)
+Owner: "lets intigrate pr#69 in the build. I want to test it out first but it looks good". `try/v0.30.3` = this line +
+`feature/faster-halation` (h8, test 2) + PR #69 (crombach, head 7b0cc80: every dial click on the RGB / Mix pages,
+faster st_all / cv_draw / sd_crc), merged as written. Conflicts: emu_test.py (both kept; the --only / names lists hold
+HALATION, ENGINE and DIAL), NOTES (both kept). cad's read of #69: no hook; `sd_crc` now uses d2 (saved by its
+`call [d2,d3],12` frame, as d3 was) and keeps a1 on its own stack word; `st_run` uses ~88 B more stack (#69's note:
+burst and video passed on crombach's camera). Build "v0.30.3-dev (test 3: test 2 + PR #69, faster looks.)" (52
+characters), E1479999.BIN `53cd002b…459a`, rebuilt byte for byte; suite 26 of 26 (incl. look-tables-match-the-model,
+rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2026-11-17-v0303-test3`.
