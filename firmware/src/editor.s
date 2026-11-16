@@ -81,9 +81,6 @@
 .section .hook_pu,"ax"
  jmp cv_pu                        /* rgb-curves cv_pu, then pu_hook. stock 0x611d04ec (Picture Mode update): mov (0x6037a360),d0 */
  .byte 0xcb
-.section .hook_sf,"ax"
- jmp sf_chk                       /* #65 probe. stock 0x604b9248: mov (a3),d0; btst 128,d0; beq 0x604b9298 */
- .byte 0xcb
 .section .hook_pe,"ax"
  jmp gr_end                       /* stock 0x611d059c (Picture Mode update's end): mov (12,sp),d0; cmp 0,d0; bne 0x611d05b2 */
  .byte 0xcb
@@ -10416,42 +10413,6 @@ lg_sum:
  bne 29f
  LGS lg_la8
 29:
- LGS lg_p65h                      /* #65 probe p65a: the jobs that had the Soft Focus flag, newest first */
- mov (p65_n),d0
- LGD
- mov (p65_n),d2
- clr d3
-30:
- cmp 0,d2
- beq 39f
- cmp 6,d3
- bcc 39f
- add -1,d2
- mov d2,d0
- and 7,d0
- mov d0,d1
- add d1,d1
- add d0,d1
- asl2 d1
- mov p65_ring,a3
- add d1,a3
- LGS lg_p65k
- mov (a3),d0
- call lg_h,[],0
- LGS lg_p65c
- movbu (8,a3),d0
- LGD
- LGS lg_p65f
- mov (4,a3),d0
- call lg_h,[],0
- movbu (9,a3),d0
- cmp 0,d0
- beq 31f
- LGS lg_p65s
-31:
- inc d3
- bra 30b
-39:
  ret [d2,d3,a2,a3],24
 
 /* lg_cnow: `call lg_cnow,[d2,d3,a2,a3],24`: CAMERA: the newest event's values (lg_cam) and the cached ones (lg_crf). */
@@ -12518,16 +12479,6 @@ lg_ya:
  .asciz "; custom modes with films: "
 lg_yb:
  .asciz "\r\nLook at: "
-lg_p65h:
- .asciz "\r\n#65 probe, jobs with the Glow route (newest first): "
-lg_p65k:
- .asciz " | key "
-lg_p65c:
- .asciz " class "
-lg_p65f:
- .asciz " flags "
-lg_p65s:
- .asciz " SKIPPED"
 lg_la0:
  .asciz "no settings block"
 lg_la1:
@@ -14883,60 +14834,6 @@ dg_bend:
  *      clamped). h2 (camera h1: the fast grain is in the image before this pass): the chroma weight w comes from the
  *      cell's mean brightness, not each pixel's, so grain and thin lines don't speckle the tint. */
 .section .ext12,"ax"
-/* ---- #65 probe p65a (2026-11-17): Glow / Halation photos (our job flag 0x80, the Soft Focus passes on a COLOR job)
- * give a black Image Review and then freeze live view in the standard picture modes. sf_chk <- .hook_sf at 0x604b9248,
- * the photo work list's 0x80 test (a3 -> the request flags, d3 -> the job pointer; d0, d1, a0, a1 are free there): it
- * notes every job that has 0x80 {key (job+5352), flags, class (job+5385), skipped} in an 8-entry ring for the debug log,
- * and with P65_SKIP leaves the Soft Focus passes out of COLOR (key 11) jobs of classes 4..8 (the small entry
- * 0x604be4b6; the photo itself takes classes 0..3, entry 0x604be2aa). Leaf: no calls, no stack. */
- .set P65_SKIP, 1
-sf_chk:
- mov (a3),d0
- btst 128,d0
- bne 1f
- jmp sf_off
-1:
- mov d3,a0
- mov (a0),a0                      /* the job */
- mov (p65_n),d0
- mov d0,d1
- inc d1
- mov d1,(p65_n)
- and 7,d0
- mov d0,d1
- add d1,d1
- add d0,d1
- asl2 d1                          /* 12 x slot */
- mov p65_ring,a1
- add d1,a1
- mov (5352,a0),d0
- mov d0,(a1)                      /* key */
- mov (a3),d0
- mov d0,(4,a1)                    /* flags */
- movbu (5385,a0),d0
- movbu d0,(8,a1)                  /* class */
- clr d1
- movbu d1,(9,a1)
- mov (5352,a0),d1
- cmp 11,d1
- bne 8f
- cmp 4,d0
- bcs 8f
- cmp 9,d0
- bcc 8f
- .if P65_SKIP
- mov 1,d1
- movbu d1,(9,a1)
- jmp sf_off
- .endif
-8:
- jmp sf_on
- .balign 4
-p65_n:
- .long 0
-p65_ring:
- .space 12 * 8
-
  .include "hl_tab.inc"
  .balign 4
 

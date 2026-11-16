@@ -80,10 +80,6 @@
    "addr": "0x611d059c",
    "len": 6
   },
-  "hook_sf": {
-   "addr": "0x604b9248",
-   "len": 6
-  },
   "hook_pg": {
    "addr": "0x611d07a4",
    "len": 24
