@@ -394,6 +394,16 @@ Stock: OLY_E_147_1100_0000_0000_3.BIN sha 8c133084…696d, main 5e8d376e…7d59.
 - The looks are only as good as the preview model (`src/preview.ts`) is of the camera; check a film on the camera
   before trusting it for anything critical.
 
+## v0.30.1 release (try/v0.30.1 = main 89b3520 with PR #67; test 1, camera-tested 2026-11-17)
+
+v0.30 plus PR #67 (crombach, #66): `.hook_pe` at 0x611d059c, the end of the Picture Mode update (stock `mov (12,sp),d0;
+cmp 0,d0; bne 0x611d05b2`, replayed by `gr_end` through pe_back 0x611d05a2 / pe_ret 0x611d05b2), gives the bottom bar's
+holder its own scene back after the update publishes the new row's values; `gr_upd` only clears `gr_flag`. Test
+`grid-row-gives-the-bottom-bar-back`; the flash itself is camera-only ("Past regressions" in `research/TESTING.md`).
+- `firmware/VERSION` "v0.30.1 (menu flash fix, crombach, camera-tested t1)", 52 characters as test 1's: main.bin differs
+  only in that string, the code-block tag and the built-in GUIDES CRC (53 bytes). E1479999.BIN c2b583fd…4bc5;
+  `patch.py` makes it by default; `--release v0.30` still makes 481f3678…. Extras as v0.30 (CURVES.BIN uploaded by hand).
+
 ## v0.30 release (try/v0.30-dl9 with main and feature/tour-v030 merged; test 13, camera-tested 2026-11-16)
 
 v0.29.5 plus: RGB curves (`firmware/src/rgbcurves.inc`: the engine in st_run, record 'OM3R' at M+0x3B100, the RGB row

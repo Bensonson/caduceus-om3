@@ -5460,3 +5460,8 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   `test-builds/2026-11-17-v0301-test1` (private), CURVES.BIN as v0.30, go-back v0.30 (481f3678…).
 - **Camera-tested (owner, 2026-11-17): "looks good".** Test 1 (`d1194729…11b7`) on the owner's OM-3: the B/W and WB
   Compensation rows leave without the flash. Test 1 is the v0.30.1 candidate.
+- **v0.30.1 release (2026-11-17; owner: "Yes, release v0.30.1"):** `firmware/VERSION` "v0.30.1 (menu flash fix, crombach,
+  camera-tested t1)", 52 characters: main.bin differs from test 1 only in the name, the code-block tag (twice) and the
+  built-in GUIDES CRC (53 bytes). E1479999.BIN c2b583fd…4bc5; `patch.py --release v0.30.1` makes it byte for byte,
+  `--release v0.30` still 481f3678…. `releases/v0.30.1`: patch.json, CURVES.BIN / LOOKS.BIN / DEBUG.TXT / photo code
+  kit as v0.30, SHA256SUMS, NOTES.md; CURVES.BIN goes on the GitHub release by hand (the workflow doesn't list it).

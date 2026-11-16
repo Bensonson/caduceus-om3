@@ -5,6 +5,7 @@ card files it needs, the expected checksums, and short notes. No OM firmware is 
 
 | Version | What's new | Status |
 |---|---|---|
+| [v0.30.1](v0.30.1/NOTES.md) | v0.30 plus one fix: no more one-frame flash when leaving the B/W or WB Compensation row (#66, by crombach) | Camera-tested |
 | [v0.30](v0.30/NOTES.md) | v0.29.5 plus Color Mix and RGB curves (photos), the 20 films regraded with them (`CURVES.BIN`, optional), a new Picture Mode order, films ready at switch-on, fixes for live dial turns (#54), a video freeze (#53) and Noise Filter's "*" | Camera-tested |
 | [v0.29.5](v0.29.5/NOTES.md) | v0.29.4 plus custom modes that keep their own copy of everything (films, all their changes, the picture settings); Assign › Reset puts one back to the films as built | Camera-tested |
 | [v0.29.4](v0.29.4/NOTES.md) | v0.29.3 plus fixes: Picture Mode stars and saving on leaving it, "FILM n*" on the shooting screen (by crombach); a film's Custom WB Kelvin kept in the WB screen (by buburun) | Camera-tested |
@@ -43,7 +44,7 @@ Always copy the version's own `GUIDES.BIN` (from v0.20 it carries code made for 
 
 Each version is also published on the repo's **Releases** page (tag `v0.16` … `v0.27.1`) with the whole project as
 it was at that version: a GitHub Action (`.github/workflows/releases.yml`) publishes every folder here once, so a
-new version only needs its folder. Optional extras in a folder (`DEBUG.TXT`, `*.zip`, from v0.27) are attached too (v0.30's `CURVES.BIN` by hand);
+new version only needs its folder. Optional extras in a folder (`DEBUG.TXT`, `*.zip`, from v0.27) are attached too (`CURVES.BIN`, from v0.30, by hand);
 the launchers never copy them to the card.
 **v0.28-alpha** is a test version: it is published by hand as a GitHub pre-release from `feature/v0.28-halation`
 (not from `main`), and the launchers in its download make it by default. **v0.29-beta** is published the same way from
