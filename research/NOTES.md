@@ -5261,3 +5261,11 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   bracketing / stacking, HDR, multiple exposure, Pro Capture?, digital tele-converter) or RAW only may lose the photo.
   Next: their image quality, aspect, drive / shutter and computational modes (a photo with Grain off, same settings:
   its EXIF), or the owner tries those modes with grain.
+- **Owner's camera, test 13, grain test for #50 (2026-11-16; camera-tested): not reproduced.** FILM 10 Velvia 50 with
+  Grain High (COLOR 2), then FILM 15 on COLOR 3: 54 shots PB162816..869, numbers with no gap, every one saved (102
+  files: 54 JPG, 47 ORF, 1 ORI). Saved: JPEG LF and M (3200 x 2400), RAW+JPEG, aspects 4:3 / 16:9 / 3:2 / 6:6 / 3:4,
+  anti-shock, sequential (3 and 6), silent sequential SH1 (4), Pro Capture (13), hand-held High Res (8160 x 6120 + ORI),
+  Live GND (GND8), HDR2 (the camera switches to Natural there: no film, no grain), focus bracketing (9), digital
+  tele-converter (x2), COLOR 3 FILM 15 single. Not in the files: RAW only, Live ND, multiple exposure, focus stacking,
+  silent single. CADLOG: "nothing unusual", photos counted 87 (counted once per EXIF fill; the 33 above the 54 saved
+  shots are likely the multi-frame modes' frames: guess).
