@@ -9176,6 +9176,7 @@ lg_pr:                            /* jmp from pr_ed, pr_hook's frame: as `call e
  call ed_trig,[d2,d3,a2,a3],36
  call ub_try,[d2,d3,a2,a3],36     /* films in camera memory: a block write held back by the camera's own save */
  call el_card,[d2,d3,a2,a3],36
+ call ck_card,[d2,d3,a2,a3],24    /* v0.30 test 9: CURVES.BIN, after el_card's films */
  call cm_hp,[d2,d3,a2,a3],24      /* k4: in P / A / S / M, their films and choice now (kept in M) */
  call lg_write,[d2,d3,a2,a3],40
  call ex_live,[d2,d3,a2,a3],48    /* v0.28 pc1: the film's settings now, for the next photo's code */
@@ -14470,6 +14471,7 @@ cm_txt:                           /* `call cm_txt,[d2,d3,a2,a3],24`: CADLOG.TXT 
  cmp 8,d2
  bcs 1b
  call ss_txt,[d2,d3,a2,a3],24     /* p1 */
+ call ck_txt,[d2,d3,a2,a3],24     /* v0.30 test 9: CURVES.BIN */
  ret [d2,d3,a2,a3],24
 
  .balign 4
@@ -15988,3 +15990,4 @@ el_tid:                           /* the GUI task's id, noted by el_go */
 
  .include "rgbcurves.inc"           /* rgb-curves: engine, storage */
  .include "colourmix.inc"           /* colour mix: the per-film 3 x 3 matrix (m1) */
+ .include "curvesfile.inc"          /* v0.30 test 9: CURVES.BIN, each film's built-in curves and mix */

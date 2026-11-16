@@ -79,8 +79,10 @@ record is used only with that block: a block saved by older firmware leaves ever
 bytes: COLOR 1–4's slots now (4), EDITS record r's (24), then the same 28 for each per-mode set as `OM3S` (6). A slot
 = its 18 curve values (red 6, green 6, blue 6) two to a byte, low nibble first (a curve's points are its values 0, 2,
 3, 4, 5; value 1 was test 1–2b's 10 % point and is 0 since test 4), then 8 bytes for the per-film colour mix
-(colour mix: for red, green and blue a hue and a strength, −7..+7, stored h R, s R, h G, s G, h B, s B; bytes 6
-and 7 zero; all zero = no mix; the matrix they make: `research/colourmix/model.py`). Not in LOOKS.BIN, EDITS.BIN or the photo code yet.
+(colour mix: for red, green and blue a hue and a strength, −7..+7, stored h R, s R, h G, s G, h B, s B; all zero
+= no mix; the matrix they make: `research/colourmix/model.py`), byte 6 the slot's flags (v0.30, with `CURVES.BIN`:
+bit 0 its curves follow its film's built-in, bit 1 its mix does, bit 7 the flags are set; 0 from older firmware, whose
+all-zero parts then follow), byte 7 zero. Not in LOOKS.BIN, EDITS.BIN or the photo code yet.
 
 ## CURVES.BIN v1 (432 bytes, v0.30)
 

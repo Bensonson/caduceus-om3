@@ -10,13 +10,15 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, json, os, pathlib, re, subprocess, sys, tempfile
+import argparse, concurrent.futures, json, os, pathlib, re, shutil, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / 'firmware'))
 import static_check  # noqa: E402
 from provenance import source_digest  # noqa: E402
+sys.path.insert(0, str(REPO / 'card'))
+import mkcurves  # noqa: E402
 
 DRIVER = REPO / 'tools/emulator/session_ed1.mjs'
 DEBUG_TXT = REPO / 'debug-log/DEBUG.TXT'
@@ -71,6 +73,25 @@ class Boot:
     reject: list = field(default_factory=list)     # regexes no debug log line may match
     mode_dial: int = MODE_DIAL_P
     photo_switch: int = PHOTO_SWITCH_PHOTO    # None leaves PSET0 unset: the movie switch
+    card: dict = field(default_factory=dict)   # OM3MOD file name -> a FIXTURES key put on the card before this boot,
+                                               # or None to remove the file
+
+# v0.30 test 9: CURVES.BIN (each film's built-in curves and mix, docs/FORMATS.md), made from the newest release's
+# LOOKS.BIN. Film 1 (COLOR 1, look 2: PICK_FILM_2) gets values; B changes them; BAD has a wrong CRC.
+FIXTURES = {
+    'CURVES_A': lambda looks, names: mkcurves.build(looks, {names[1]: {'r': [1, 0, 0, 0, -1], 'mix': [1, 2, 0, 0, 0, 0]}}),
+    'CURVES_B': lambda looks, names: mkcurves.build(looks, {names[1]: {'g': [0, 2, 0, 0, 0], 'mix': [0, 0, 0, 0, -1, 3]}}),
+    'CURVES_BAD': lambda looks, names: (lambda b: b[:40] + bytes([b[40] ^ 1]) + b[41:])(FIXTURES['CURVES_A'](looks, names)),
+}
+# From the shooting screen: the RGB row (the third in Picture Mode), the rear dial once on Red's first point, out.
+EDIT_RGB = 'ok wait ok wait down wait down wait main+1 wait menu wait wait'
+
+
+def ck_line(mem, card, matches, on_builtin, with_values):
+    """CADLOG's CURVES.BIN line: on_builtin / with_values are bit masks, bit k-1 for COLOR k."""
+    return (rf"^CURVES\.BIN \(each film's built-in curves and mix\): in camera memory: {mem}; this power-on's card: {card}; "
+            rf"films it matches: {matches}; COLOR k on its film's built-in \(bit k-1\): {on_builtin}; "
+            rf"COLOR k with curves or mix \(bit k-1\): {with_values};")
 
 
 TESTS = {
@@ -108,6 +129,30 @@ TESTS = {
     'dial-turn-before-first-half-press': [
         Boot(BOOT1_ASSIGN_C1),
         Boot(C1_TURN_BEFORE_HALF_PRESS, expect=[GROUP_C1_LINE, C1_FILM_LINE], mode_dial=MODE_DIAL_M),
+    ],
+    'curves-file-kept-in-camera': [
+        Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[FILM_2_LINE, ck_line('yes', 'taken', 20, 15, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': None},
+             expect=[FILM_2_LINE, ck_line('yes', 'none', 20, 15, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[ck_line('yes', 'the same', 20, 15, 1)]),
+    ],
+    'curves-file-new-values-follow-edits-stay': [
+        Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[ck_line('yes', 'taken', 20, 15, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_B'},
+             expect=[ck_line('yes', 'taken', 20, 15, 1)]),
+        Boot(f'wait wait s1 wait wait {EDIT_RGB} s1 wait wait poweroff',
+             expect=[ck_line('yes', 'the same', 20, 14, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[ck_line('yes', 'taken', 20, 14, 1)]),
+    ],
+    'curves-file-none-or-not-valid': [
+        Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff',
+             expect=[FILM_2_LINE, ck_line('no', 'none', 0, 15, 0)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_BAD'},
+             expect=[ck_line('no', 'not valid', 0, 15, 0)]),
     ],
     'video-boot-after-photo-boot': [
         Boot('s1 wait wait poweroff'),
@@ -180,7 +225,29 @@ def read_log(emu, card, dest):
     return [l.rstrip() for l in dest.read_bytes().decode('latin1').replace('\r', '').split('\n') if l.strip()]
 
 
-def run_test(name, boots, emu, build, card0, out):
+def put_card_files(emu, card, files, fixtures, dest):
+    """A copy of the card with each file put (from fixtures) or removed."""
+    shutil.copy(card, dest)
+    for fname, key in files.items():
+        node(f'{emu}/bin/card.mjs', 'rm', dest, f'OM3MOD/{fname}')      # absent is fine
+        if key is not None:
+            card_tool(emu, 'put', dest, fixtures[key], f'OM3MOD/{fname}')
+    return dest
+
+
+def make_fixtures(out, looks):
+    d = out / 'fixtures'
+    d.mkdir(parents=True, exist_ok=True)
+    data = looks.read_bytes()
+    names = [data[1312 + 16 * j:1328 + 16 * j].rstrip(b'\0').decode('latin1') for j in range(20)]
+    paths = {}
+    for k, make in FIXTURES.items():
+        paths[k] = d / f'{k}.BIN'
+        paths[k].write_bytes(make(data, names))
+    return paths
+
+
+def run_test(name, boots, emu, build, card0, out, fixtures=None):
     d = out / name
     d.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), }
@@ -188,6 +255,8 @@ def run_test(name, boots, emu, build, card0, out):
     card, errors = card0, []
     for i, boot in enumerate(boots, 1):
         nxt = d / f'card{i}.omsd'
+        if boot.card:
+            card = put_card_files(emu, card, boot.card, fixtures, d / f'card{i}-in.omsd')
         try:
             r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, boot.tokens,
                      env={**env, 'MODE0': str(boot.mode_dial),
@@ -257,7 +326,9 @@ def main():
     out = (a.out or pathlib.Path(tempfile.mkdtemp(prefix='emu-test-'))).resolve()
     out.mkdir(parents=True, exist_ok=True)
     card0 = out / 'card0.omsd'
-    make_card(emu, build, (a.looks or newest_looks()).resolve(), card0)
+    looks = (a.looks or newest_looks()).resolve()
+    make_card(emu, build, looks, card0)
+    fixtures = make_fixtures(out, looks)
     names = a.only or sorted([*TESTS, AUDIT, *STATIC])
     stock = static_check.find_stock(a.stock) if any(n in STATIC for n in names) else None
     runs = [(n, k) for n in names for k in range(1, a.repeat + 1)]
@@ -268,7 +339,7 @@ def main():
         try:
             if n in STATIC:
                 return n, static_check.CHECKS[n[len(STATIC_PREFIX):]](build, stock)
-            return run_audit(emu, build, d) if n == AUDIT else run_test(n, TESTS[n], emu, build, card0, d)
+            return run_audit(emu, build, d) if n == AUDIT else run_test(n, TESTS[n], emu, build, card0, d, fixtures)
         except static_check.Skip as e:
             return n, [f'could not run: {e}']
         except (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError) as e:
