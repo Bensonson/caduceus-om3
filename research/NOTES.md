@@ -5614,3 +5614,8 @@ Owner: "lets tackle that faster halation and the debug log". `try/v0.30.3` = mai
   strength 5 (the same pixels as v0.30.2, h7 being bit-exact, so the look predates h7; h4's broad layer softened it
   once, "the fade looks good now" on 2026-11-12). Handed to the faster-halation session (it has the model and the
   code). The debug log part of test 1: not reported yet.
+- **v0.30.3 test 2 on the camera (owner, 2026-11-17; `5a7f6896…`, built on feature/faster-halation 2a2104d = this line +
+  h8):** CADLOG "nothing unusual"; 36 shutter events, 16 log writes (releases only); a 13-frame sequential burst
+  (PB162917..929, Kodachrome 64, in ~1.5 s) whose release wrote nothing (the burst rule), then the next release did.
+  Halation photos: PB162916 (5), PB162930 (3). The look of the fade: the owner's call (pending).
+  Test 1 on the camera: event 16, 8 writes (releases only).
