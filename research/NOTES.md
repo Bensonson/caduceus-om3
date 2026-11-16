@@ -5269,3 +5269,121 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   tele-converter (x2), COLOR 3 FILM 15 single. Not in the files: RAW only, Live ND, multiple exposure, focus stacking,
   silent single. CADLOG: "nothing unusual", photos counted 87 (counted once per EXIF fill; the 33 above the 54 saved
   shots are likely the multi-frame modes' frames: guess).
+
+
+## LookLab: RGB curves and colour mix (2026-11-15; feature/looklab-rgb-curves; browser-checked, not live)
+- Owner: RGB curves are camera-tested (feature/rgb-curves test 4), colour mix is coming: update LookLab, as a private
+  test page (claude.ai artifact) first.
+- `webapp/src/curves.ts`: the camera's curve maths (research/rgbcurves/model.py, test 4: 5 points at 0 / 25 / 50 / 75 /
+  100 %, step 48), bit for bit (vitest against the model's values). The preview adds it in split toning's pass
+  (`bendSplit`), then the clamp and running max, as st_run. Looks keep `rgb: {r, g, b}` (5 values each; absent = flat),
+  in saved lists and share links.
+- Editor: an "RGB curves" panel under Highlight & Shadow (as the camera's row): R / G / B, the three curves on the
+  camera-style grid, drag a point or use its slider; Reset.
+- Not in `LOOKS.BIN` or the photo code (the camera does not read curves from the card yet): the panel says to set the
+  same numbers on the camera's RGB row.
+- **Colour mix (2026-11-15, after mix test 6 camera-tested):** `curves.ts` `mixMatrix` = research/colourmix/model.py
+  (vitest against its five cases); looks keep `mix: [h R, s R, h G, s G, h B, s B]` (-7..7; absent = none). The preview
+  applies it in the WB step, in linear light after the WB gains (the camera: ours x its colour matrix, before the gamma
+  stage), so greys stay grey. Editor: a "Color Mix" panel before RGB curves: R / G / B (shared with the RGB panel, as the
+  camera's INFO), the ring with three dots (angle = hue, distance = strength), Sat and Hue sliders; Reset. Not in
+  `LOOKS.BIN` either: the panel says to set it on the camera's Mix row. Firmware older than v0.28: mix not previewed.
+- **The 20 films regraded with curves + mix (2026-11-15; preview only, not camera-tested, not in the films).** Owner:
+  "recolor grade the default 20 film sims using the new tools". Each film keeps its v0.29 settings; a search over the
+  15 curve points and 6 mix values (the camera's limits) in this preview fits the film to its colour-chart reference,
+  the same reference and target as the 2026-11-13 grading (each film relative to its session's average; numbers kept
+  outside the repo). Grey patches keep the film's tone; strong mixes are penalised (colour noise). Mean colour error
+  over the chart (Lab, exposure taken out), 18 films: 7.9 -> 4.7; on a third of the patches left out of the fit: 8.6
+  -> 6.2 (17 of 18 better; Portra 160 5.1 -> 5.8, so its change is doubtful). Velvia 50 14.3 -> 9.0 and Ektachrome
+  E100 14.6 -> 7.5 stay the furthest off (the mix reaches its limit on their greens). Kodachrome 64 and CineStill
+  800T: no chart reference, unchanged (their reference-photo numbers gave the washed-out v6 looks). Limits: the preview,
+  not the camera (it runs the 12 colours before the curves, the camera after); one chart under one light. The fitted
+  numbers and the comparison pictures are in the owner's private notes; shipping them needs the firmware's built-in
+  films to carry curves and mix (owner's call).
+- **Kodachrome 64 and CineStill 800T from internet photos (2026-11-15; preview only).** Owner: "can you regrade
+  kodachrome and cinestill based on pictures found on the internet". The reference-photo statistics already measured
+  (2026-11-09; HSV 30-degree bins: mean saturation and hue per bin; numbers kept outside the repo) against the same
+  numbers on the preview of the 13 sample photos, each film relative to the average of the same nine reference films on
+  both sides. Check first: on the 11 films that have both, the chart-scan regrade moves the photo numbers' colour
+  strength the right way for 7 (not Ektar, Velvia, C200, Provia) and their lean the wrong way slightly (< 1.2 deg): a
+  rough guide for strength, little for lean. So only the mix was fitted (tone and casts in such photos follow their scans
+  and edits), lean weighted lightly. Kodachrome 64: mix G Hue +1, Sat -1; colour strength off 10.2 -> 9.1 %. CineStill
+  800T: R Hue +1, Sat -1; G Sat -2; B Sat +1; 13.4 -> 7.5 % (its photos are mostly night scenes under lamps).
+- **In LookLab (owner: "these look great ... updating the looklab with these new sims and the new camera profile tools
+  ... use the new menu order and design"; 2026-11-15, private test page only):** `scripts/films.py` `CURVES_MIX` carries
+  the 20 films' curves and mix into `om3films.json` (`rgb`, `mix`), and `filmLook` into the look, so the camera's 20
+  preview with their new grades (not in `LOOKS.BIN`: on the camera they need the test firmware's RGB / Mix rows, and to
+  ship, the firmware's built-in films must carry them). Saved banks keep their old values until Reset look. The OM-3
+  editor follows colour menu test 7 (camera-tested): page 1 Color Mix, RGB curves, Color wheel (HSL), Split Tone
+  Balance; page 2 WB Compensation, Highlight & Shadow, Blacks / Whites, Contrast, Sharpness; page 3 Noise Filter,
+  Vignette Correction, Shading Effect, Glow Effect, Halation Effect; page 4 Film Grain Effect; small versions of the
+  camera's new row pictures in the headings (Mix ring, RGB curve box, colour pie, tone bar, black / white squares, glow
+  dot, halation ring); the camera's new titles.
+- **Owner's feedback on the test page (2026-11-15):** "notes should be at the very top" (now right under the name) and
+  "the color mix wheel does not line up with what is on camera": the Mix ring now draws as the firmware's (mx_pre /
+  mx_line, rgbpics.py MX_ANG): a 300 x 300 box with its centre cross, ring r 90, red at the top, green lower right, blue
+  lower left (-90 / 30 / 150 deg, screen y down), + Hue clockwise 5 deg a step, radius 90 + 4 per Saturation step,
+  start marks, the chosen dot r 13 on a white r 16, the others r 8 dim; header "Saturation / colour / Hue" as test 7.
+- Owner: "the looklab doesnt need to have page 1, 2, 3, 4 on it": the page headings are gone; the rows keep the
+  camera's order.
+- The Mix header and slider say "Sat", as the camera's page does (om-emu on the v0.30 build: "Sat ±0  Red  Hue ±0").
+- **CURVES.BIN (2026-11-15; owner's choice "New card file", format from the RGB Curves session, docs/FORMATS.md
+  "CURVES.BIN v1" on try/v0.30 c33dc42):** `webapp/src/curvesbin.ts` writes it from the bank and the LOOKS.BIN bytes it
+  goes with (each entry's check = CRC-32 of that film's 64-byte record). Export: Save to the SD card and the card zip
+  add OM3MOD/CURVES.BIN when the firmware choice is "v0.28 or later" (older firmware never reads it), plus a single-file
+  button. The RGB / Mix panels now say it goes to the camera this way (v0.30). vitest `curvesbin.test.ts`: the standard
+  20's LOOKS.BIN equals releases/v0.29.5/LOOKS.BIN and CURVES.BIN equals the reference build (card/mkcurves.py) byte for
+  byte (sha256 4c009f9c…2291; Portra 400's entry 1c8fb44b 00f0000000001201 0000ffffff00 0000). Not camera-tested
+  (firmware reads it from test 9).
+- The camera's Mix / RGB headers show R / G / B in the middle (try/v0.30 7a92cd3, owner): LookLab's Mix and RGB
+  readouts do the same (the letter in its colour, a little bigger).
+- Test 11 (try/v0.30-dl9 333523c, owner: "please center the r,g,b"): the Mix readout's letter centred over the ring
+  (a three-column header; measured in the browser: within 1 px of the ring's centre).
+
+
+## The tour for v0.30 (2026-11-15; feature/tour-v030; emulator screens + LookLab preview, browser-checked, not live)
+- Owner: "update the tour with all the new screens, info, ect." Branch `feature/tour-v030` from `try/v0.30` (0c1a80e)
+  with `feature/looklab-rgb-curves` merged (owner: v0.30 includes the new LookLab).
+- `research/showcase/make.sh` on that build (IMG = its main.bin; E1479999.BIN 5768c9e1…), in v0.30's Picture Mode order
+  (keys in make.sh and the showcase README): every Picture Mode screen re-shot (the new row pictures); new screens
+  `row-mix` (Red Sat +3, Hue +4) and `row-rgb` (Blue point 2 +5, point 4 −4) and their before / after photos (demos.ts:
+  taxi, meadow); the star shot now on page 1 (FILM 1*, Mix*, Split Tone Balance*); the Creative Dial shot one row lower
+  (v0.29.3's Delete row had moved it: the old picture predated that row). om-emu keys found on the way: on Mix, `main` =
+  Sat, `sub-1` = Hue +1; on RGB, `sub-1` = the next point, `main` = its level (one token = one step); INFO's colour is
+  shared and starts on Red. The film photos and the earlier demos are byte-identical to before: `mklooks.ts` leaves out
+  LookLab's curves + mix regrade, which the camera's built-in films don't carry.
+- `index.html`: a "New in v0.30" section (Color Mix, RGB curves and the new Picture Mode with their screens; ready at
+  switch-on, #56 by crombach; fixes #53 / #55 and #54), its nav link, "15 settings per film", the editor's rows in
+  v0.30's order with the camera's titles (the wheel's page buttons now find its row), v0.29.5's custom modes and v0.29.4's
+  stars under "Your changes stay with each film", LookLab's Mix / RGB curves in its card. Private preview for the owner:
+  a claude.ai artifact (links to LookLab / install don't work there).
+- Left for the release: USING.md / CHANGELOG etc. (cad).
+- **The colour profile menu, shown and explained (owner: "show off the new color profil menu and explain it"):** first as
+  its own walk-through section (FILM 1 with the cursor on each of 16 rows); then (owner: "combine the new picture mode
+  rows you made with the following and only keep one") folded into "A colour editor on the camera": a Film row first
+  (FILM 1's screen, the meadow before / after Portra 400), the camera's groups as labels in the row list (the film and
+  its colour, white balance and tone, lens and effects, grain), the intro on the order and the five-row pages, and for
+  each row what its picture in the camera's list shows. The walk-through section, its 16 menu screens and their make.sh
+  lines are gone.
+- Owner: "removes the fixes block, and remove combachs name. I don't want it blasted on the front page": the Fixes card
+  is gone and the tour names no contributor (the Ready at switch-on, stars and Delete button captions included); credits
+  stay in CHANGELOG and the release notes.
+- Owner: "separate them by pages instead of what they do": the row list's group labels read Page 1 to Page 4.
+- Owner: "callout the more robust debuglog that is coming in the .30 update. maybe include a prettified example": a
+  "A fuller debug log" card in New in v0.30, and in the Help section (anchor #debuglog) what the dl9 log covers
+  (feature/debug-log, camera-tested) with a styled, shortened example built from the emulator sample (the film names
+  changed to today's standard 20; drive / AF / quality shown as the camera's codes, as the log does). The tour's Help
+  steps still say OM3MOD/CADLOG.TXT (dl9 keeps the name). This assumes cad merges feature/debug-log into v0.30.
+- try/v0.30 merged in (to 7a92cd3: test 9's CURVES.BIN reading and the Mix / RGB headers' R / G / B, owner) and make.sh
+  re-run on that build (E1479999.BIN 9b9ae1a2…): only row-mix, row-rgb and kept-star changed (the header letter); every
+  other picture byte-identical. The emulator card has no CURVES.BIN, so the film screens and photos show the films without
+  their curves + mix regrade.
+- Owner: "Yes, show new grades": the tour's films keep their curves + mix (mklooks.ts), and make.sh puts CURVES.BIN (made
+  by LookLab's curvesbin.ts against the same LOOKS.BIN) on the emulator card with LOOKS.BIN. Changed: the 80 film photos,
+  the two halation photos, kept-star (om-emu read CURVES.BIN: FILM 1's Mix page shows Portra 400's built-in green / blue,
+  the RGB row unstarred); the film screens and the rest byte-identical. Text: New in v0.30 and the films section say the
+  films are regraded and that the camera takes the grades from CURVES.BIN once; the release has to carry the standard
+  CURVES.BIN for that (cad).
+- try/v0.30-dl9 merged in (test 11, 333523c: the debug log dl9 and the Mix / RGB headers' R / G / B centred) and make.sh
+  re-run on that build (E1479999.BIN 0f690519…, the same as the test 11 package): only row-mix, row-rgb and kept-star
+  changed (the centred letter).
