@@ -5246,3 +5246,18 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   of 17 pass, pushed. GitHub marked #59 merged; its "Fix #54" closed issue #54. No release.
 - This branch (`try/v0.30-dl9`) still has #59 as 1039565 and lacks #60 / #62 / #63: merge main into it before the
   v0.30 release.
+
+## Issue #50: photos not saved with Film Grain (2026-11-16; analysis only, not reproduced)
+- Report (User1211-per, v0.29.4, then v0.29.5): Grain changed on a film (FILM 13 Pro 160S, FILM 10 Velvia 50 and
+  others: the standard films, none with grain built in) -> the film gets its '*', the camera seems to take the photo,
+  but nothing is on the card or in playback. Grain back to the film's own (Off) -> photos save. Noise Filter changed:
+  photos save. With or without a half-press before the change.
+- Their CADLOG (v0.29.5, 53 shutter events, COLOR 3 FILM 15 throughout): card files all match, films from camera
+  memory, saves 1, nothing unusual. v0.29.5's log has no camera settings and no photo count, so it cannot show the
+  cause. (Events 26-35 read save result 0: STATUS is cleared at the editor's first use after a load.)
+- Owner's camera: grain has saved in every test since v0.25 (single, bursts, RAW+JPEG, Glow / Clarity, Shading,
+  Halation). So their camera settings likely differ. Guess: fast grain swaps a COLOR still to Grainy Film's work list
+  (the camera's Art Filter route), so a mode where the camera allows no Art Filter (Hi Res Shot, Live ND, focus
+  bracketing / stacking, HDR, multiple exposure, Pro Capture?, digital tele-converter) or RAW only may lose the photo.
+  Next: their image quality, aspect, drive / shutter and computational modes (a photo with Grain off, same settings:
+  its EXIF), or the owner tries those modes with grain.
