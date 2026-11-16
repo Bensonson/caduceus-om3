@@ -4387,7 +4387,7 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   built-in GUIDES CRC). `releases/v0.29.5`: patch.json (175 runs, 342,144 bytes), extras as v0.29.4. `patch.py` makes
   01ea3d14….
 
-## LookLab: RGB curves (2026-11-15; feature/looklab-rgb-curves; browser-checked, not live)
+## LookLab: RGB curves and colour mix (2026-11-15; feature/looklab-rgb-curves; browser-checked, not live)
 - Owner: RGB curves are camera-tested (feature/rgb-curves test 4), colour mix is coming: update LookLab, as a private
   test page (claude.ai artifact) first.
 - `webapp/src/curves.ts`: the camera's curve maths (research/rgbcurves/model.py, test 4: 5 points at 0 / 25 / 50 / 75 /
@@ -4397,5 +4397,23 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
 - Editor: an "RGB curves" panel under Highlight & Shadow (as the camera's row): R / G / B, the three curves on the
   camera-style grid, drag a point or use its slider; Reset.
 - Not in `LOOKS.BIN` or the photo code (the camera does not read curves from the card yet): the panel says to set the
-  same numbers on the camera's RGB row. Colour mix: not built in the firmware yet, nothing in LookLab.
+  same numbers on the camera's RGB row.
+- **Colour mix (2026-11-15, after mix test 6 camera-tested):** `curves.ts` `mixMatrix` = research/colourmix/model.py
+  (vitest against its five cases); looks keep `mix: [h R, s R, h G, s G, h B, s B]` (-7..7; absent = none). The preview
+  applies it in the WB step, in linear light after the WB gains (the camera: ours x its colour matrix, before the gamma
+  stage), so greys stay grey. Editor: a "Color Mix" panel before RGB curves: R / G / B (shared with the RGB panel, as the
+  camera's INFO), the ring with three dots (angle = hue, distance = strength), Sat and Hue sliders; Reset. Not in
+  `LOOKS.BIN` either: the panel says to set it on the camera's Mix row. Firmware older than v0.28: mix not previewed.
+- **The 20 films regraded with curves + mix (2026-11-15; preview only, not camera-tested, not in the films).** Owner:
+  "recolor grade the default 20 film sims using the new tools". Each film keeps its v0.29 settings; a search over the
+  15 curve points and 6 mix values (the camera's limits) in this preview fits the film to its colour-chart reference,
+  the same reference and target as the 2026-11-13 grading (each film relative to its session's average; numbers kept
+  outside the repo). Grey patches keep the film's tone; strong mixes are penalised (colour noise). Mean colour error
+  over the chart (Lab, exposure taken out), 18 films: 7.9 -> 4.7; on a third of the patches left out of the fit: 8.6
+  -> 6.2 (17 of 18 better; Portra 160 5.1 -> 5.8, so its change is doubtful). Velvia 50 14.3 -> 9.0 and Ektachrome
+  E100 14.6 -> 7.5 stay the furthest off (the mix reaches its limit on their greens). Kodachrome 64 and CineStill
+  800T: no chart reference, unchanged (their reference-photo numbers gave the washed-out v6 looks). Limits: the preview,
+  not the camera (it runs the 12 colours before the curves, the camera after); one chart under one light. The fitted
+  numbers and the comparison pictures are in the owner's private notes; shipping them needs the firmware's built-in
+  films to carry curves and mix (owner's call).
 

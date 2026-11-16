@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { curveDelta, parseCurves } from '../src/curves';
+import { curveDelta, mixMatrix, parseCurves, parseMix } from '../src/curves';
+import { blankLook } from '../src/pack';
+import { renderLook } from '../src/preview';
 import { bendSplit } from '../src/split';
 
 // research/rgbcurves/model.py (feature/rgb-curves, test 4) d_at at these inputs, for these 5-point curves
@@ -29,5 +31,35 @@ describe('RGB curves', () => {
     expect(img[0]).toBeGreaterThan(0.3);          // red up by about 336 / 4095 at 25 %
     expect(img[1]).toBeCloseTo(0.25, 2);
     expect(img[3]).toBeCloseTo(0.75, 2);         // nothing at 75 %
+  });
+});
+
+// research/colourmix/model.py (feature/rgb-curves, test 6): the matrix (s16, 256 = 1.0) for these settings
+const MIX: [number[], number[][]][] = [
+  [[0, 0, 0, 0, 0, 0], [[256, 0, 0], [0, 256, 0], [0, 0, 256]]],
+  [[3, 0, 0, 0, 0, 0], [[256, 0, 0], [24, 232, 0], [-24, 0, 280]]],
+  [[0, 5, 0, 0, 0, 0], [[256, 0, 0], [-40, 296, 0], [-40, 0, 296]]],
+  [[-2, 3, 0, 0, 2, -1], [[232, 0, 24], [-40, 304, -8], [-8, 0, 264]]],
+  [[7, 7, 7, 7, 7, 7], [[368, -112, 0], [0, 368, -112], [-112, 0, 368]]],
+];
+describe('Colour mix', () => {
+  it('matches the firmware model', () => {
+    for (const [v, want] of MIX) expect(mixMatrix(v).map((r) => r.map((x) => Math.round(x * 256) + 0))).toEqual(want);
+  });
+  it('parses only valid mixes, flat ones drop out', () => {
+    expect(parseMix([0, 1, 0, 0, 0, -7])).toEqual([0, 1, 0, 0, 0, -7]);
+    expect(parseMix([0, 0, 0, 0, 0, 0])).toBeUndefined();
+    expect(parseMix([0, 8, 0, 0, 0, 0])).toBeUndefined();
+    expect(parseMix([1, 2, 3])).toBeUndefined();
+  });
+  it('keeps greys grey and moves colours in the preview', () => {
+    const src: any = { width: 2, height: 1, data: new Uint8ClampedArray([128, 128, 128, 255, 200, 40, 40, 255]) };
+    const dst: any = { width: 2, height: 1, data: new Uint8ClampedArray(8) };
+    const l = blankLook('colour', 't'); l.mix = [7, 0, 0, 0, 0, 0];      // red toward yellow
+    renderLook(src, dst, l, { advice: true, camera: 'om3' });
+    expect(Math.abs(dst.data[0] - dst.data[1]) + Math.abs(dst.data[1] - dst.data[2])).toBeLessThanOrEqual(1);
+    const ref: any = { width: 2, height: 1, data: new Uint8ClampedArray(8) };
+    renderLook(src, ref, blankLook('colour', 't'), { advice: true, camera: 'om3' });
+    expect(dst.data[5]).toBeGreaterThan(ref.data[5] + 10);   // the red patch gains green (toward yellow)
   });
 });

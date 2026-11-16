@@ -55,3 +55,32 @@ export function parseCurves(v: unknown): RgbCurves | undefined {
   }
   return CHANNELS.some((c) => !curveIsFlat(out[c])) ? out : undefined;
 }
+
+// Colour mix per film (feature/rgb-curves, camera-tested test 6, 2026-11-15): for red, green and blue a hue and a
+// strength, -7..+7 each, stored [hue R, strength R, hue G, strength G, hue B, strength B]. Hue moves the colour toward
+// the next one (red -> yellow, green -> cyan, blue -> purple), strength makes it stronger. The camera puts a 3 x 3 of
+// ours into its own colour matrix (before the gamma stage, so before the curves, split toning and the 12 colours):
+// column j: M[next][j] = 8 (h - s) / 256, M[prev][j] = 8 (-h - s) / 256, each diagonal makes its row 1, so greys stay
+// grey (firmware mx_go, research/colourmix/model.py). Not in LOOKS.BIN or the photo code yet: set on the camera's Mix row.
+export const MIX_N = 6, MIX_MAX = 7, MIX_UNIT = 8;
+export const flatMix = (): number[] => [0, 0, 0, 0, 0, 0];
+export const mixIsFlat = (v?: number[]) => !v || v.every((x) => !x);
+export const hasMix = (l: Look) => !mixIsFlat(l.mix);
+
+/** The mix as the camera's 3 x 3 (rows: output R, G, B; 1.0 = no change). */
+export function mixMatrix(v: number[]): number[][] {
+  const m = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let j = 0; j < 3; j++) {
+    const hh = Math.max(-MIX_MAX, Math.min(MIX_MAX, v[2 * j] | 0)), s = Math.max(-MIX_MAX, Math.min(MIX_MAX, v[2 * j + 1] | 0));
+    m[(j + 1) % 3][j] = MIX_UNIT * (hh - s);
+    m[(j + 2) % 3][j] = MIX_UNIT * (-hh - s);
+  }
+  for (let i = 0; i < 3; i++) m[i][i] = 256 - m[i][(i + 1) % 3] - m[i][(i + 2) % 3];
+  return m.map((r) => r.map((x) => x / 256));
+}
+
+/** A parsed `mix` field, or undefined when missing, flat or malformed. */
+export function parseMix(v: unknown): number[] | undefined {
+  if (!Array.isArray(v) || v.length !== MIX_N || !v.every((x) => Number.isInteger(x) && Math.abs(x) <= MIX_MAX)) return undefined;
+  return mixIsFlat(v) ? undefined : v.slice();
+}

@@ -18,7 +18,7 @@ import {
 } from './om3';
 import { namesBin } from './om3names';
 import { SPLIT_COLOURS, SPLIT_STEPS, fromSteps, toSteps, type Split } from './split';
-import { CHANNELS, CURVE_MAX, CURVE_STEP, curveDelta, flatCurves, hasCurves, type Channel } from './curves';
+import { CHANNELS, CURVE_MAX, CURVE_STEP, MIX_MAX, curveDelta, flatCurves, flatMix, hasCurves, hasMix, type Channel } from './curves';
 import { CAMERA_FILMS, FILMS, FILM_GROUPS, filmLook, filmOf, type Film, type FilmGroup } from './om3films';
 import { parseLook } from './pack';
 import { cubeApply, fitLook, lightroomExtras, lightroomTransform, looksLikeLog, parseCube, parseLightroom, type RGB, type Transform } from './convert';
@@ -651,6 +651,79 @@ function rgbPanel(l: Look, changed: () => void): HTMLElement {
     h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'RGB curves are not released yet and LookLab can\'t send them to the camera yet. Set the same numbers on the camera: Picture Mode › RGB (under Highlight & Shadow): INFO picks R / G / B, the front dial the point (1–5), the rear dial up / down.'));
 }
 
+/** Colour mix (the camera's Mix row; feature/rgb-curves, camera-tested test 6, 2026-11-15): for red, green and blue a
+ *  strength (Sat) and a hue, −7..+7 each. On the camera INFO picks the colour (shared with the RGB row), the front dial
+ *  the hue, the rear dial the strength; its page is a ring with the three colours as dots (angle = hue, distance =
+ *  strength). Here the same ring, R / G / B and two sliders. Preview only: not in LOOKS.BIN yet. */
+const MIX_TOWARD: Record<Channel, string> = { r: 'yellow', g: 'cyan', b: 'purple' };
+function mixPanel(l: Look, changed: () => void): HTMLElement {
+  const ch = () => S.rgb, j = (c: Channel) => CHANNELS.indexOf(c);
+  const get = (c: Channel, k: 0 | 1) => l.mix?.[2 * j(c) + k] ?? 0;          // k 0 = hue, 1 = strength
+  const set = (c: Channel, k: 0 | 1, v: number) => {
+    v = Math.max(-MIX_MAX, Math.min(MIX_MAX, v));
+    if (v === get(c, k)) return false;
+    (l.mix ??= flatMix())[2 * j(c) + k] = v;
+    if (!hasMix(l)) delete l.mix;
+    return true;
+  };
+  const S0 = 200, C = S0 / 2, R = 62;
+  const svg = svgEl('svg', { viewBox: `0 0 ${S0} ${S0}`, width: S0, height: S0, class: 'mix-ring cam-screen', role: 'img', 'aria-label': 'Colour mix: each colour as a dot, turned by its hue, out or in by its strength' });
+  svg.append(svgEl('circle', { cx: C, cy: C, r: R, class: 'mx-ring' }), svgEl('circle', { cx: C, cy: C, r: 2.5, class: 'mx-c' }));
+  const START = [0, 120, 240];                 // red, green, blue; + hue turns toward the next (counter-clockwise here)
+  const at = (deg: number, r: number) => [C + r * Math.cos((deg * Math.PI) / 180), C - r * Math.sin((deg * Math.PI) / 180)];
+  START.forEach((a) => { const [x1, y1] = at(a, R - 7), [x2, y2] = at(a, R + 7); svg.append(svgEl('line', { x1, y1, x2, y2, class: 'mx-mark' })); });
+  const spokes = CHANNELS.map((c) => svgEl('line', { class: `mx-spoke mx-${c}` }));
+  const dots = CHANNELS.map((c) => {
+    const g = svgEl('g', { class: `mx-dot mx-${c}` });
+    g.append(svgEl('circle', { r: 11, class: 'hit' }), svgEl('circle', { r: 6, class: 'pip' }));
+    g.addEventListener('click', () => { S.rgb = c; draw(); });
+    return g;
+  });
+  spokes.forEach((s) => svg.append(s));
+  const top = h('div', { class: 'tc-top' });
+  const chips = h('div', { class: 'seg rgb-ch', role: 'radiogroup', 'aria-label': 'Mix colour' });
+  const rowsBox = h('div', {});
+  const syncs: (() => void)[] = [];
+  function draw() {
+    CHANNELS.forEach((c, i) => {
+      const [x, y] = at(START[i] + 5 * get(c, 0), R + 3.4 * get(c, 1));
+      spokes[i].setAttribute('x1', String(C)); spokes[i].setAttribute('y1', String(C));
+      spokes[i].setAttribute('x2', x.toFixed(1)); spokes[i].setAttribute('y2', y.toFixed(1));
+      dots[i].setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+      dots[i].classList.toggle('sel', c === ch());
+    });
+    svg.append(...dots.filter((_, i) => CHANNELS[i] !== ch()), dots[j(ch())]);
+    top.replaceChildren(h('span', { class: 'on' }, RGB_NAME[ch()]),
+      h('span', { class: get(ch(), 1) ? 'on' : '' }, 'Sat ', get(ch(), 1) ? signed(get(ch(), 1)) : '±0'),
+      h('span', { class: get(ch(), 0) ? 'on' : '' }, 'Hue ', get(ch(), 0) ? signed(get(ch(), 0)) : '±0'));
+    const changedC = (c: Channel) => !!(get(c, 0) || get(c, 1));
+    chips.replaceChildren(...CHANNELS.map((c) => h('button', {
+      role: 'radio', 'aria-checked': String(c === ch()), class: `rc-chip rc-${c}${c === ch() ? ' on' : ''}`, title: `${RGB_NAME[c]}${changedC(c) ? ' (changed)' : ''}`,
+      onclick: () => { S.rgb = c; buildRows(); draw(); },
+    }, c.toUpperCase(), changedC(c) ? '*' : '')));
+    syncs.forEach((f) => f());
+  }
+  function buildRows() {
+    syncs.length = 0;
+    const row = (k: 0 | 1, name: string, tip: string) => {
+      const { inp, out: o } = slider(-MIX_MAX, MIX_MAX, get(ch(), k), (v) => { if (set(ch(), k, v)) { draw(); changed(); } }, undefined, `${RGB_NAME[ch()]} ${name}`);
+      syncs.push(() => { inp.value = String(get(ch(), k)); o.textContent = signed(get(ch(), k)); });
+      return h('div', { class: 'crow', title: tip }, h('span', { class: 'cname' }, name), steps(inp), o);
+    };
+    rowsBox.replaceChildren(
+      row(1, 'Sat', `Rear dial on the camera: + makes ${RGB_NAME[ch()].toLowerCase()} stronger, − weaker`),
+      row(0, 'Hue', `Front dial on the camera: + turns ${RGB_NAME[ch()].toLowerCase()} toward ${MIX_TOWARD[ch()]}, − the other way`));
+  }
+  buildRows(); draw();
+  return h('div', { class: 'group cam' },
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'Color Mix'),
+      hasMix(l) ? h('button', { class: 'link', onclick: () => { delete l.mix; renderEditor(); changed(); } }, 'Reset') : null),
+    chips,
+    h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
+    h('p', { class: 'help' }, 'Mixes the camera\'s red, green and blue into each other, before the curves and the colour wheel: Sat makes a colour stronger or weaker, Hue turns it (red toward yellow, green toward cyan, blue toward purple). Greys stay grey.'),
+    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'the colour mix is not released yet and LookLab can\'t send it to the camera yet. Set the same numbers on the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Sat.'));
+}
+
 /** Blacks / Whites (v0.28, as the camera's grid row): Blacks across (− left, + right), Whites up (+) and down (−),
  *  −7..+7 each. Black boxes and edges for Blacks, white ones for Whites, as on the camera. */
 function bwPanel(l: Look, changed: () => void): HTMLElement {
@@ -819,7 +892,7 @@ function splitPv(l: Look): Look {
   if (fw >= 28) return l;
   const c = (v: number) => Math.max(-5, Math.min(5, v));
   const r: Look = { ...l, tone: { ...l.tone, blacks: c(l.tone.blacks), whites: c(l.tone.whites) } };
-  delete r.halation; delete r.tone_balance; delete r.film_wb; delete r.rgb;
+  delete r.halation; delete r.tone_balance; delete r.film_wb; delete r.rgb; delete r.mix;
   if (r.split) r.split = fw >= 25 ? { ...r.split, sh: Math.round(r.split.sh), hl: Math.round(r.split.hl) } : undefined;
   if (!r.split) delete r.split;
   return r;
@@ -1281,6 +1354,7 @@ function renderOm3Editor(l: Look) {
       })()),
     h('div', { class: 'group cam' }, crow('Contrast', OM3.contrast, () => l.advice.contrast ?? 0, (x) => { l.advice.contrast = x; }, 'The camera\'s Contrast for this look')),
     tonePanel(l, changed),
+    mixPanel(l, changed),
     rgbPanel(l, changed),
     bwPanel(l, changed),
     wbPanel(l, changed),
