@@ -5621,3 +5621,34 @@ Owner: "lets tackle that faster halation and the debug log". `try/v0.30.3` = mai
   Test 1 on the camera: event 16, 8 writes (releases only).
 - **Camera-tested (owner, 2026-11-17): test 2 "Looks good"** (the longer halo fade). With test 1's "much quicker" and the
   debug log seen working, test 2 (`5a7f6896…`, feature/faster-halation 2a2104d) is the v0.30.3 candidate.
+
+## Halation h8: a longer, even fade (2026-11-17; emulator only, camera test pending; branch feature/faster-halation)
+Owner on v0.30.3 test 1: "the halation at 5 kinda just ends. I want a smoother taper." A deliberate look change: no
+longer bit-exact with v0.30.x; the model and the camera code still agree bit for bit.
+- **Why it ended (analysis, model on the owner's test 1 lamp photo PB162914, halo taken out again approximately):**
+  near the light the curve u = 255 v / (v + 900) is saturated (g ~200 at 5 over the shade), then g falls 189 -> 116 ->
+  8 within ~400 px. The tail is the broad layer's: 10 [1 2 1] passes are a Gaussian (sigma ~2.2 cells, ~143 px), whose
+  log falls faster the farther out it is, so once v drops near K the glow stops within one or two cells. All
+  strengths share this shape (g = u gmax >> 8); at 5 the drop is the largest.
+- **h8:** a wide layer, the broad one blurred `BLUR3` = 30 more times (40 in all, sigma ~4.5 cells), added at `WIDE` =
+  64 / 256: v = v0 + ((wide 64 + 128) >> 8), v0 = the h4 mix as before. The bright-frame count (u(v0) >= 32: off at 24 %,
+  faded from 8 %) stays on v0, so the bright-frame rule decides as before (a dark frame with very little light may now show a
+  faint glow where all g were <= 1). Tried in the model (3 + 10 + 30 / 40 / 60
+  passes, mixed or added, 1/4 or 1/2): "add 40 at 1/4" keeps test 1's halo near the light and turns the stop into a
+  roughly even fall (about x0.7 per cell). Big lamp (r 300 px), Cr gain by 64 px at 5: test 1 47 46 45 42 35 23 11 3 0;
+  h8 47 46 45 43 40 35 29 22 16 11 7 4 2 1 (strengths 1-4 the same shape, scaled). Private preview on the owner's
+  photo: `test-builds/2026-11-17-v0303-test2/preview-test1-vs-test2.jpg`.
+- **Code:** firmware/halation.py `BLUR3`, `WIDE` (+ an overflow assert); model.py `blur` -> (v0, v), `u_of`; editor.s
+  hl_run: the count loop keeps no u, then (after the off check, so daylight frames skip it) `hl_blur` 30 more passes on
+  the broad copy and a curve loop on v (32-bit, up to ~70 K, hl_hi's index clamped as before). No new malloc, frame
+  unchanged, ext12 252 456 of 262 144 B. LookLab's preview (preview.ts `om3Halation`) does the same in floats; Blue
+  hour at 5: mean R +2.8 (h4 +2.5).
+- **om-emu (pin 0819080):** emu_check.py 21 of 21 frames bit-exact with the new model. Steps (h7 -> h8; v0.30.2 =
+  v0.30.1's): big5 20 MP 84.1 M -> 124.4 M (v0.30.2 230.4 M), bigphoto5 85.3 -> 103.7 M (186.0 M), night5 16.8 ->
+  22.7 M (35.3), bluehour5 20.9 -> 25.7 M (47.0), taxi3 10.3 -> 13.8 M (28.3), sparse5 16.6 -> 21.5 M (42.5). The extra
+  blur is ~2.6 M on 20 MP; the rest is pass C on the larger glowing area (big5 changes 6.0 MB, was 3.9 MB). Max under
+  one lock <= 105 K as before. Camera-only: the look, the real save time.
+- **Package v0.30.3 test 2** (commit 20f4107 = try/v0.30.3 merged in + h8; the full suite, 24 tests, passes on it, incl.
+  `halation-matches-the-model` against the new model): build "v0.30.3-dev (test 2: halation fades out more slowly)" (52
+  characters), E1479999.BIN `5a7f6896…033c`; `test-builds/2026-11-17-v0303-test2`, go-back v0.30.2 `7fbd3957…445b`.
+  Camera test: the test 1 lamp scene at Halation 5 and 3, the fade compared with test 1's photos, the save time counted.
