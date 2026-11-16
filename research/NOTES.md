@@ -5203,6 +5203,12 @@ switch; #59 waits inside rc_go for the mode's code (gx_map retries) and counts B
   CADLOG.TXT (16 shutter events, 30 mode changes, "nothing unusual") is written at shutter events, so it may be the
   power-on before or after the reboot. om-emu (test 12 build): repeated film / COLOR picks in Picture Mode in P, in B
   and in C1 right after a held live turn: no crash, no FAIL. Not reproduced; cause unknown.
+  Owner: it was the Super Control Panel's picture-mode cell, in a shooting mode, once. om-emu: the SCP cell turned
+  with the front dial (one step at a time, and bursts of 2..9 steps) in P, A, B and C1, 24..42 film / COLOR switches
+  each: no crash. The only #59 code on that path is sx_set 901's cm_gnow read and compare (same group: cm_gpm as in
+  test 11); lv_due runs only when the dial's group is not the films' group. So most likely not #59; an older rare one
+  is possible. If it happens again: switch off without a half-press (the next half-press overwrites CADLOG.TXT) and
+  bring the card.
 - **Noise Filter's '*' on COLOR 1-4 (no film), camera's own Noise Filter set to Off:** the row shows '*' at Off and
   none at Std, while the profile shows none at Off and '*' at Std. Cause (code; matches the owner's report): the row's
   "is at default" (stock_isdef -> GetValue vs GetDefault) has no default for NRB + k, so `vf_def` falls to
