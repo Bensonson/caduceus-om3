@@ -4416,4 +4416,13 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   not the camera (it runs the 12 colours before the curves, the camera after); one chart under one light. The fitted
   numbers and the comparison pictures are in the owner's private notes; shipping them needs the firmware's built-in
   films to carry curves and mix (owner's call).
+- **Kodachrome 64 and CineStill 800T from internet photos (2026-11-15; preview only).** Owner: "can you regrade
+  kodachrome and cinestill based on pictures found on the internet". The reference-photo statistics already measured
+  (2026-11-09; HSV 30-degree bins: mean saturation and hue per bin; numbers kept outside the repo) against the same
+  numbers on the preview of the 13 sample photos, each film relative to the average of the same nine reference films on
+  both sides. Check first: on the 11 films that have both, the chart-scan regrade moves the photo numbers' colour
+  strength the right way for 7 (not Ektar, Velvia, C200, Provia) and their lean the wrong way slightly (< 1.2 deg): a
+  rough guide for strength, little for lean. So only the mix was fitted (tone and casts in such photos follow their scans
+  and edits), lean weighted lightly. Kodachrome 64: mix G Hue +1, Sat -1; colour strength off 10.2 -> 9.1 %. CineStill
+  800T: R Hue +1, Sat -1; G Sat -2; B Sat +1; 13.4 -> 7.5 % (its photos are mostly night scenes under lamps).
 
