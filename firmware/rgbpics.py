@@ -105,10 +105,11 @@ def small_label(t, fill, cap=17, maxw=30):
     return a
 
 
-def name_label(t, fill):
-    """colour menu (test 7, spec section 4): the colour's name in its colour in the header's middle slot (the camera's
-    "Mid" label place, a 50 px box), ink inside 2..47"""
-    a = letters([(t, fill)], 50, 30, 16, 26, maxw=42, sx=0.92)
+def name_label(t, fill, cap=20):
+    """colour menu (test 7, spec section 4): the colour in its colour in the header's middle slot (the camera's "Mid"
+    label place, a 50 px box), ink inside 2..47. v0.30 (owner: "lets make it just say R, G, B in the same colors but
+    slightly bigger text"): the letter at cap 20 (the words "Red" / "Green" / "Blue" were cap 16, squeezed)"""
+    a = letters([(t, fill)], 50, 30, cap, 26, maxw=42)
     cols = np.nonzero(a.any(axis=0))[0]
     assert cols.min() >= 2 and cols.max() <= 47, (t, cols.min(), cols.max())
     return a
@@ -134,14 +135,14 @@ def mixcell():
 
 def pictures():
     """(name, palette index array) in the order of the firmware's cv_pic table. Colour menu (test 7, spec section 4):
-    entries 7..12 are the header's white "Sat", "Hue", "Level" and the middle slot's "Red", "Green", "Blue".
+    entries 7..12 are the header's white "Sat", "Hue", "Level" and the middle slot's "R", "G", "B" (v0.30).
     """
     return [('blank', np.zeros((2, 2), dtype=np.uint8)),
             ('R', label([('R', RED)])), ('G', label([('G', GREEN)])), ('B', label([('B', BLUE)])),
             ('Pt', label([('Pt', WHITE)])), ('guide', guide()), ('cell', cell())] + \
            [('Sat', small_label('Sat', WHITE)), ('Hue', small_label('Hue', WHITE)),
             ('Level', small_label('Level', WHITE, cap=14, maxw=30))] + \
-           [(n, name_label(n, c)) for n, c in (('Red', RED), ('Green', GREEN), ('Blue', BLUE))] + \
+           [(n + ' mid', name_label(n, c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
            [('Mix cell', mixcell())] + \
            [('clear 50 x 34', np.zeros((34, 50), dtype=np.uint8))] + \
            [('clear 14 x 30', np.zeros((30, 14), dtype=np.uint8))]   # test 7: RGB's right "±" / "+" sign, cleared
