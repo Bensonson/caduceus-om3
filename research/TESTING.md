@@ -85,6 +85,7 @@ The gate and the digest have unit tests that need no firmware:
 | `live-dial-turn-to-b-switches-the-films` | A live turn from C1 to B switches to the P / A / S / M / B films, though B has no mode code of its own (#54) |
 | `live-dial-turn-holds-the-label` | During a live turn's wait for the mode code, the shooting screen's label holds no picture, and the hold clears once the mode is real (#54) |
 | `video-boot-after-photo-boot` | A video boot after a photo boot does no film or custom-mode work (#53) |
+| `noise-filter-row-follows-the-camera-setting` | A COLOR profile without a film, its Noise Filter on Camera: the Noise Filter row has no '*' with the camera's own Noise Filter on Standard or on Off, and gets one when Standard is chosen while the camera is on Off (v0.30 test 13) |
 | `curves-file-kept-in-camera` | v0.30 `CURVES.BIN`: taken at the first half-press, a film picked shows its values, kept over a boot with no file, the same file again changes nothing |
 | `curves-file-new-values-follow-edits-stay` | A new `CURVES.BIN` reaches a film you never changed; a curve changed on the RGB page stays when another file comes |
 | `curves-file-none-or-not-valid` | No `CURVES.BIN`, or one with a wrong CRC: nothing taken, no film gets values (as test 8) |
@@ -124,6 +125,8 @@ stored at ADDR, plus OFF. All numbers are hex. A token may name a build symbol i
 runner fills in its address from the build's `p.elf`. Use a poke only for a state om-emu cannot reach, and say which
 camera state it stands for. The token `expect:mem:ADDR=HEX` ends the run with exit 1 unless the bytes at ADDR are
 HEX, and fails the test.
+The token `expect:isdef:FN:ID=V` calls FN (hex, usually `{ed_isdef}`) as the camera calls its "is at default" check
+for a row id ID (hex), and ends the run with exit 1 unless it answers V: 1 for no '*', 0 for a '*' (v0.30 test 13).
 
 The two custom-mode tests pass on v0.29.5, EL13, and C10 (an older early-load build), emulator only. They are weak:
 neither fails on any build tried. `video-boot-after-photo-boot` does catch its bug: it passes with the #53 fix
@@ -144,6 +147,9 @@ neither fails on any build tried. `video-boot-after-photo-boot` does catch its b
 - `live-dial-turn-holds-the-label` checks the hold byte `lv_hold` with `expect:mem` during each wait and after each
   turn. om-emu's camera draws no label at a turn, so the byte stands for the picture. `--without` on DS2 prints
   `caught` only because DS2 has no `lv_hold`, so the flash itself is camera only.
+- `noise-filter-row-follows-the-camera-setting` passes on test 13 and is `caught` on test 12 (the row starred at Off,
+  `expect:isdef 7e11: 0, not 1`). The camera's own Noise Filter is poked into its byte (0x6295942d in om-emu, read by
+  the stock getter 0x60063380); a setting write through the settings manager from the driver does not return.
 - The film numbers (`COLOR 1, FILM 1` for C1, `COLOR 2, FILM 6` for P) break when `BOOT1_ASSIGN_C1` or the newest
   `LOOKS.BIN` changes. `BOOT1_ASSIGN_C1` is a constant in `tools/test/emu_test.py`.
 

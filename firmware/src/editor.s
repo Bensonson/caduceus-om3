@@ -18394,7 +18394,11 @@ gd_s11:
  bra 9b
 
 /* vf_def: ed_default's miss (CALLS, d0 id, a1 out): Vignette Correction's rows (VFB + k) default to 1 On, the
- * camera's own correction, so On shows no '*'. Anything else: stock_default, registers as at entry. */
+ * camera's own correction, so On shows no '*'. Noise Filter's rows (NRB + k) default to the camera's own Noise
+ * Filter (v0.30 test 13, owner 2026-11-16): the setter stores 0 (Camera) when the choice equals it, and the profile's
+ * '*' counts that byte, so the row now agrees (the row's '*' compared with Std, 0, from stock_default: with the
+ * camera's own Noise Filter on Off, Off starred the row and Std the profile). Anything else: stock_default, registers
+ * as at entry. */
 vf_def:
  cmp 0,a1
  beq 2f
@@ -18404,6 +18408,9 @@ vf_def:
  add -VFB,d2
  cmp 4,d2
  bcs 1f
+ add VFB - NRB,d2
+ cmp 4,d2
+ bcs 3f
  movm (sp),[d2]
 2:
  jmp stock_default
@@ -18411,6 +18418,25 @@ vf_def:
  movm (sp),[d2]
  mov 1,d0
  mov d0,(a1)
+ clr d0
+ rets
+3:                                /* Noise Filter: the camera's own, as the row shows for slot +51 = 0 */
+ movm (sp),[d2]
+ movm [d2,d3,a2,a3],(sp)
+ add -4,sp                        /* (0,sp): our call's return address slot */
+ mov a1,a2
+ mov mdr,d0
+ mov d0,a3                        /* MDR back after the getter, as sl_gb keeps it */
+ mov 38681,d0                     /* key 0x9719, the stills Noise Filter (-2..+1) */
+ clr d1
+ mov 0,a0
+ call nf_get,[d2,d3],12           /* the stock getter 0x60063380, as the row's own read (sl_get, label 94) */
+ extb d0
+ mov d0,(a2)
+ mov a3,d0
+ mov d0,mdr
+ add 4,sp
+ movm (sp),[d2,d3,a2,a3]
  clr d0
  rets
 

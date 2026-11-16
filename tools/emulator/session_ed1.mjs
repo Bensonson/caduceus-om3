@@ -99,6 +99,18 @@ for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
     const [where, hex] = t.slice(11).split('='), got = Buffer.from(rd(parseInt(where, 16), hex.length / 2)).toString('hex');
     if (got !== hex.toLowerCase()) { console.error(`expect:mem ${where}: ${got}, not ${hex}`); process.exit(1); }
   }
+  else if (t.startsWith('expect:isdef:')) {
+    // expect:isdef:FN:ID=V ends the run with exit 1 unless FN (hex, an "is at default" entered as the stock one,
+    // `call FN,[d2,d3,a2],24`, d0 id -> d0 1 default) answers V (0 or 1) for ID (hex): a row's '*' is V = 0.
+    const [fn, kv] = t.slice(13).split(':'), [id, want] = kv.split('='), FN = parseInt(fn, 16) >>> 0, idn = parseInt(id, 16);
+    const dd = Debugger.attach(lab.sim, { lab }), saved = dd.m.getRegs().slice();
+    const sp = (saved[8] - 0x800) & ~3, stub = sp - 0x100, call_at = stub + 6, rel = (FN - call_at) | 0;
+    dd.write(stub, new Uint8Array([0xfc, 0xcc, idn & 255, idn >> 8 & 255, 0, 0, 0xdd, rel & 255, rel >> 8 & 255, rel >> 16 & 255, rel >>> 24, 0xe0, 0x18, 0xcb, 0xcb]));
+    const r = saved.slice(); r[9] = stub >>> 0; r[8] = sp >>> 0; r[14] = 0; dd.m.setRegs(r);
+    let n = 0; while ((dd.m.getRegs()[9] >>> 0) !== ((call_at + 7) >>> 0) && n < 5000000) { dd.m.step(); n++; }
+    const got = n >= 5000000 ? 'X' : String(dd.m.getRegs()[0] | 0); dd.m.setRegs(saved);
+    if (got !== want) { console.error(`expect:isdef ${id}: ${got}, not ${want}`); process.exit(1); }
+  }
   else if (t === 'strpoke') {
     const dd = Debugger.attach(lab.sim, { lab });
     for (const [a, txt] of JSON.parse(process.env.STRPOKE)) dd.write(parseInt(a, 16) >>> 0, Uint8Array.from(Buffer.from(txt, 'utf16le')));

@@ -95,6 +95,19 @@ VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera s
                     r'^Custom-mode record \(OM3C\): writes 0,']   # PR #56's early load reads
                     # the dial position (el_ok -> cm_gnow) in video too, so group and code show it; no work follows
 
+# Noise Filter's row '*' (v0.30 test 13, owner 2026-11-16): a COLOR profile without a film, its Noise Filter on Camera
+# (slot +51 = 0), shows the camera's own Noise Filter, and its row has no '*', whatever that setting is. Before the fix
+# the row compared with Standard, so with the camera on Off the row was starred while the profile was not. The
+# camera's own is key 0x9719 (-2 Off, -1 Low, 0 Standard, +1 High), read by the stock getter 0x60063380 from one byte,
+# 0x6295942d in om-emu (traced 2026-11-16): the poke sets it to Off as the camera's menu would (a write through the
+# settings manager from the driver does not return). Rows are asked through ed_isdef (the stock "is at default"
+# calls); NRB + 1 = COLOR 2's row. Then Standard chosen on it (slot +51 = 1, P + 32 + 64 + 51) differs from the
+# camera's Off: the row is starred, as the profile is.
+NF_BYTE, NR_ROW_COLOR2, NR_SLOT_COLOR2 = 0x6295942d, 0x7e11, 32 + 64 + 51
+NR_ROW_STAR = lambda star: f'expect:isdef:{{ed_isdef}}:{NR_ROW_COLOR2:x}={0 if star else 1}'
+NOISE_FILTER_OFF_ROW = (f's1 wait wait {NR_ROW_STAR(False)} poke:{NF_BYTE:x}=fe wait {NR_ROW_STAR(False)} '
+                        f'pokep:{NR_SLOT_COLOR2}=01 wait {NR_ROW_STAR(True)} poweroff')
+
 
 @dataclass
 class Boot:
@@ -207,6 +220,9 @@ TESTS = {
              expect=[FILM_2_LINE, *ck_line('no', 'none', 0, 15, 0)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_BAD'},
              expect=[*ck_line('no', 'not valid', 0, 15, 0)]),
+    ],
+    'noise-filter-row-follows-the-camera-setting': [
+        Boot(NOISE_FILTER_OFF_ROW),
     ],
     'video-boot-after-photo-boot': [
         Boot('s1 wait wait poweroff'),
