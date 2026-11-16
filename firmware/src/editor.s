@@ -14,6 +14,9 @@
                                    * test 8, all colours always). Needs W_SALL 1 */
  .set W_HSL, 0                    /* film test 10 (owner): pages in HSL order, Hue -> Saturation -> Luminance, opening on
                                    * Hue; their dial labels Hue / Saturation / Luminance (0: S -> H -> L, open on S) */
+ .set HL_FAIL, 1                  /* hl_ok: not the gate's context */
+ .set HL_NOMED, 2                 /* hl_ok: the gate's context, no medium mounted */
+ .set UI_PSW, 0xa32d9d0d          /* the photo / movie / S&Q switch byte (UI_IN), 2 = photo */
 /* OM-3 1.1 editor test 1 (= probe 2 + on-camera Hue/Light pages + card save).
  * Probe 2 part: looks in a heap block, loaded from C:\OM3MOD\BUNDLES.BIN when valid.
  * Adapted from Caduceus SD loader v3 (cakelesscoder/caduceus-ep7, Apache-2.0): same state encoding,
@@ -297,43 +300,22 @@ pr_ed:
 pr_back:
  jmp trig_resume
 
-pr_gate:                          /* frame 36: (12,sp) = tid out */
- mov (SECBITS),d0
- and 0x3ff,d0
- cmp 0x3ff,d0
- bne pr_gout                      /* not all 10 sections copied */
- mov sp,a0
- add 12,a0
- call get_tid,[a2],4
- cmp 0,d0
- bne pr_gout                      /* not a task context */
- movhu (HLS_TID),d1
- cmp 0,d1
+pr_gate:                          /* frame 36 */
+ call hl_ok,[a2],16
+ cmp HL_FAIL,d0
  beq pr_gout
- btst 0x8000,d1
- bne pr_gout                      /* HLS_EVENT not created yet */
- movhu (12,sp),d0
- cmp d1,d0
- bne pr_gout                      /* not the HLS_EVENT task */
- mov 61440,d1
- mov (MS_A),d0
- cmp d1,d0
- beq pr_go
- mov (MS_B),d0
- cmp d1,d0
- beq pr_go
- mov (MS_C),d0
- cmp d1,d0
+ cmp 0,d0
  beq pr_go
  jmp pr_nmd                       /* v0.29.1 (#38): no medium MOUNT OK: pr_nmd (ext12) loads from the camera's memory */
 pr_go:
- mov 0xffff,d0
- movhu d0,(STATE)                 /* one attempt per power-on */
+ call st_claim,[d2,d3],12         /* one attempt per power-on, also against el_go (GUI task) */
+ cmp 0,d0
+ beq pr_gout
  call sd_load,[d2,d3,a2,a3],36
 pr_gout:
  ret [d2,d3,a2,a3],36
 
-/* ed_trig (frame 36, (12,sp) = tid out): P valid + marker + dirty == 1 + the same context gate as pr_gate
+/* ed_trig (frame 36): P valid + marker + dirty == 1 + hl_ok (card mounted)
  * -> dirty = 0, one ub_save, status byte = its result. */
 ed_trig:
  PVAL t_out                       /* v0.21: no automatic capture into the selected looks (pf_wb gone): a look
@@ -349,34 +331,9 @@ ed_trig:
  movbu (DIRTY,a2),d0
  cmp 1,d0
  bne t_out
- mov (SECBITS),d0
- and 0x3ff,d0
- cmp 0x3ff,d0
- bne t_out
- mov sp,a0
- add 12,a0
- call get_tid,[a2],4
+ call hl_ok,[a2],16
  cmp 0,d0
  bne t_out
- movhu (HLS_TID),d1
- cmp 0,d1
- beq t_out
- btst 0x8000,d1
- bne t_out
- movhu (12,sp),d0
- cmp d1,d0
- bne t_out
- mov 61440,d1
- mov (MS_A),d0
- cmp d1,d0
- beq t_go
- mov (MS_B),d0
- cmp d1,d0
- beq t_go
- mov (MS_C),d0
- cmp d1,d0
- bne t_out
-t_go:
  clr d0
  movbu d0,(DIRTY,a2)              /* one attempt per batch of edits, whatever happens */
  call ub_save,[d2,d3,a2,a3],24    /* films in camera memory: films, edits and Extras into store M (no card copies) */
@@ -4967,6 +4924,25 @@ pm_ev:
 /* gx_map <- jmp from 0x610f6016 (the state dispatcher, d0 = a handler's next state, (8,sp) -> the GUI state bytes
  * {parent, child}; a0 / a1 / d1 free here): a state change while in Picture Mode (0x0418) clears gr_flag. */
 gx_map:
+ movhu (STATE),d1                 /* films loaded: el_go has nothing to do */
+ cmp 0,d1
+ bne 2f
+ mov d0,d1
+ exthu d1
+ cmp 0,d1
+ beq 2f
+ mov mdr,d3
+ add -16,sp
+ mov d3,(4,sp)
+ mov d0,(8,sp)
+ mov a1,(12,sp)
+ call el_go,[d2,d3,a2,a3],36      /* L1: the films from the camera's memory, before the shooting screen draws */
+ mov (12,sp),a1
+ mov (8,sp),d0
+ mov (4,sp),d3
+ mov d3,mdr
+ add 16,sp
+2:
  movbu (rc_pend),d1               /* v0.30-dev k1 (#41): the shooting mode changed with the films in: put each */
  cmp 0,d1                         /* COLOR's film back into the camera's settings (GUI task, between events) */
  bne 01f
@@ -4975,6 +4951,9 @@ gx_map:
  bne 01f
  movbu (cm_init),d1               /* k2: once after the films are in (never before: STATE 0 until the first */
  cmp 0,d1                         /* half-press), so a dial moved while the camera was off is handled */
+ bne 0f
+ movbu (el_hold),d1               /* L1: after the early load, wait for the first shutter event */
+ cmp 0,d1
  bne 0f
  movhu (STATE),d1
  cmp 0,d1
@@ -4990,6 +4969,27 @@ gx_map:
  mov d3,a1
  mov (rc_d0),d0
 0:
+ movbu (el_pk),d1                 /* after a picture-mode change, once the first look is done: the group keeps */
+ cmp 0,d1                         /* what it shows now (cm_hp, as at a shutter event), so a power-off keeps it */
+ beq 03f
+ movbu (cm_init),d1
+ cmp 0,d1
+ beq 03f
+ movbu (rc_pend),d1
+ cmp 0,d1
+ bne 03f
+ clr d1
+ movbu d1,(el_pk)
+ mov mdr,d2
+ mov a1,d3
+ mov d0,(rc_d0)
+ add -4,sp
+ call cm_hp,[d2,d3,a2,a3],24
+ add 4,sp
+ mov d2,mdr
+ mov d3,a1
+ mov (rc_d0),d0
+03:
  mov d0,d1
  exthu d1
  cmp 0,d1
@@ -9116,9 +9116,12 @@ fl_stw:
  call lg_y,[],0
  .endm
 lg_pr:                            /* jmp from pr_ed, pr_hook's frame: as `call ed_trig; jmp trig_resume` there */
+ clr d0                           /* L1: the first shutter event releases the hooks held since the early load */
+ movbu d0,(el_hold)
  call lg_pre,[d2,d3,a2,a3],36
  call ed_trig,[d2,d3,a2,a3],36
  call ub_try,[d2,d3,a2,a3],36     /* films in camera memory: a block write held back by the camera's own save */
+ call el_card,[d2,d3,a2,a3],36
  call cm_hp,[d2,d3,a2,a3],24      /* k4: in P / A / S / M, their films and choice now (kept in M) */
  call lg_write,[d2,d3,a2,a3],40
  call ex_live,[d2,d3,a2,a3],48    /* v0.28 pc1: the film's settings now, for the next photo's code */
@@ -9132,35 +9135,10 @@ lg_pre:                           /* edits waiting before ed_trig (it saves them
 1:
  ret [d2,d3,a2,a3],36
 
-lg_write:                         /* frame 40: (0) call slot, (4) handle, (12) tid */
- mov (SECBITS),d0                 /* the card gate (as the loaders and the GX probes) */
- and 0x3ff,d0
- cmp 0x3ff,d0
- bne lg_out
- mov sp,a0
- add 12,a0
- call get_tid,[a2],4
+lg_write:                         /* frame 40: (0) call slot, (4) handle */
+ call hl_ok,[a2],16               /* the card gate (as the loaders and the GX probes) */
  cmp 0,d0
  bne lg_out
- movhu (HLS_TID),d1
- cmp 0,d1
- beq lg_out
- btst 0x8000,d1
- bne lg_out
- movhu (12,sp),d0
- cmp d1,d0
- bne lg_out
- mov 61440,d1
- mov (MS_A),d0
- cmp d1,d0
- beq 1f
- mov (MS_B),d0
- cmp d1,d0
- beq 1f
- mov (MS_C),d0
- cmp d1,d0
- bne lg_out
-1:
  movbu (lg_on),d0                 /* 0 not checked yet, 1 on, 2 off */
  cmp 2,d0
  beq lg_out
@@ -9832,6 +9810,8 @@ sx_set:                           /* from sl_set (entered as the manager: d0 id,
                                    * films in, rc_go re-applies them */
  mov d1,d2                        /* the value (d2 / d3 are free here, as below) */
  mov a1,d3                        /* the mode */
+ clr d0                           /* a mode-dial turn: the camera's start-up is over (it writes no 1440 before the */
+ movbu d0,(el_hold)               /* first shutter event, bp1), so the films follow the dial now */
  call dm_ok,[],0                  /* films loaded? (d1; d0, a0, a1 kept) */
  cmp 0,d1
  beq 01f
@@ -9849,6 +9829,8 @@ sx_set:                           /* from sl_set (entered as the manager: d0 id,
 0:
  cmp 901,d0
  bne 1f
+ mov 1,d2                         /* a picture-mode change: the group's settings are kept at the next GUI event */
+ movbu d2,(el_pk)                 /* (gx_map), not only at the next shutter event */
  movbu (cm_ram + CM_LAST),d2      /* k3 / k6: the group's choice now (the picture mode the camera sets is not the */
  cmp 0xff,d2                      /* mode's own after a dial change: noted here, as it is set, not afterwards) */
  beq 02f
@@ -9858,7 +9840,7 @@ sx_set:                           /* from sl_set (entered as the manager: d0 id,
  mov a0,(4,sp)                    /* dr6: all on the stack (the camera's dial handler and the power-on */
  mov a1,(8,sp)                    /* mapping may run here at the same time) */
  mov d1,(12,sp)
- call dm_rec,[d2,d3,a2,a3],28     /* a0 / a1 / d1 as they are */
+ call dm_rec,[d2,d3,a2,a3],36     /* a0 / a1 / d1 as they are */
  mov (4,sp),a0
  mov (8,sp),a1
  mov (12,sp),d1
@@ -9992,12 +9974,31 @@ dm_turn:                          /* frame 24: (4) the mode */
  mov (4,sp),d0
  ret [d2,d3,a2,a3],24
 
-/* dm_rec: `call dm_rec,[d2,d3,a2,a3],28` from sx_set's SetValue(901, d1) before fl_set (a0 / a1 its own):
+/* dm_rec: `call dm_rec,[d2,d3,a2,a3],36` from sx_set's SetValue(901, d1) before fl_set (a0 / a1 its own):
  * when the dial's position (dm_pos, known after the first dial event or the power-on mapping) is on COLOR, its own
  * choice = this value (COLOR k -> k + 1, film j -> 11 + j), written to its dm_psid setting if it changed. */
-dm_rec:                           /* frame 28: (4) a0, (8) a1 of the SetValue */
+dm_rec:                           /* frame 36: (4) a0, (8) a1 of the SetValue, (12) tid, (16) d1 */
  mov a0,(4,sp)
  mov a1,(8,sp)
+ movbu (el_hold),d0               /* after the early load, before the first shutter event: a menu pick (GUI task) only, */
+ cmp 0,d0                         /* never a camera start-up write */
+ beq 01f
+ mov d1,(16,sp)
+ mov sp,a0
+ add 12,a0
+ call get_tid,[a2],4
+ mov (16,sp),d1
+ cmp 0,d0
+ bne 9f
+ movhu (12,sp),d0
+ movhu (el_tid),d3
+ cmp d3,d0
+ bne 9f
+ mov 1,d0
+ movbu d0,(el_pick)
+ clr d0                           /* a menu pick: the camera's start-up is over, the first look (gx_map) need not */
+ movbu d0,(el_hold)               /* wait for a shutter event */
+01:
  movbu (dm_pos),d3
  cmp 4,d3
  bcc 9f
@@ -10034,7 +10035,7 @@ dm_rec:                           /* frame 28: (4) a0, (8) a1 of the SetValue */
  mov (8,sp),a1
  call dm_put,[d2,d3,a2,a3],80
 9:
- ret [d2,d3,a2,a3],28
+ ret [d2,d3,a2,a3],36
 
 /* dm_mode: `call dm_mode,[d2,d3],12`, d3 = a position 0..3 -> d0 = its mode 0..3 (its row: Normal = its own). Uses
  * a0, a1, d1. */
@@ -10102,6 +10103,9 @@ dm_ok:                            /* `call dm_ok,[],0` -> d1 1 when P is valid a
                                    * dr6: a1 on the stack, not in a global (two tasks may be here at once) */
  add -4,sp
  mov a1,(0,sp)
+ movbu (el_hold),d1               /* L1: not after the early load until the first shutter event (the camera's own */
+ cmp 0,d1                         /* start-up writes) */
+ bne 9f
  movhu (STATE),d1
  add -1,d1
  cmp HMAX,d1
@@ -10831,27 +10835,13 @@ nm_ex:
  * in the HLS_EVENT task only (the gate of pr_gate / lg_write; the settings getter is safe there, not in the capture:
  * v0.24): when the camera is on COLOR k, its settings now (pf_capto) and the camera's WB now (1578 mode -> its index in
  * table 0x615d1944, Custom WB also 107 Kelvin -> v, as fw_keep) -> ex_rec +0..+62, ex_rk = k; else ex_rk = -1.
- * Locals (12) tid, (16) P, (20) k, (24) mode index, (28) Kelvin v (below the 16 B of saved registers). */
+ * Locals (16) P, (20) k, (24) mode index, (28) Kelvin v (below the 16 B of saved registers). */
 ex_live:
  mov -1,d0
  mov d0,(ex_rk)
- mov (SECBITS),d0
- and 0x3ff,d0
- cmp 0x3ff,d0
- bne 9f
- mov sp,a0
- add 12,a0
- call get_tid,[a2],4
- cmp 0,d0
- bne 9f
- movhu (HLS_TID),d1
- cmp 0,d1
- beq 9f
- btst 0x8000,d1
- bne 9f
- movhu (12,sp),d0
- cmp d1,d0
- bne 9f
+ call hl_ok,[a2],16
+ cmp HL_FAIL,d0
+ beq 9f                           /* with or without a medium */
  PVAL 9f
  mov a2,(16,sp)
  mov 111,d0
@@ -12905,7 +12895,7 @@ ub_bun:                           /* `call ub_bun,[d2,d3,a2,a3],20` from sd_load
  ret [d2,d3,a2,a3],20
 
 ub_pfl:                           /* `call ub_pfl,[d2,d3,a2,a3],28` from sd_load, a2 = P.
-                                   * Locals (4) handle, (8) buffer. With the block (above). */
+                                   * Local (8) buffer. With the block (above). */
  clr d0
  mov d0,(TTAB,a2)
  mov d0,(TORG,a2)
@@ -12923,30 +12913,7 @@ ub_pfl:                           /* `call ub_pfl,[d2,d3,a2,a3],28` from sd_load
  jmp 99f
 1:
  mov a0,(8,sp)
- call pf_open,[],4
- cmp 0,a0
- beq 10f
- mov a0,(4,sp)
- mov 2,d0
- movbu d0,(ub_cv)
- mov (8,sp),a0
- mov 1,d0
- mov UB_PFL,d1
- mov (4,sp),a1
- call fread,[d2,d3,a2,a3],24
- mov d0,d2
- mov (4,sp),a0
- call fclose,[d2,a2,a3],16
- cmp UB_PFL,d2
- bne 10f
- mov (8,sp),a0
- mov UB_PFL,d3
- call pf_check,[d2,d3,a2,a3],20
- cmp 0,d0
- bne 10f
- mov 1,d0
- movbu d0,(ub_cv)
-10:
+ call ub_rd,[d2,d3,a2,a3],28
  call ub_chk,[d2,d3,a2,a3],20
  cmp 0,d0
  beq 30f
@@ -12954,17 +12921,9 @@ ub_pfl:                           /* `call ub_pfl,[d2,d3,a2,a3],28` from sd_load
  cmp 1,d0
  bne 20f
  mov (8,sp),a0
- call ub_id,[d2,d3],12
- mov d0,(ub_cid)
- mov UB_C + 24,a0
- mov 16,d1
-11:
- mov (a0),d2
- cmp d2,d0
- beq 20f                          /* had them: the camera's films */
- add 4,a0
- add -1,d1
- bne 11b
+ call ub_kn,[d2,d3],12
+ cmp 0,d0
+ bne 20f                          /* had them: the camera's films */
  mov 1,d0                         /* new films: taken, with the camera's selection */
  movbu d0,(ub_src)
  movbu d0,(ub_new)
@@ -13041,6 +13000,54 @@ ub_pfl:                           /* `call ub_pfl,[d2,d3,a2,a3],28` from sd_load
  call free,[],4
 99:
  ret [d2,d3,a2,a3],28
+
+ub_rd:                            /* `call ub_rd,[d2,d3,a2,a3],28`, a0 = a buffer of UB_PFL: the card's LOOKS.BIN into it
+                                   * -> ub_cv (0 on entry). Locals (4) handle, (8) buffer. */
+ mov a0,(8,sp)
+ call pf_open,[],4
+ cmp 0,a0
+ beq 9f
+ mov a0,(4,sp)
+ mov 2,d0
+ movbu d0,(ub_cv)
+ mov (8,sp),a0
+ mov 1,d0
+ mov UB_PFL,d1
+ mov (4,sp),a1
+ call fread,[d2,d3,a2,a3],24
+ mov d0,d2
+ mov (4,sp),a0
+ call fclose,[d2,a2,a3],16
+ cmp UB_PFL,d2
+ bne 9f
+ mov (8,sp),a0
+ mov UB_PFL,d3
+ call pf_check,[d2,d3,a2,a3],20
+ cmp 0,d0
+ bne 9f
+ mov 1,d0
+ movbu d0,(ub_cv)
+9:
+ ret [d2,d3,a2,a3],28
+
+ub_kn:                            /* `call ub_kn,[d2,d3],12`, a0 = a LOOKS image -> d0 1 when the block's ring holds its
+                                   * films' identity, else 0. Stores ub_cid. */
+ call ub_id,[d2,d3],12
+ mov d0,(ub_cid)
+ mov UB_C + 24,a0
+ mov 16,d1
+1:
+ mov (a0),d2
+ cmp d2,d0
+ beq 2f
+ add 4,a0
+ add -1,d1
+ bne 1b
+ clr d0
+ ret [d2,d3],12
+2:
+ mov 1,d0
+ ret [d2,d3],12
 
 ub_put:                           /* `call ub_put,[d2,d3,a2,a3],20`, a2 = P: films, edits and Extras now -> the block
                                    * -> d0 1 written, 0 not (no films loaded; or the camera saving M, or a write
@@ -13287,34 +13294,9 @@ ub_try:                           /* `call ub_try,[d2,d3,a2,a3],36` from lg_pr a
  cmp 0,d0
  beq 9f
  PVAL 9f
- mov (SECBITS),d0
- and 0x3ff,d0
- cmp 0x3ff,d0
- bne 9f
- mov sp,a0
- add 12,a0
- call get_tid,[a2],4
+ call hl_ok,[a2],16
  cmp 0,d0
  bne 9f
- movhu (HLS_TID),d1
- cmp 0,d1
- beq 9f
- btst 0x8000,d1
- bne 9f
- movhu (12,sp),d0
- cmp d1,d0
- bne 9f
- mov 61440,d1
- mov (MS_A),d0
- cmp d1,d0
- beq 1f
- mov (MS_B),d0
- cmp d1,d0
- beq 1f
- mov (MS_C),d0
- cmp d1,d0
- bne 9f
-1:
  call ub_put,[d2,d3,a2,a3],20
 9:
  ret [d2,d3,a2,a3],36
@@ -13448,6 +13430,12 @@ fopen:                            /* `call fopen,[],4`: a0 path, a1 mode -> a0 h
  call vf_new,[d2,d3,a2,a3],20
  ret [],4
 1:
+ movbu (el_nc),d0                 /* L1: the early load takes nothing from the card */
+ cmp 0,d0
+ beq 2f
+ mov 0,a0
+ ret [],4
+2:
  call OS_FOPEN,[],4
  ret [],4
 
@@ -13954,7 +13942,7 @@ cm_go:                            /* `call cm_go,[d2,d3,a2,a3],24` from rc_go, a
 1:
  movbu (cm_first),d1
  cmp 0,d1
- beq 3f                           /* the first look: enter the group now */
+ beq 05f                          /* the first look: enter the group now */
  movbu (cm_lst),d1
  movbu (cm_grp),d0
  cmp d0,d1
@@ -13978,6 +13966,11 @@ cm_go:                            /* `call cm_go,[d2,d3,a2,a3],24` from rc_go, a
  cmp 5,d0
  bne 8f
  call cm_save,[d2,d3,a2,a3],20
+ bra 8f
+05:
+ movbu (el_pick),d1               /* a film or COLOR picked after the early load, before this look: what is shown stays */
+ cmp 0,d1
+ beq 3b
  bra 8f
 4:
  call cm_load,[d2,d3,a2,a3],24
@@ -14200,30 +14193,36 @@ cm_load:
  mov 0x80,d0
  movbu d0,(cm_pmw)
 97:
- movbu (dm_pos),d0                /* the Creative Dial position if the dial code doesn't know it yet (k5) */
+ call dm_know,[d2],8              /* the Creative Dial position if the dial code doesn't know it yet (k5) */
+ mov (4,sp),d1
+ mov (rc_in),a0
+ mov 0,a1
+ call dm_rec,[d2,d3,a2,a3],36
+ ret [d2,d3,a2,a3],24
+
+/* dm_know: `call dm_know,[d2],8`: dm_pos <- the Creative Dial's position from its family (897) when it is not known
+ * yet. Reads only. Uses d0, d1, a0. */
+dm_know:
+ movbu (dm_pos),d0
  cmp 4,d0
- bcs 971f
+ bcs 9f
  mov 897,d0
  call sget,[],4
  mov dm_fam,a0
  clr d1
-972:
+1:
  mov (a0),d2
  cmp d2,d0
- beq 973f
+ beq 2f
  inc4 a0
  inc d1
  cmp 4,d1
- bcs 972b
- bra 971f
-973:
+ bcs 1b
+ bra 9f
+2:
  movbu d1,(dm_pos)
-971:
- mov (4,sp),d1
- mov (rc_in),a0
- mov 0,a1
- call dm_rec,[d2,d3,a2,a3],28
- ret [d2,d3,a2,a3],24
+9:
+ ret [d2],8
 
 /* cm_val: `call cm_val,[d2,d3,a2,a3],20`, a2 = P -> d0 = the choice now (FV0 + j for a film on the picture mode's
  * COLOR k, else COLOR k's picture mode; 0 when the picture mode is not COLOR 1..4). */
@@ -14802,7 +14801,7 @@ ss_photo:
  mov 1,d0
  ret [],0
 3:
- movbu (0xa32d9d0d),d0
+ movbu (UI_PSW),d0
  mov d0,d1
  or 0xc0,d1
  movbu d1,(ss_ph)
@@ -15581,3 +15580,303 @@ vf_get:
  mov d0,(a1)
  clr d0
  rets
+
+/* ---- Early load: the films from the camera's memory at the GUI's first state change, which comes
+ * after the camera's start-up writes and before the shooting screen asks for its label. The card is
+ * not read (el_nc). Hooks that react to the camera's own writes wait for the first shutter event (el_hold): dm_ok
+ * and gx_map's first look. No valid block in memory: the first half-press loads as before. */
+.section .ext12,"ax"
+el_go:                            /* `call el_go,[d2,d3,a2,a3],36` from gx_map (GUI task), STATE 0 */
+ mov (SECBITS),d0
+ and 0x3ff,d0
+ cmp 0x3ff,d0
+ bne 9f                           /* not all 10 sections copied: the next state change tries again */
+ call ub_chk,[d2,d3,a2,a3],20
+ cmp 0,d0
+ beq 9f
+ call el_ok,[d2,d3,a2,a3],20
+ cmp 0,d0
+ beq 9f
+ movbu d0,(el_pm)
+ mov 1,d0
+ movbu d0,(el_hold)
+ call st_claim,[d2,d3],12
+ cmp 0,d0
+ bne 1f
+ movbu d0,(el_hold)               /* the half-press load (HLS task) has it */
+ bra 9f
+1:
+ movbu d0,(el_nc)
+ call sd_load,[d2,d3,a2,a3],36
+ clr d0
+ movbu d0,(el_nc)
+ mov 1,d0
+ movbu d0,(el_cd)
+ mov el_tid,a0                    /* the GUI task: dm_rec's only writer until the first shutter event */
+ call get_tid,[a2],4
+ call dm_know,[d2],8              /* dm_rec keeps a film picked before the first half-press, which dm_turn
+                                     would otherwise replace with the dial's old choice */
+ movbu (el_pm),d0
+ cmp 2,d0
+ bne 9f
+ PVAL 9f
+ call el_pre,[d2,d3,a2,a3],24
+9:
+ ret [d2,d3,a2,a3],36
+
+/* el_ok: `call el_ok,[d2,d3,a2,a3],20` from el_go -> d0 = 0 no early load, 1 the films block as it is, 2 then el_pre.
+ * The first look (rc_go) may change only what el_pre can do first in RAM: photo in a trusted set. Elsewhere the block
+ * must already show what the first look keeps: the same group, or a group with no films of its own. Reads only. */
+el_ok:
+ call cm_ld,[d2,d3,a2,a3],20
+ call ss_ld,[d2,d3,a2,a3],20
+ call cm_gnow,[],0
+ mov d0,d2
+ movbu d0,(el_g)
+ mov (rc_in),a0                   /* ss_photo reads "not photo" until the manager handle is seen */
+ cmp 0,a0
+ beq 1f
+ call ss_photo,[],0
+ bra 2f
+1:
+ movbu (UI_PSW),d1
+ clr d0
+ cmp 2,d1
+ bne 2f
+ mov 1,d0
+2:
+ cmp 0,d0
+ beq 3f
+ mov d2,d0
+ call ss_trust,[],0
+ cmp 0,d0
+ beq 3f
+ mov 2,d0
+ ret [d2,d3,a2,a3],20
+3:
+ movbu (cm_ram + CM_LAST),d1
+ cmp d2,d1
+ beq 4f
+ mov d2,d0
+ call cm_src,[d2,d3,a2],16
+ cmp 0,a3
+ beq 4f
+ clr d0
+ ret [d2,d3,a2,a3],20
+4:
+ mov 1,d0
+ ret [d2,d3,a2,a3],20
+
+/* el_pre: `call el_pre,[d2,d3,a2,a3],24` from el_go after sd_load, a2 = P: the RAM half of the first look's entry
+ * into the trusted set el_g (ss_pre's ss_ed, cm_load's ss_lib, ss_post's ss_get), with no settings-manager call and no
+ * block write. The camera already recalled the set's own 18 values. ss_cur = el_g when the set is kept, so the first
+ * look finds the films and rows in place and keeps an edit made before it. Local (4) the set. */
+el_pre:
+ movbu (el_g),d0
+ mov d0,(4,sp)
+ clr d0                           /* rc_go's lock and busy flag */
+ call LOCK,[d2],8
+ mov d0,d3
+ movbu (rc_busy),d0
+ cmp 0,d0
+ beq 1f
+ mov d3,d0
+ call UNLOCK,[d2],8
+ ret [d2,d3,a2,a3],24
+1:
+ mov 1,d0
+ movbu d0,(rc_busy)
+ mov d3,d0
+ call UNLOCK,[d2],8
+ mov (LPTR,a2),d0
+ cmp 0,d0
+ beq 8f
+ mov (TORG,a2),d0
+ cmp 0,d0
+ beq 8f
+ mov (4,sp),d0
+ call ss_ed,[d2,d3,a2,a3],20
+ mov (4,sp),d0
+ call cm_src,[d2,d3,a2],16
+ cmp 0,a3
+ beq 5f
+ clr d2
+2:
+ movbu (d2,a3),d3
+ extb d3
+ cmp 0,d3
+ blt 4f
+ cmp 5,d3
+ bgt 4f
+ mov a2,a0
+ add d2,a0
+ movbu (LIDX,a0),d0
+ extb d0
+ cmp d3,d0
+ beq 4f
+ movbu d3,(LIDX,a0)
+ call ss_lib,[d2,d3,a2,a3],20
+ mov 1,d0
+ movbu d0,(DIRTY,a2)              /* the selection saved at the next half-press, as cm_load does */
+4:
+ inc d2
+ cmp 4,d2
+ bcs 2b
+5:
+ mov (4,sp),d0
+ call ss_get,[d2,d3,a2,a3],24
+ cmp 0,d1
+ beq 8f
+ mov (4,sp),d0
+ movbu d0,(ss_cur)
+8:
+ clr d0
+ movbu d0,(rc_busy)
+ ret [d2,d3,a2,a3],24
+/* el_card: `call el_card,[d2,d3,a2,a3],36` from lg_pr: after the early load, the card at the first half-press with a
+ * card: NAMES.BIN, and LOOKS.BIN when its films are new to the camera. Each is built aside and then published, so no
+ * reader sees half of it. The old films buffer is never freed: a heap record of the camera's points at it. Locals (4)
+ * buffer, (8) P. */
+el_card:
+ movbu (el_cd),d0
+ cmp 0,d0
+ beq 9f
+ PVAL 9f
+ call hl_ok,[a2],16
+ cmp 0,d0
+ bne 9f                           /* no card yet: the next half-press tries again */
+ clr d0
+ movbu d0,(el_cd)
+ mov a2,(8,sp)
+ mov 1024,d0                      /* NAMES.BIN into a scratch P: nm_load also uses P+TBUF, the titles by now */
+ call malloc,[],4
+ cmp 0,a0
+ beq 20f
+ mov a0,(4,sp)
+ mov a0,a2
+ add NENT,a0                      /* no NAMES.BIN: P+NENT reads 0, as after sd_load */
+ mov 80,d1
+ call ub_zero,[],0
+ call nm_load,[d2,d3,a2,a3],36
+ mov (8,sp),a2
+ mov (4,sp),a3
+ mov a2,a0
+ add NENT,a0
+ mov a3,a1
+ add NENT,a1
+ mov 80,d1
+ call ub_cpy,[],0
+ mov a2,a0                        /* NPTR after NENT: a reader takes a group only with its entries */
+ add NPTR,a0
+ mov a3,a1
+ add NPTR,a1
+ mov 16,d1
+ call ub_cpy,[],0
+ mov a3,a0
+ call free,[],4
+20:
+ mov (8,sp),a2
+ mov UB_PFL + FL_SB,d0
+ call malloc,[],4
+ cmp 0,a0
+ beq 9f
+ mov a0,(4,sp)
+ clr d0
+ movbu d0,(ub_cv)
+ mov (4,sp),a0
+ call ub_rd,[d2,d3,a2,a3],28
+ movbu (ub_cv),d0
+ cmp 1,d0
+ bne 8f
+ mov (4,sp),a0
+ call ub_kn,[d2,d3],12
+ cmp 0,d0
+ bne 8f
+ mov 1,d0
+ movbu d0,(ub_src)
+ mov (8,sp),a2
+ mov (4,sp),d0
+ mov d0,(LPTR,a2)                 /* one store: a reader has the old films or the new */
+ call ub_put,[d2,d3,a2,a3],20
+ bra 9f
+8:
+ mov (4,sp),a0
+ call free,[],4
+9:
+ ret [d2,d3,a2,a3],36
+
+/* hl_ok: `call hl_ok,[a2],16` -> d0 0 when all 10 sections are copied, this is the HLS_EVENT task and a medium is
+ * mounted; 2 with no medium; else 1. Local (4) tid. */
+hl_ok:
+ mov (SECBITS),d0
+ and 0x3ff,d0
+ cmp 0x3ff,d0
+ bne 8f
+ mov sp,a0
+ add 4,a0
+ call get_tid,[a2],4
+ cmp 0,d0
+ bne 8f
+ movhu (HLS_TID),d1
+ cmp 0,d1
+ beq 8f
+ btst 0x8000,d1
+ bne 8f
+ movhu (4,sp),d0
+ cmp d1,d0
+ bne 8f
+ mov 61440,d1
+ mov (MS_A),d0
+ cmp d1,d0
+ beq 1f
+ mov (MS_B),d0
+ cmp d1,d0
+ beq 1f
+ mov (MS_C),d0
+ cmp d1,d0
+ beq 1f
+ mov HL_NOMED,d0
+ ret [a2],16
+1:
+ clr d0
+ ret [a2],16
+8:
+ mov HL_FAIL,d0
+ ret [a2],16
+/* st_claim: `call st_claim,[d2,d3],12` -> d0 1 when STATE was 0 and is now 0xffff (this task loads), else 0. Under
+ * LOCK: el_go (GUI task) and pr_go (HLS task) may test it at once. */
+st_claim:
+ clr d0
+ call LOCK,[d2],8
+ mov d0,d3
+ movhu (STATE),d0
+ cmp 0,d0
+ bne 1f
+ mov 0xffff,d0
+ movhu d0,(STATE)
+ mov d3,d0
+ call UNLOCK,[d2],8
+ mov 1,d0
+ ret [d2,d3],12
+1:
+ mov d3,d0
+ call UNLOCK,[d2],8
+ clr d0
+ ret [d2,d3],12
+el_cd:                            /* 1: the card pass is due (el_card) */
+ .byte 0
+el_nc:
+ .byte 0
+el_hold:
+ .byte 0
+el_pm:                            /* el_ok's answer */
+ .byte 0
+el_g:                             /* the group at the early load */
+ .byte 0
+el_pick:                          /* 1: a menu pick before the first look (dm_rec) */
+ .byte 0
+el_pk:                            /* 1: a picture-mode change not yet kept for the group (sx_set -> gx_map) */
+ .byte 0
+ .balign 2
+el_tid:                           /* the GUI task's id, noted by el_go */
+ .hword 0xffff
