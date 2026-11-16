@@ -1,6 +1,6 @@
 # Using Caduceus for OM-3
 
-This page is for **v0.30.2**, the latest version. Not installed yet? Start with [Install](INSTALL.md).
+This page is for **v0.30.3**, the latest version. Not installed yet? Start with [Install](INSTALL.md).
 
 > [!NOTE]
 > Caduceus works on the **COLOR** profiles (COLOR 1–4) and your **films** (FILM 1–20). The Monochrome profiles keep
@@ -52,7 +52,7 @@ The rows under Picture Mode change the film (or the COLOR) you're on, straight a
 | **Vignette Correction** | Off = the lens's natural darker corners. On = the camera corrects them. |
 | **Shading** | Darker or lighter corners, as an effect. |
 | **Glow Effect** | +1 to +5 adds a soft glow. −1 to −5 adds Clarity (crisper local contrast). 0 = off. |
-| **Halation Effect** | 0 to 5: a red-orange glow around bright lights, as on cinema film (CineStill). Works with or without Glow; fades out in bright daylight scenes. Saving takes a little longer with it on. |
+| **Halation Effect** | 0 to 5: a red-orange glow around bright lights, as on cinema film (CineStill). Works with or without Glow; fades out in bright daylight scenes. The halo fades gradually away from the light. Saving takes a little longer with it on (much less since v0.30.3). |
 | **Film Grain Effect** | Off, Low, Med or High. Added in colour, with no extra wait after the photo. |
 
 The rows come five to a page in this order, as the camera works on a photo: the film and its colour, then white

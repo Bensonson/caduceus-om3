@@ -8,6 +8,7 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 | Version | Released | What's new |
 |---|---|---|
+| [v0.30.3](#v0303) | 2026-11-17 | Faster halation with a smoother fade; every dial click counted on the RGB / Mix pages, faster looks and saves (#69); a debug log that doesn't slow the shutter |
 | [v0.30.2](#v0302) | 2026-11-17 | Fix: with Image Review on, Glow / Clarity / Halation photos no longer give a black review or freeze live view at the switch to a standard picture mode |
 | [v0.30.1](#v0301) | 2026-11-17 | Fix: no more one-frame flash when leaving the B/W or WB Compensation row in Picture Mode |
 | [v0.30](#v030) | 2026-11-16 | Color Mix and RGB curves on the camera; the 20 films regraded with them (CURVES.BIN); a new Picture Mode order; films ready at switch-on; fixes for live dial turns, a video freeze and Noise Filter's "*" |
@@ -39,6 +40,22 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 Versions are named v0.N from v0.18 on. Earlier builds were called "test N" while they were tried on the camera; the
 same number is used here (test 17 = v0.17).
+
+## v0.30.3
+v0.30.2 plus faster halation, one pull request by [crombach](https://github.com/crombach) and a debug log fix. Firmware
+camera-tested (2026-11-17, test 3; only its name was changed).
+
+- **Faster halation:** a Halation photo saves much quicker (about half the work; the same photo as before in the
+  emulator, until the fade below). Idea from Caduceus for the E-P7 (cakelesscoder).
+- **A smoother halo:** at higher strengths the halo fades out gradually over about twice the distance instead of
+  stopping; near the light it looks as before. LookLab's preview follows.
+- **Every dial click counts on the RGB and Mix pages** ([#69](https://github.com/androidfanman/caduceus-om3/pull/69)):
+  fast turns no longer skip values; the curve picture redraws about three times faster; split toning / RGB curves
+  and saving films and curves run faster with the same results.
+- **Fix: the debug log slowed the shutter:** with `DEBUG.TXT` on, the log is now written when you let go of the shutter
+  (not at the half-press, and not right after a burst), so the shutter fires on time and bursts stop when you let go.
+  Reported by flrvr.
+  Details: [release notes](releases/v0.30.3/NOTES.md).
 
 ## v0.30.2
 v0.30.1 plus one fix. Firmware camera-tested (2026-11-17, test 1; only its name was changed).

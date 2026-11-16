@@ -85,10 +85,12 @@ The gate and the digest have unit tests that need no firmware:
 | `live-dial-turn-to-b-switches-the-films` | A live turn from C1 to B switches to the P / A / S / M / B films, though B has no mode code of its own (#54) |
 | `live-dial-turn-holds-the-label` | During a live turn's wait for the mode code, the shooting screen's label holds no picture, and the hold clears once the mode is real (#54) |
 | `video-boot-after-photo-boot` | A video boot after a photo boot does no film or custom-mode work (#53) |
+| `debug-log-written-at-releases-only` | Three half-presses: the debug log is written at the three releases only, not at the half-presses (v0.30.3; the burst rule needs photos: camera-only) |
 | `noise-filter-row-follows-the-camera-setting` | A COLOR profile without a film, its Noise Filter on Camera: the Noise Filter row has no '*' with the camera's own Noise Filter on Standard or on Off, and gets one when Standard is chosen while the camera is on Off (v0.30 test 13) |
 | `curves-file-kept-in-camera` | v0.30 `CURVES.BIN`: taken at the first half-press, a film picked shows its values, kept over a boot with no file, the same file again changes nothing |
 | `curves-file-new-values-follow-edits-stay` | A new `CURVES.BIN` reaches a film you never changed; a curve changed on the RGB page stays when another file comes |
 | `curves-file-none-or-not-valid` | No `CURVES.BIN`, or one with a wrong CRC: nothing taken, no film gets values (as test 8) |
+| `look-tables-match-the-model` | `st_run`'s R, G and B tables on a fake COLOR job match the Python models for split toning, curves and both together, and `sd_crc` matches zlib's CRC-32 |
 | `patch-audit` | om-emu's audit finds no patched byte the camera does not load, and no task started at power-on |
 | `static:release-rebuild` | `firmware/patch.py` rebuilds the newest release byte for byte, and `SHA256SUMS` matches |
 | `static:hook-list` | The build's hooks equal `tools/test/hooks.json` |
@@ -276,7 +278,10 @@ is still found only on the camera.
 ### Emulator tests
 
 `tools/test/emu_test.py` runs the boots with `session_ed1.mjs`, because it can set the photo/video switch and print
-the editor's fields. It runs `session.mjs` once for the patch audit. Moving the boots to `session.mjs` would add its
+the editor's fields. It runs `session.mjs` once for the patch audit. `halation-matches-the-model` (2026-11-16, the
+faster halation h7) boots no camera: `research/halation/emu_check.py` calls the halation pass (`hl_run`) directly on
+ten small test frames and checks every byte against `research/halation/model.py`, the callee-saved registers and sp,
+and a guard after the frame. Moving the boots to `session.mjs` would add its
 `expect:` checks and frame hashes, once it can set the photo/video switch.
 
 Store only state in the repo: screen state names, memory values, debug log lines, and frame hashes. The repo rule on
@@ -314,7 +319,9 @@ more work than the tests above.
   films at switch-on). The `tasks` audit catches a task started at power-on. It cannot measure lag. It
   also misses start-up work a hook does in an existing task. EL13's early film load on `feature/early-load` passes it.
 - **Stills.** om-emu has no sensor or capture pipeline, so grain, glow, halation, RAW+JPEG, and Pin Hole regressions
-  need the camera.
+  need the camera. The halation pass's bytes are the exception (`halation-matches-the-model`, a direct call on test
+  frames in plain DRAM); its timing, the bus window path it takes on the camera, and the capture route stay
+  camera-only.
 - **Video.** om-emu does not model movie recording. A camera video boot puts films back, and an om-emu one does not.
   The v0.29.5 live view freeze (#53) itself is camera-only. `video-boot-after-photo-boot` checks the code path its
   fix removes.

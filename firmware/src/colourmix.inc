@@ -307,8 +307,8 @@ mx_val:
  extb d0
  ret [d2,d3],12
 
-/* mx_ev: (jumped to from cv_ev on the Mix page, its frame; d0 the event, d3 the dials' direction -1 / 0 / +1): the
- * front dial (0x9031) the hue (+ direction), the rear dial (0x9032) the strength (- direction, as the RGB page's
+/* mx_ev: (jumped to from cv_ev on the Mix page, its frame; d0 the event, d3 the dials' clicks, -CV_CLK..CV_CLK): the
+ * front dial (0x9031) the hue (+ clicks), the rear dial (0x9032) the strength (- clicks, as the RGB page's
  * offset), -7..+7, then cv_dty (saved at the next half-press, drawn again) -> cv_ev80; other events -> cv_ev5. */
 mx_ev:
  cmp 0x9031,d0

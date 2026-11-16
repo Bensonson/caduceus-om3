@@ -5526,3 +5526,178 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   `firmware/VERSION` "v0.30.2 (Image Review fix for #65, camera-tested t1)", 52 characters: main.bin differs from test 1
   only in the name, the code-block tag (twice) and the built-in GUIDES CRC (51 bytes). E1479999.BIN 7fbd3957…445b;
   `patch.py --release v0.30.2` makes it byte for byte, `--release v0.30.1` still c2b583fd…. Extras as v0.30.1.
+
+## Faster halation h7: the same photo, about half the work (2026-11-16; emulator only, camera test pending; branch feature/faster-halation)
+- Asked for (main chat, after the owner saw Caduceus for the E-P7's h6, "they seem to have made it faster"): speed up
+  `hl_run` with the ideas of cakelesscoder/caduceus-ep7 `docs/HALATION_RED.md` §23 (read only, nothing copied;
+  credited in editor.s), applied to our pass (h2's chroma weight from the cell mean, h4's broad layer), without
+  changing one output byte.
+- **What changed** (editor.s, ext12; `hl_open` and `hl_div` as they were; frame of `hl_run` still 124, so xb_gs is
+  unchanged; GUIDES / LABELS / TONES unchanged):
+  - Pass A (`hl_pa`, `hl_x8`): eight Y0 ORed and compared with T once; only when the OR is above T are the eight
+    excesses summed (the OR bounds each value, so this is exact). A full cell's 32 pairs run in one go. A full cell's
+    B = 4 Q / 1024 = Q >> 8 (no division); `hl_div` only for the edge cells.
+  - Pass B: `hl_b1` blurs in place (keeps the old left value in a register); no temp copy.
+  - Pass C: a pair with g <= 1 never changes (Y: 255 x 1 x KY = 11220 < 2^16; chroma: c = (1 x w) >> 8 = 0 with
+    w <= 255), so: no pass when no g >= 2 anywhere; rows go in bands that share their cell rows (rows 0..31: row 0;
+    32 + 64 r0 .. + 63: rows r0, r0 + 1; the last rows: row GH - 1); per band `hl_bd` lists the segments (head, the
+    spans between cell centres, tail) whose end columns have g >= 2 in either cell row (a lerp stays between its ends);
+    per row `hl_row` lerps only those ends (`hl_lp`, the right end carried to the next segment), skips a segment with
+    g <= 1 at both ends, and `hl_sp` walks only from the first to the last pair with g >= 2 (g is monotonic along a
+    segment), 8 pairs a loop turn. Per pair: g and w in one accumulator ((32 w + 16) << 16 | (32 g + 16), both halves
+    stay in 0..8191, so one add steps both exactly); 32 g x KY once per pair and ((255 - Y) 32 g KY) >> 21 (= the
+    model's >> 16 of g KY); Y left out while g < GY = 6 (255 x 5 x 44 < 2^16); the chroma change by table on c
+    (`hl_cb` / `hl_cr`, 256 B each from firmware/halation.py, the model's floor shifts), one clamp each (KCB <= 0: Cb
+    only falls; KCR >= 0: Cr only rises). halation.py `check_fast_path()` asserts these conditions at every build.
+  - Several rows per lock and per FLUSH: as many as an estimate keeps under HL_LOCKN = 120 000 instructions (pass A:
+    10 a pair + 20 a cell + 40 a row, 4 sampled rows on a 20 MP frame; pass C: 44 a pair + 120 a segment + 100 a row,
+    from the band's list). A group across the window's edge is retried one row at a time; the one row across it is
+    left out, as before.
+- **Proof, om-emu 0819080 (the suite's pin):** `research/halation/emu_check.py` (new; driver `emu_hl.mjs`) calls
+  `hl_run` through a `call hl_run,[d2,d3,a2,a3],124` stub, single-stepped (steps = instructions, no interrupts), on
+  frames in plain DRAM (0xa8000000: hl_open uses the address directly, no bus window; FLUSH stubbed with
+  `ret [d2,d3],16` as for h1; om-emu's ~200 M instruction limit lifted for the run), and compares every byte of the
+  frame (padding included) with `model.halate`, plus d2 / d3 / a2 / a3 / sp back and a 4 KB guard after the frame.
+  21 frames: synthetic night scenes (padding, grain sd 20, Glow 1..5), a frame in the fade zone (15.6 % bright cells),
+  daylight (off), dark (none), widths 64 / 68 / 1000 / 1028 (part cells, GW 1..17), odd heights, chroma at both clamp
+  ends, random bytes (Y 0..206: glow everywhere at small g; Y 0..255: off), five CC0 / public-domain sample photos
+  darkened to night (two of them off), and two camera-sized ones (a 5184 x 3888 night scene; bluehour.jpg enlarged to
+  5120 x 3200). **v0.30.1's code: 21 of 21 bit-exact; h7: 21 of 21 bit-exact**, registers, sp and guard intact.
+- **Instructions (om-emu steps), v0.30.1 -> h7:**
+
+  | Frame | Size | Level | Result | v0.30.1 | h7 | fewer |
+  |---|---|---|---|---|---|---|
+  | big5 (night, 12 lights) | 5184x3888 | 5 | glow | 230.4 M | 84.1 M | 64 % |
+  | bigphoto5 (blue hour) | 5120x3200 | 5 | glow | 186.0 M | 85.3 M | 54 % |
+  | bluehour5 | 2048x1280 | 5 | glow | 47.0 M | 20.9 M | 56 % |
+  | taxi3 | 2048x963 | 3 | glow | 28.3 M | 10.3 M | 64 % |
+  | night5 / night1 | 1536x1152 | 5 / 1 | glow | 35.3 / 20.6 M | 16.8 / 8.6 M | 52 / 58 % |
+  | grain4 | 1536x1152 | 4 | glow | 36.6 M | 17.8 M | 51 % |
+  | sparse5 (4 small lights) | 1536x1152 | 5 | glow | 42.5 M | 16.6 M | 61 % |
+  | fade3 / odd2 / clamp5 | 0.8 / 0.7 / 0.4 MP | 3 / 2 / 5 | glow | 9.7 / 10.0 / 11.8 M | 4.8 / 2.9 / 4.9 M | 51 / 71 / 59 % |
+  | dark5 / neon5 | 1024x768 | 5 | none / off | 2.10 M | 1.10 M | 48 % |
+  | day5 | 1024x768 | 5 | off | 2.32 M | 1.79 M | 23 % |
+
+  Where big5's 84 M go: `hl_sp` (the pairs) 51 M, `hl_pa` (pass A) 25 M, `hl_row` + `hl_lp` 5.6 M, the blur 1.6 M
+  (v0.30.1: `hl_seg` 153 M, `hl_run` 61 M (mostly pass A), `hl_vl` 11.6 M, the blur 2.5 M, `hl_div` 1.7 M). Pass A
+  is now the floor of ~5 instructions a sampled pair (a load, OR, shift and add for the cell mean B, which our h2
+  needs and the E-P7's pass does not). A daylight frame still pays pass A (bright pixels take hl_x8) before it turns off.
+- **Locks / FLUSHes per photo:** big5 5647 -> 1310, bigphoto5 3463 -> 1384, night5 1734 -> 258. The most instructions
+  under one lock: up to 105 K on the test frames (v0.30.1: up to 133 K, on one row of the 16 MP frame); the cap is the
+  estimate's 120 K. On the camera each FLUSH costs real time (xb_grain gr4: 2 rows per FLUSH saved 0.3 s on a 20 MP
+  photo), which the emulator can't count; so the camera may gain more than the instruction count says. Analysis.
+- **Camera-only:** the bus window path (the buffer through the window's cached view, several rows per lock and per
+  FLUSH, the retry at the window's edge), the real time, the capture route. Code space: ext12 250 136 -> 252 376 of
+  262 144 B (+2 240).
+- **Test:** `tools/test/emu_test.py` gains `halation-matches-the-model` (emu_check.py on ten small frames, ~10 s): passes
+  on v0.30.1 and on h7 (the same bytes); a build with a deliberate bug (Y1's shift 21 -> 20) is caught on 3 of the 10
+  frames (`--without`: "caught").
+- **Package h7 test 1** (commit 11385dc; the full suite, 23 tests, passes on it): E1479999.BIN `7efe76bf…70f3` (GUIDES
+  / LABELS / TONES built in, as v0.29); VERSION "v0.30.1 + faster halation (h7 test 1)". No #65 fix in it (that is
+  feature/fix-65-review; merging the two conflicts only in VERSION and these notes). Camera test: the same night scene
+  at Halation 5 with this and with v0.30.1, the halo compared by eye and the save time counted.
+
+## v0.30.3 test 1: faster halation (h7) + the debug log written at releases only (2026-11-17; emulator only)
+Owner: "lets tackle that faster halation and the debug log". `try/v0.30.3` = main (v0.30.2) + the debug log change
+(4940e1a, aligned in a later commit) + `feature/faster-halation` (h7, merged as its session built it).
+- **Debug log:** `lg_pr` notes the shutter handler's event byte (18,sp) (the event word (16,sp) is 0x0100 at the
+  half-press and 0x0101 at its release in om-emu, traced at 0x60415216) in `lg_rel`; `lg_write` still records every
+  event (ring, camera values, the line), then `lg_due` lets the report be built and written only at a release, and not
+  at the release that ends a burst (2+ photos since the half-press, `lg_npp`); `lg_w` now counts real writes. The first
+  build trapped in om-emu on a misaligned `lg_npp` (code before it): fixed with `.balign 4`. Test
+  `debug-log-written-at-releases-only` (three clicks: event 5, 3 writes; the first half-press loads the films and is
+  not logged): pass; `--without` v0.30.2: caught. The burst rule needs photos: camera-only.
+- Build "v0.30.3-dev (test 1: faster halation, debug log fix)" (52 characters), E1479999.BIN `3f5440bc…75b7`, rebuilt
+  byte for byte; suite 24 of 24 (incl. `halation-matches-the-model`). Package `test-builds/2026-11-17-v0303-test1`.
+- **Camera (owner, 2026-11-17, v0.30.3 test 1 `3f5440bc…`): "that is much quicker"** (Halation photos save faster).
+  But "the halation at 5 kinda just ends. I want a smoother taper": the halo's outer edge stops too abruptly at
+  strength 5 (the same pixels as v0.30.2, h7 being bit-exact, so the look predates h7; h4's broad layer softened it
+  once, "the fade looks good now" on 2026-11-12). Handed to the faster-halation session (it has the model and the
+  code). The debug log part of test 1: not reported yet.
+- **v0.30.3 test 2 on the camera (owner, 2026-11-17; `5a7f6896…`, built on feature/faster-halation 2a2104d = this line +
+  h8):** CADLOG "nothing unusual"; 36 shutter events, 16 log writes (releases only); a 13-frame sequential burst
+  (PB162917..929, Kodachrome 64, in ~1.5 s) whose release wrote nothing (the burst rule), then the next release did.
+  Halation photos: PB162916 (5), PB162930 (3). The look of the fade: the owner's call (pending).
+  Test 1 on the camera: event 16, 8 writes (releases only).
+- **Camera-tested (owner, 2026-11-17): test 2 "Looks good"** (the longer halo fade). With test 1's "much quicker" and the
+  debug log seen working, test 2 (`5a7f6896…`, feature/faster-halation 2a2104d) is the v0.30.3 candidate.
+
+## Halation h8: a longer, even fade (2026-11-17; emulator only, camera test pending; branch feature/faster-halation)
+Owner on v0.30.3 test 1: "the halation at 5 kinda just ends. I want a smoother taper." A deliberate look change: no
+longer bit-exact with v0.30.x; the model and the camera code still agree bit for bit.
+- **Why it ended (analysis, model on the owner's test 1 lamp photo PB162914, halo taken out again approximately):**
+  near the light the curve u = 255 v / (v + 900) is saturated (g ~200 at 5 over the shade), then g falls 189 -> 116 ->
+  8 within ~400 px. The tail is the broad layer's: 10 [1 2 1] passes are a Gaussian (sigma ~2.2 cells, ~143 px), whose
+  log falls faster the farther out it is, so once v drops near K the glow stops within one or two cells. All
+  strengths share this shape (g = u gmax >> 8); at 5 the drop is the largest.
+- **h8:** a wide layer, the broad one blurred `BLUR3` = 30 more times (40 in all, sigma ~4.5 cells), added at `WIDE` =
+  64 / 256: v = v0 + ((wide 64 + 128) >> 8), v0 = the h4 mix as before. The bright-frame count (u(v0) >= 32: off at 24 %,
+  faded from 8 %) stays on v0, so the bright-frame rule decides as before (a dark frame with very little light may now show a
+  faint glow where all g were <= 1). Tried in the model (3 + 10 + 30 / 40 / 60
+  passes, mixed or added, 1/4 or 1/2): "add 40 at 1/4" keeps test 1's halo near the light and turns the stop into a
+  roughly even fall (about x0.7 per cell). Big lamp (r 300 px), Cr gain by 64 px at 5: test 1 47 46 45 42 35 23 11 3 0;
+  h8 47 46 45 43 40 35 29 22 16 11 7 4 2 1 (strengths 1-4 the same shape, scaled). Private preview on the owner's
+  photo: `test-builds/2026-11-17-v0303-test2/preview-test1-vs-test2.jpg`.
+- **Code:** firmware/halation.py `BLUR3`, `WIDE` (+ an overflow assert); model.py `blur` -> (v0, v), `u_of`; editor.s
+  hl_run: the count loop keeps no u, then (after the off check, so daylight frames skip it) `hl_blur` 30 more passes on
+  the broad copy and a curve loop on v (32-bit, up to ~70 K, hl_hi's index clamped as before). No new malloc, frame
+  unchanged, ext12 252 456 of 262 144 B. LookLab's preview (preview.ts `om3Halation`) does the same in floats; Blue
+  hour at 5: mean R +2.8 (h4 +2.5).
+- **om-emu (pin 0819080):** emu_check.py 21 of 21 frames bit-exact with the new model. Steps (h7 -> h8; v0.30.2 =
+  v0.30.1's): big5 20 MP 84.1 M -> 124.4 M (v0.30.2 230.4 M), bigphoto5 85.3 -> 103.7 M (186.0 M), night5 16.8 ->
+  22.7 M (35.3), bluehour5 20.9 -> 25.7 M (47.0), taxi3 10.3 -> 13.8 M (28.3), sparse5 16.6 -> 21.5 M (42.5). The extra
+  blur is ~2.6 M on 20 MP; the rest is pass C on the larger glowing area (big5 changes 6.0 MB, was 3.9 MB). Max under
+  one lock <= 105 K as before. Camera-only: the look, the real save time.
+- **Package v0.30.3 test 2** (commit 20f4107 = try/v0.30.3 merged in + h8; the full suite, 24 tests, passes on it, incl.
+  `halation-matches-the-model` against the new model): build "v0.30.3-dev (test 2: halation fades out more slowly)" (52
+  characters), E1479999.BIN `5a7f6896…033c`; `test-builds/2026-11-17-v0303-test2`, go-back v0.30.2 `7fbd3957…445b`.
+  Camera test: the test 1 lamp scene at Halation 5 and 3, the fade compared with test 1's photos, the save time counted.
+## Faster looks (2026-11-16; feature/look-perf; emulator only)
+Goal: a look costs less per development and per save, with the same output. om-emu instruction counts, repeatable
+run to run (an ncall of the camera's RGB stage 0x60516ad9, then our tone hook, on a fake COLOR job; the stage's own
+10,568 left out).
+- **Where the time went (v0.30):** st_run's pass over the 960 table entries, one channel at a time: no look 252, split
+  toning 46,405, one curved channel 70,803, three curves + split toning 119,207. Blacks / Whites (`tone`, ext5)
+  ~11,400 with values set, 123 without: left as it is. cv_set's rebuild per pass is ~700 (under 1 %): no cache.
+- **st_all (ext12):** the R, G and B tables are identical before the pass (st_run's gate), so the balance, the weights
+  and the Hermite basis depend on t only: worked out once per entry, then each channel's own K and block (macro STC,
+  unrolled; one path per pass: split toning + curves, split toning only, curves only). Counts: split toning 36,905
+  (-20 %), one curve 44,776 (-37 %), three curves + split toning 71,947 (-40 %). Tables byte-identical to v0.30 in
+  all cases.
+- **sd_crc (ext4, every CRC: films block, sets, curves record, CURVES.BIN, BUNDLES.BIN):** a nibble at a time from a
+  16-word table (`sd_nib`, 64 B) instead of a bit at a time: 3,336 bytes (the curves record, cv_hdr at each save, interrupts
+  on) 180,260 -> 56,719. Same CRC-32 as zlib. A 256-word table would be ~1.7x faster again but is 1 KB: ext4 has 520 B
+  left, and ext12's other callers' timing was not checked.
+- Test `look-tables-match-the-model` (emu_test.py): the three paths' tables against a Python model (split toning as
+  research/splittone/model.py bend28, curves as research/rgbcurves/model.py, both parts' running max), and sd_crc
+  against zlib. Passes on v0.30 and on this branch.
+- Not known: whether any of this is visible on the camera (no camera timing exists).
+- **Dropped dial clicks on the RGB and Mix pages (camera, user):** a fast turn skipped values, while H&S counted
+  every click. Two causes. First, `cv_ev` cut the event's signed click count (a1) to +-1. It now moves by the whole
+  count, clamped to +-`CV_CLK`. Test `rgb-page-counts-every-click` catches the old build. Second, `cv_draw` cost
+  ~3.63M instructions per redraw: each row tested all 300 columns of all three curves. It now keeps each row's
+  column range per curve (`CW_XR`, work area 0x8000..0x9000) and scans only that range. The run encoder got a
+  tighter loop. Counts: 3.63M -> 1.06M (flat curves), Mix page 1.34M -> 1.00M. Streams byte-identical over 61
+  curve, color, and point states. Camera-tested 2026-11-16 (user, build `5ebd047`): fast turns no longer skip values.
+- Camera, 2026-11-16 (user, build `5ebd047`): burst, start-up, and video OK. The card log for that power-on (9
+  photos on FILM 10 Velvia 50, then M video) says "nothing unusual". Save and reload: curve and mix edits kept
+  through a power cycle (user), and the films block read valid at the next power-on (generation 367).
+
+## v0.30.3 test 3: test 2 + PR #69 (2026-11-17; emulator only)
+Owner: "lets intigrate pr#69 in the build. I want to test it out first but it looks good". `try/v0.30.3` = this line +
+`feature/faster-halation` (h8, test 2) + PR #69 (crombach, head 7b0cc80: every dial click on the RGB / Mix pages,
+faster st_all / cv_draw / sd_crc), merged as written. Conflicts: emu_test.py (both kept; the --only / names lists hold
+HALATION, ENGINE and DIAL), NOTES (both kept). cad's read of #69: no hook; `sd_crc` now uses d2 (saved by its
+`call [d2,d3],12` frame, as d3 was) and keeps a1 on its own stack word; `st_run` uses ~88 B more stack (#69's note:
+burst and video passed on crombach's camera). Build "v0.30.3-dev (test 3: test 2 + PR #69, faster looks.)" (52
+characters), E1479999.BIN `53cd002b…459a`, rebuilt byte for byte; suite 26 of 26 (incl. look-tables-match-the-model,
+rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2026-11-17-v0303-test3`.
+- **Camera-tested (owner, 2026-11-17): test 3 "it all works well"** (`53cd002b…`). CADLOG after a power cycle (2 events):
+  "nothing unusual", films block valid at power-on (generation 370), saved; COLOR 1 (FILM 1 Portra 400) kept its
+  changed mix (7 7 -1 -1 -1 0, "following its film's built-in: mix no") and curve over the power-off (#69's save and
+  reload). New photos PB162931..934 (Velvia 50, CineStill 800T, Portra 400). Test 3 is the v0.30.3 candidate.
+- **v0.30.3 release (2026-11-17; owner: "yes. merge the pr and release 30.3"):** `firmware/VERSION` "v0.30.3 (faster
+  halation + PR #69, camera-tested t3)", 52 characters: main.bin differs from test 3 only in the name, the code-block
+  tag (twice) and the built-in GUIDES CRC (53 bytes). E1479999.BIN 60b6d954…f546; `patch.py --release v0.30.3` makes it
+  byte for byte, `--release v0.30.2` still 7fbd3957…. Extras as v0.30.2. LookLab rebuilt (h8's preview). PR #69 lands
+  on main with this merge (its head 7b0cc80 is in the history).
