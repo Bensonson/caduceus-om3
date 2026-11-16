@@ -10,7 +10,7 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, json, os, pathlib, re, shutil, subprocess, sys, tempfile
+import argparse, concurrent.futures, datetime, json, os, pathlib, re, shutil, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -30,6 +30,9 @@ LOG_PATH = 'OM3MOD/CADLOG.TXT'
 # A branch that changes these needs a suite pass on its HEAD before a pull request (tools/test/pr_gate.py).
 TESTED_PATHS = ('firmware/', 'card/', 'tools/emulator/', 'tools/test/')
 PASS_FILE = 'emu-test-pass.json'
+EMU_PIN = REPO / 'tools/emulator/om-emu.pin'   # the om-emu commit the tests expect (research/TESTING.md)
+EMU_PIN_LINE = re.compile(r'([0-9a-f]{40}) (\d{4}-\d{2}-\d{2})')
+EMU_MAX_AGE_DAYS = 7                           # as tools/emulator/om_emu.sh
 # Each session peaks at about 1.3 GB. 4 side by side ran clean on a 32 GB Mac. Runs killed with exit 137 had
 # screenshots in them (research/TESTING.md).
 DEFAULT_JOBS = 4
@@ -38,7 +41,7 @@ PHOTO_SWITCH_PHOTO = 2
 MODE_DIAL_P = 2
 MODE_DIAL_C1 = 7
 MODE_DIAL_M = 9
-PHOTO_SWITCH_VIDEO = None
+PHOTO_SWITCH_VIDEO = 1
 
 # From COLOR 1 on the shooting screen, picks FILM 2: the list runs COLOR 1-4, then the films.
 # Keep in sync with FILM_2_LINE.
@@ -59,7 +62,7 @@ GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
 # rc_go does no film work in video (#53): no custom-mode record write. A build without the fix writes the record.
 # The early load reads the mode code in video, so the code itself shows nothing.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
-                    r'photo check .*: 193$',
+                    r'photo check .*: 10$',
                     r'^Custom modes: group now .*; .*record writes: 0,']
 
 
@@ -69,7 +72,7 @@ class Boot:
     expect: list = field(default_factory=list)     # regexes, each must match a debug log line
     reject: list = field(default_factory=list)     # regexes no debug log line may match
     mode_dial: int = MODE_DIAL_P
-    photo_switch: int = PHOTO_SWITCH_PHOTO    # None leaves PSET0 unset: the movie switch
+    photo_switch: int = PHOTO_SWITCH_PHOTO
 
 
 TESTS = {
@@ -118,6 +121,21 @@ TESTS = {
 KNOWN_FAILURES = {}
 # Errors a test's runner turns into a failure of that test, not of the whole run.
 RUNNER_ERRORS = (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError)
+
+
+def check_emu_pin(emu):
+    """Exits unless om-emu is at the pinned commit. Warns when the pin is older than EMU_MAX_AGE_DAYS."""
+    pin = EMU_PIN.relative_to(REPO)
+    m = EMU_PIN_LINE.fullmatch(EMU_PIN.read_text().strip())
+    if not m:
+        sys.exit(f"{pin}: expected one line, 'COMMIT YYYY-MM-DD' with the full 40-character commit")
+    pinned, checked = m.groups()
+    emu_rev = git('rev-parse', 'HEAD', cwd=pathlib.Path(emu).parent) or '?'
+    if emu_rev != pinned:
+        sys.exit(f'om-emu is at {emu_rev[:7]}, but {pin} names {pinned[:7]}: run research/setup.sh')
+    age = (datetime.date.today() - datetime.date.fromisoformat(checked)).days
+    if age > EMU_MAX_AGE_DAYS:
+        print(f'om-emu: the pin was last checked {age} days ago. Run tools/emulator/bump_om_emu.sh.', file=sys.stderr)
 
 
 def git(*args, cwd=REPO):
@@ -190,7 +208,7 @@ def run_boot(emu, build, d, i, boot, card):
     fatal error or None)."""
     nxt = d / f'card{i}.omsd'
     env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), 'MODE0': str(boot.mode_dial),
-           **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})}
+           'PSET0': str(boot.photo_switch)}
     try:
         r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, boot.tokens, env=env)
     except subprocess.TimeoutExpired:
@@ -286,6 +304,7 @@ def main():
     emu = os.environ.get('OM3_EMU')
     if not emu or not pathlib.Path(emu, 'bin/card.mjs').exists():
         sys.exit('OM3_EMU is not set to an om-emu emu/ folder: run research/setup.sh, then . $OM3_WORK/env.sh')
+    check_emu_pin(emu)
     build = (a.without or a.build).resolve()
     if not (build / 'main.bin').exists():
         sys.exit(f'{build}: no main.bin (a firmware/build.py --out folder)')

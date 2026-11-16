@@ -105,7 +105,7 @@ or `reject`.
 
 `session_ed1.mjs` takes `PSET0` and `MODE0` in its environment, the photo/video switch and mode dial positions
 before boot, and the tokens `pset:N` and `mode:N` to move them during a run. A `Boot` sets them with `photo_switch`
-and `mode_dial`. `photo_switch=None` leaves `PSET0` unset, which is the movie switch.
+and `mode_dial`. `photo_switch` is `PHOTO_SWITCH_PHOTO` or `PHOTO_SWITCH_VIDEO`.
 
 The two custom-mode tests pass on v0.29.5, EL13, and C10 (an older early-load build), emulator only. They are weak:
 neither fails on any build tried. `video-boot-after-photo-boot` does catch its bug: it passes with the #53 fix
@@ -119,6 +119,23 @@ neither fails on any build tried. `video-boot-after-photo-boot` does catch its b
   camera shows.
 - The film numbers (`COLOR 1, FILM 1` for C1, `COLOR 2, FILM 6` for P) break when `BOOT1_ASSIGN_C1` or the newest
   `LOOKS.BIN` changes. `BOOT1_ASSIGN_C1` is a constant in `tools/test/emu_test.py`.
+
+### The om-emu version
+
+`tools/emulator/om-emu.pin` names the om-emu commit that every workspace uses, and the date someone last checked
+upstream. `research/setup.sh` checks out that commit, and `tools/test/emu_test.py` stops when om-emu is at another
+one. After 7 days, setup and the runner warn that the pin is stale.
+
+To move the pin, run `tools/emulator/bump_om_emu.sh` on a branch made from `main`. It builds the checkout, runs the
+suite with the pinned om-emu and with upstream's newest commit, and prints each `pass`, `known`, or `FAIL` line that
+changed. Then it writes the new pin.
+
+- If no line changed, commit the pin file.
+- If a line changed, find out why. A test that depends on how om-emu models the camera may need a change of its
+  own. Commit that change with the pin file.
+- To keep the old pin, run `git checkout tools/emulator/om-emu.pin`, then `research/setup.sh`.
+
+The pin file is under `tools/emulator/`, so a pull request that changes it needs a suite pass.
 
 ## What a run can check
 
