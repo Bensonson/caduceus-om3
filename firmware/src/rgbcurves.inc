@@ -311,31 +311,7 @@ cv_lk:
 /* cv_rec: `call cv_rec,[d2,d3,a2,a3],20` (pf_put1, ss_slot: COLOR k's slot <- a record), a2 = P, d2 = k, a3 = the
  * record or 0 -> live[k] <- that record's curves: ed[r] for EDITS record r, else flat. Uses d0, d1, a0, a1, MDR. */
 cv_rec:
- call cv_rid,[],0
- mov d0,d3
- mov d2,d0
- call cv_lk,[],0
- mov 0,a1
- cmp 0,d3
- blt 1f
- mov CV_ESZ,d0
- mul d3,d0
- mov cv_ram + CV_ED,a1
- add d0,a1
-1:
- mov CV_ESZ,d1
-2:
- clr d0
- cmp 0,a1
- beq 3f
- movbu (a1),d0
- inc a1
-3:
- movbu d0,(a0)
- inc a0
- add -1,d1
- bne 2b
- ret [d2,d3,a2,a3],20
+ jmp ck_rec                        /* v0.30 test 9: and the built-in of the record's film (curvesfile.inc) */
 
 /* cv_cap: `call cv_cap,[d2,d3,a2,a3],20` (fl_sw, after pf_capto put COLOR k into EDITS record a3), a2 = P, d2 = k:
  * ed[r] <- live[k]. Uses d0, d1, a0, a1, MDR. */
@@ -360,43 +336,18 @@ cv_cap:
 9:
  ret [d2,d3,a2,a3],20
 
-/* cv_zk: `call cv_zk,[d2],8`, d0 = k: live[k]'s curves flat (e_rst; the RGB page's reset). Uses d0, d1, a0, MDR. */
+/* cv_zk: `call cv_zk,[d2],8`, d0 = k: live[k]'s curves flat (e_rst; the RGB page's reset); with CURVES.BIN the film's
+ * built-in. */
 cv_zk:
- call cv_lk,[],0
- clr d0
- mov 18,d1
-1:
- movbu d0,(a0)
- inc a0
- add -1,d1
- bne 1b
- ret [d2],8
+ jmp ck_zk                         /* v0.30 test 9: with CURVES.BIN, back to the film's built-in */
 
-/* cv_kset: `call cv_kset,[d2,d3,a2,a3],20`, d2 = k -> d0 1 when COLOR k has a curve point or a colour mix set
- * (fl_live: the film's '*'). cv_jset: the same for EDITS record d0's saved ones (fl_fch). Use d0, d1, a0, MDR. */
+/* cv_kset: `call cv_kset,[d2,d3,a2,a3],20`, d2 = k -> d0 1 when COLOR k's curves or colour mix differ from its film's
+ * built-in (fl_live: the film's '*'). cv_jset: the same for EDITS record d0's saved ones (fl_fch). Zero built-in
+ * without CURVES.BIN, as before. */
 cv_kset:
- mov d2,d0
- call cv_lk,[],0
- bra 1f
+ jmp ck_kset                       /* v0.30 test 9: against the film's built-in (curvesfile.inc) */
 cv_jset:
- mov CV_ESZ,d1
- mul d1,d0
- mov cv_ram + CV_ED,a0
- add d0,a0
-1:
- mov 24,d1                        /* the 18 curve values, then the 6 of the colour mix */
-2:
- movbu (a0),d0
- cmp 0,d0
- bne 3f
- inc a0
- add -1,d1
- bne 2b
- clr d0
- ret [d2,d3,a2,a3],20
-3:
- mov 1,d0
- ret [d2,d3,a2,a3],20
+ jmp ck_jset
 
 /* cv_sput: `call cv_sput,[d2,d3,a2,a3],20` (ss_put), d0 = a set: the set's live[4] and ed[24] <- ours; ss_chg = 1
  * when any byte differed (so the set is written). Uses d0, d1, a0, a1, MDR. */
@@ -430,6 +381,8 @@ cv_sget:
  inc a1
  add -1,d1
  bne 1b
+ mov d2,d0                        /* v0.30 test 9: its following parts take the film's built-in */
+ call ck_fixk,[d2,d3,a2,a3],20
  ret [d2,d3,a2,a3],20
 
 /* cv_sed: `call cv_sed,[d2,d3,a2,a3],20` (ss_ed: the set's film changes become the ones in use), d0 = the set:
@@ -494,11 +447,13 @@ cv_load:
  bne 7b
  mov 1,d0
  movbu d0,(cv_v0)
- bra 9f
+ bra 10f
 8:
  mov cv_ram + CV_LV,a0
  mov CV_LEN - CV_LV,d1
  call ub_zero,[],0
+10:
+ call ck_load,[d2,d3,a2,a3],20    /* v0.30 test 9: the films' built-in curves and mix (CURVES.BIN's copy in M) */
 9:
  ret [d2,d3,a2,a3],20
 
@@ -1031,6 +986,8 @@ cv_ev:
  mov 7,d2
 42:
  movbu d2,(a0)
+ mov 1,d1                         /* v0.30 test 9: the curves are the user's own now */
+ call ck_own,[d2,d3,a2,a3],20
  PVAL 80f
  mov 1,d3
  movbu d3,(DIRTY,a2)              /* saved at the next half-press / on leaving Picture Mode */
@@ -1082,18 +1039,8 @@ cv_star:
  add -1,d0
  cmp 4,d0
  bcc 9f
- call cv_lk,[],0
- mov 18,d1
-1:
- movbu (a0),d0
- cmp 0,d0
- bne 2f
- inc a0
- add -1,d1
- bne 1b
- bra 9f
-2:
- clr d2
+ clr d1                           /* v0.30 test 9: the curves against the film's built-in (flat without CURVES.BIN) */
+ call ck_star,[d3,a2,a3],16
 9:
  jmp STAR_END
 

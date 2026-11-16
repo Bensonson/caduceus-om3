@@ -79,6 +79,9 @@ The gate and the digest have unit tests that need no firmware:
 | `custom-mode-film-over-dial-turn-while-off` | Each custom mode keeps its own film when the dial turns while the camera is off, and the first look has a valid record |
 | `dial-turn-before-first-half-press` | A dial turn before the first half-press lands in the right group, with the custom mode's film |
 | `video-boot-after-photo-boot` | A video boot after a photo boot does no film or custom-mode work (#53) |
+| `curves-file-kept-in-camera` | v0.30 `CURVES.BIN`: taken at the first half-press, a film picked shows its values, kept over a boot with no file, the same file again changes nothing |
+| `curves-file-new-values-follow-edits-stay` | A new `CURVES.BIN` reaches a film you never changed; a curve changed on the RGB page stays when another file comes |
+| `curves-file-none-or-not-valid` | No `CURVES.BIN`, or one with a wrong CRC: nothing taken, no film gets values (as test 8) |
 | `patch-audit` | om-emu's audit finds no patched byte the camera does not load, and no task started at power-on |
 | `static:release-rebuild` | `firmware/patch.py` rebuilds the newest release byte for byte, and `SHA256SUMS` matches |
 | `static:hook-list` | The build's hooks equal `tools/test/hooks.json` |
@@ -100,6 +103,10 @@ for `tools/emulator/session_ed1.mjs` and regular expressions the debug log must 
 The debug log is written only at a half-press. The runner removes each boot's log from the card after reading
 it, so a boot with no half-press has no log and cannot pass on an earlier boot's lines. Give such a boot no `expect`
 or `reject`.
+
+A `Boot` can also put files on the card before it boots: `card={'CURVES.BIN': 'CURVES_A'}` puts the `FIXTURES` entry
+of that name into `OM3MOD/`, `None` removes the file (v0.30 test 9). Fixtures are made at run time in `--out/fixtures/`
+from the newest release's `LOOKS.BIN` (`card/mkcurves.py`).
 
 `session_ed1.mjs` takes `PSET0` and `MODE0` in its environment, the photo/video switch and mode dial positions
 before boot, and the tokens `pset:N` and `mode:N` to move them during a run. A `Boot` sets them with `photo_switch`

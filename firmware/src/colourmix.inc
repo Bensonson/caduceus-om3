@@ -223,15 +223,7 @@ mx_lk:
  add 18,a0
  ret [],4
 mx_zk:
- call mx_lk,[],4
- clr d0
- mov 6,d1
-1:
- movbu d0,(a0)
- inc a0
- add -1,d1
- bne 1b
- ret [d2],8
+ jmp ck_mzk                       /* v0.30 test 9: zero, or with CURVES.BIN the film's built-in */
 
  .balign 4
 mx_n:                             /* matrices put in (a count, for om-emu) */
@@ -286,18 +278,8 @@ mx_star:
  add -1,d0
  cmp 4,d0
  bcc 9f
- call mx_lk,[],4
- mov 6,d1
-1:
- movbu (a0),d0
- cmp 0,d0
- bne 2f
- inc a0
- add -1,d1
- bne 1b
- bra 9f
-2:
- clr d2
+ mov 1,d1                         /* v0.30 test 9: the mix against the film's built-in (off without CURVES.BIN) */
+ call ck_star,[d3,a2,a3],16
 9:
  jmp STAR_END
 
@@ -364,6 +346,8 @@ mx_ev:
  mov 7,d2
 5:
  movbu d2,(a0)
+ mov 2,d1                         /* v0.30 test 9: the mix is the user's own now */
+ call ck_own,[d2,d3,a2,a3],20
  call cv_dty,[d2,d3,a2,a3],20
  jmp cv_ev80
 
