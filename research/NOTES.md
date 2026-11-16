@@ -5476,3 +5476,13 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   boot 24 resets, 40 scrolls and 24 dial bursts of 3..9 steps. No crash or restart in any; CADLOG "nothing unusual",
   films with changes "none" after the resets. So camera-only so far (timing, live view): needs the owner's exact steps
   and a CADLOG taken with no half-press after the reboot.
+- **#65 trigger found (reporter flrvr, 2026-11-16; owner reproduced it "first go around"): Image Review.** With Image
+  Review on (0.5 s), the review after a Halation shot is black (since v0.28), and the Creative Dial to the standard
+  modes then freezes live view; with Image Review off, no freeze in any of their settings (subject detection, drive,
+  shutter, quality, MF). Analysis only: `HL_RUN` works on the finished picture (buffer 0x1000 through the bus window
+  after SF_ENT, in `xb_gs`), apparently while or after the camera makes its review picture from it; something in the
+  review path is left waiting, and the switch to a standard mode waits on it. #27 (v0.26.2, Glow / grain) may be the same
+  mechanism (the CPU grain pass over the finished picture). Needs camera debug builds (stills are camera-only).
+- **Debug log cost (same comment):** with DEBUG.TXT on the card, the shutter fires late and sequential bursts go on
+  after release. `lg_pr` runs `lg_write` at every shutter event (press and release) in the shutter task: ~63 setting
+  reads, a 9216 B report built and written to the card, before `trig_resume`.
