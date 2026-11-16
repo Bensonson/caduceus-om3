@@ -4741,3 +4741,23 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     the screens outside Picture Mode identical to test 7's first build. ext11 60,752 / 65,536, ext12 260,736 / 262,144.
 - **Camera (2026-11-15), test 7 with the headers (E1479999.BIN `cfd4992752c2…df85d`, commit 3ba1355):** owner: "that looks
   so good. like properly good." Camera-tested; the current line for RGB curves + colour mix + the colour menu.
+
+## Video freeze at the first half-press in video (#53, 2026-11-15; camera-tested)
+- **Fault (v0.29.5):** in video, a half-press soon after turn-on freezes the live image while the overlay updates.
+  The logs that froze show films put back at that half-press (3 films and 6 camera settings in the #53 report). A
+  late half-press puts back none and does not freeze.
+- **Fix (VF1, 1ab6af9):** in video and S&Q, `ss_post` leaves nothing for `rc_put` to put back. Films apply to photos
+  only. `ss_mvp` is gone.
+- **VF2 (code review):** VF1 left `cm_go` running in video (with the dial on C1..C5, `cm_load` writes through `fl_sw`
+  and 901) and a Recall in video still put films back. `rc_go` now does no film work while `ss_photo` is 0, and the
+  video branches of `ss_pre` and `ss_post` and `ss_phv` are gone. A dial turn or a Recall made in video is done at the
+  next photo look. Emulator: every run matches v0.29.5, except that a video boot's CADLOG shows the custom-mode and
+  per-mode records as not read (nothing in video reads them).
+- **Emulator:** every custom-mode and video run matches v0.29.5 pixel for pixel. om-emu's video boot puts back no
+  films on either build, so only the camera shows the fault.
+- **Camera (crombach, VF1 E1479999.BIN 3398e72e…):** no freeze in 5 video boots with an
+  early half-press, a late half-press, or video after a photo session (films put back 0). Photo after video and a
+  photo to video to photo switch while on keep FILM 8, with photos in its look.
+- **Camera (crombach, VF2 E1479999.BIN a121ee78…):** no freeze in 3 video boots with an early half-press at P, 3 at
+  C1, and a Recall of C1 in video (films put back 0, camera settings written 0). Photo after video shows P's film at
+  P and C1's film at C1. A video boot at P, a dial turn to C1, then photo and a half-press shows C1's film (FILM 3).
