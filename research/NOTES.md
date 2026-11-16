@@ -5044,3 +5044,6 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   its colour, white balance and tone, lens and effects, grain), the intro on the order and the five-row pages, and for
   each row what its picture in the camera's list shows. The walk-through section, its 16 menu screens and their make.sh
   lines are gone.
+- Owner: "removes the fixes block, and remove combachs name. I don't want it blasted on the front page": the Fixes card
+  is gone and the tour names no contributor (the Ready at switch-on, stars and Delete button captions included); credits
+  stay in CHANGELOG and the release notes.
