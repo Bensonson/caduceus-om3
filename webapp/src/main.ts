@@ -709,7 +709,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
   };
   // the camera's page (firmware mx_pre / mx_line, rgbpics.py MX_ANG): a 300 x 300 box with its centre cross, a ring r 90,
   // red at the top, green lower right, blue lower left (screen y down: -90, 30, 150 deg); each colour's dot at its start
-  // + 5 deg per Hue step (+ = clockwise, toward the next colour) and radius 90 + 4 per Saturation step; start marks,
+  // + 5 deg per Hue step (+ = clockwise, toward the next colour) and radius 90 + 4 per Sat step; start marks,
   // spokes from the centre; the chosen dot r 13 in its bright colour on a white r 16, the others r 8, dim.
   const S0 = 300, C = 150, R = 90, START = [-90, 30, 150];
   const BRIGHT: Record<Channel, string> = { r: '#ff6a2a', g: '#22e83a', b: '#4d7dff' }, DIM: Record<Channel, string> = { r: '#b3470f', g: '#1f8f2a', b: '#2e4f9f' };
@@ -745,7 +745,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
     });
     svg.append(...dots.filter((_, i) => CHANNELS[i] !== ch()).map((d) => d.g), dots[j(ch())].g);
     const val = (v: number) => (v ? signed(v) : '±0');
-    top.replaceChildren(h('span', { class: get(ch(), 1) ? 'on' : '' }, 'Saturation ', val(get(ch(), 1))),
+    top.replaceChildren(h('span', { class: get(ch(), 1) ? 'on' : '' }, 'Sat ', val(get(ch(), 1))),
       h('span', { class: 'on', style: `color:${BRIGHT[ch()]}` }, RGB_NAME[ch()]),
       h('span', { class: get(ch(), 0) ? 'on' : '' }, 'Hue ', val(get(ch(), 0))));
     const changedC = (c: Channel) => !!(get(c, 0) || get(c, 1));
@@ -763,7 +763,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
       return h('div', { class: 'crow', title: tip }, h('span', { class: 'cname' }, name), steps(inp), o);
     };
     rowsBox.replaceChildren(
-      row(1, 'Saturation', `Rear dial on the camera: + makes ${RGB_NAME[ch()].toLowerCase()} stronger, − weaker`),
+      row(1, 'Sat', `Rear dial on the camera (Saturation): + makes ${RGB_NAME[ch()].toLowerCase()} stronger, − weaker`),
       row(0, 'Hue', `Front dial on the camera: + turns ${RGB_NAME[ch()].toLowerCase()} toward ${MIX_TOWARD[ch()]}, − the other way`));
   }
   buildRows(); draw();
@@ -772,8 +772,8 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
       hasMix(l) ? h('button', { class: 'link', onclick: () => { delete l.mix; renderEditor(); changed(); } }, 'Reset') : null),
     chips,
     h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
-    h('p', { class: 'help' }, 'Mixes the camera\'s red, green and blue into each other, before the curves and the colour wheel: Saturation makes a colour stronger or weaker (its dot moves out or in), Hue turns it (red toward yellow, green toward cyan, blue toward purple; clockwise on the ring). Greys stay grey.'),
-    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'the colour mix is not released yet and LookLab can\'t send it to the camera yet. Set the same numbers on the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Saturation.'));
+    h('p', { class: 'help' }, 'Mixes the camera\'s red, green and blue into each other, before the curves and the colour wheel: Sat (saturation) makes a colour stronger or weaker (its dot moves out or in), Hue turns it (red toward yellow, green toward cyan, blue toward purple; clockwise on the ring). Greys stay grey.'),
+    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'the colour mix is not released yet and LookLab can\'t send it to the camera yet. Set the same numbers on the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Sat.'));
 }
 
 /** Blacks / Whites (v0.28, as the camera's grid row): Blacks across (− left, + right), Whites up (+) and down (−),
