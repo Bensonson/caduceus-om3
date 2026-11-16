@@ -436,9 +436,6 @@ dialog.modal:has(.replace-grid) { width: min(780px, calc(100vw - 32px)); }
 /* Colour mix ring (the camera's Mix page; colours set in main.ts mixPanel, as the camera draws them) */
 .mix-ring .mx-dot { cursor: pointer; }
 
-/* The camera's Picture Mode pages and row pictures (colour menu, test 7) */
-.pm-page { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin: 18px 0 2px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-.pm-page .pm-n { font-weight: 700; color: var(--ink); }
-.pm-page .pm-film { margin-left: auto; color: var(--ink); }
+/* The camera's Picture Mode row pictures (colour menu, test 7) */
 .pm-ic { vertical-align: -4px; margin-right: 6px; flex: none; color: var(--ink); }
 .cname .pm-ic { margin-right: 5px; }

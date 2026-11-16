@@ -337,10 +337,6 @@ function toneCurve(tone: Tone): { svg: SVGSVGElement; draw: () => void; X: (v: n
 
 // ---------------------------------------------------------------- the camera's Picture Mode screen, as panels
 const SVG_NS = 'http://www.w3.org/2000/svg';
-/** A page of the camera's Picture Mode rows (colour menu, test 7, camera-tested 2026-11-15: five rows a page). */
-function pmPage(n: number, title: string, film?: string): HTMLElement {
-  return h('div', { class: 'pm-page' }, h('span', { class: 'pm-n' }, `Page ${n}`), h('span', {}, title), film ? h('span', { class: 'pm-film' }, `Film: ${film}`) : null);
-}
 /** The camera's row pictures (colour menu spec, test 7), small, for the headings. */
 const PIE = ['#f2c400', '#f39a00', '#ee6a1c', '#de2f2f', '#d23fa6', '#8650d6', '#3b5fe0', '#2f8fe6', '#22bfd3', '#1fb486', '#3aac45', '#a3c52a'];
 let pmIds = 0;
@@ -1406,7 +1402,6 @@ function renderOm3Editor(l: Look) {
         }),
       }, l.notes),
       h('span', { id: 'notes-help', class: notesBytes() > NOTE_MAX ? 'help err' : 'help' }, `${notesBytes()} / ${NOTE_MAX} bytes · kept in the looks file (not on the card)`)),
-    pmPage(1, 'The film and its colour', film?.name),
     mixPanel(l, changed),
     rgbPanel(l, changed),
     hslPanel(l, changed),
@@ -1423,7 +1418,6 @@ function renderOm3Editor(l: Look) {
         show();
         return [h('div', { class: 'crow', title: 'Where the Shadows and Highlights tints meet: − the shadow colour reaches further up, + the highlight colour further down' }, h('span', { class: 'cname' }, pmIcon('tb'), 'Split Tone Balance'), steps(inp), out), note];
       })()),
-    pmPage(2, 'White balance and tone'),
     wbPanel(l, changed),
     tonePanel(l, changed),
     bwPanel(l, changed),
@@ -1433,7 +1427,6 @@ function renderOm3Editor(l: Look) {
         const { inp, out } = slider(SHARP.lo, SHARP.hi, l.advice.sharpness ?? 0, (x) => { l.advice.sharpness = x; changed(); }, sharpLabel, 'Sharpness');
         return h('div', { class: 'crow', title: 'The camera\'s sharpening: 0 its normal, + crisper, − softer, −5 Off' }, h('span', { class: 'cname' }, 'Sharpness'), steps(inp), out);
       })()),
-    pmPage(3, 'Lens and effects'),
     h('div', { class: 'group cam rows' },
       cseg('Noise Filter', [['off', 'Menu'], ['film', 'Off'], ['fine', 'Low'], ['standard', 'Std'], ['high', 'High']], l.grain,
         (x) => { l.grain = x as Look['grain']; renderEditor(); changed(); }, 'Noise reduction for photos with this look; Menu keeps the camera\'s menu setting'),
@@ -1465,7 +1458,6 @@ function renderOm3Editor(l: Look) {
         return [h('div', { class: 'crow', title: 'A red-orange glow around bright lights in darker scenes, as on cinema film (it fades out in bright scenes, as on the camera); works with or without Glow' }, h('span', { class: 'cname' }, pmIcon('halo'), 'Halation Effect'), steps(inp), out), note];
       })(),
       h('p', { class: 'help' }, 'Glow Effect: + Glow, − Clarity. Halation Effect needs firmware v0.28; saving a photo with it takes a little longer. Hover a row for what it does.')),
-    pmPage(4, 'Grain'),
     h('div', { class: 'group cam rows' },
       cseg('Film Grain Effect', [['0', 'Off'], ['1', 'Low'], ['2', 'Med'], ['3', 'High']], String(l.film_grain ?? 0), (x) => {
         if (x === '0') delete l.film_grain; else l.film_grain = Number(x);
