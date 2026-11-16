@@ -33,6 +33,9 @@ L='s1 ok ok right right right right shot:f01.png'; for i in $(seq -w 2 20); do L
 # Hue +4; RGB: Blue point 2 +5, point 4 -4.
 "$H/shoot.sh" rows "s1 ok ok down $(r main+1 3) $(r sub-1 4) shot:mix.png down info info sub-1 $(r main+1 5) sub-1 sub-1 $(r main-1 4) shot:rgb.png down down $(r main-1 5) shot:bal.png down down $(r main+1 7) $(r sub+1 7) shot:curve.png down down $(r main+1 2) shot:con.png down $(r main+1 2) shot:sharp.png down main+1 shot:noise.png down main+1 shot:vigoff.png down $(r main-1 5) shot:shade.png down $(r main-1 5) shot:glow.png down $(r main-1 5) shot:halo.png down $(r main+1 3) shot:grain.png" > /dev/null
 "$H/shoot.sh" vig "s1 ok ok $(r down 11) shot:vig.png" > /dev/null
+# the Picture Mode menu itself (v0.30's order, five rows a page): FILM 1 with the cursor on each of its 16 rows in turn
+L='s1 ok ok right right right right shot:m00.png'; for i in $(seq -w 1 15); do L="$L down shot:m$i.png"; done
+"$H/shoot.sh" menu "$L" > /dev/null
 "$H/shoot.sh" bwgrid "s1 ok ok $(r down 7) ok $(r right 7) shot:bw.png" > /dev/null
 "$H/shoot.sh" wbgrid "s1 ok ok $(r down 5) ok $(r right 7) shot:wb.png" > /dev/null
 # FILM 1 changed on the camera: the stars, then the shooting screen and the super control panel
@@ -47,6 +50,7 @@ M='s1 menu left left left left left ok ok'
 "$H/shoot.sh" delete "$M down down down down down ok right right ok down down down down down ok down down down down down down shot:delpick.png ok shot:del.png" > /dev/null
 rm -f "$D"/*.png
 for i in $(seq -w 1 20); do cp "$S/list/f$i.png" "$D/film-$i.png"; done
+for i in $(seq -w 0 15); do cp "$S/menu/m$i.png" "$D/menu-$i.png"; done
 cp "$S/rows/mix.png" "$D/row-mix.png"; cp "$S/rows/rgb.png" "$D/row-rgb.png"
 cp "$S/rows/bal.png" "$D/row-tone-balance.png"; cp "$S/rows/con.png" "$D/row-contrast.png"; cp "$S/rows/curve.png" "$D/row-curve.png"
 cp "$S/rows/sharp.png" "$D/row-sharpness.png"; cp "$S/rows/noise.png" "$D/row-noise.png"; cp "$S/vig/vig.png" "$D/row-vignette.png"
@@ -56,6 +60,9 @@ cp "$S/kept/star.png" "$D/kept-star.png"; cp "$S/kept/lv.png" "$D/liveview.png";
 cp "$S/buttons/up.png" "$D/btn-up.png"; cp "$S/buttons/uppick.png" "$D/btn-up-options.png"
 cp "$S/buttons/dial.png" "$D/btn-dial.png"; cp "$S/buttons/dialpick.png" "$D/btn-dial-options.png"
 cp "$S/delete/del.png" "$D/btn-delete.png"; cp "$S/delete/delpick.png" "$D/btn-delete-options.png"
+# the menu's wheel row (FILM 1, its Color page as set): drawn in like the others
+SAT1=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));f={x['name']:x for x in d['films']}[d['camera'][0]];print(','.join(map(str,f['sat'])))" "$OM3_REPO/webapp/src/data/om3films.json")
+python3 "$H/wheel.py" "$S/menu/m03.png" "$D/menu-03.png" sat 0 "$SAT1" -
 python3 "$H/wheel.py" "$S/wheels/w1.png" "$D/hsl-color.png" sat 6 0,0,0,0,0,0,-5,-5,0,0,0,0 -
 python3 "$H/wheel.py" "$S/wheels/w2.png" "$D/hsl-hue.png" hue 0 5,0,0,0,0,0,0,0,0,0,0,0 Hue
 python3 "$H/wheel.py" "$S/wheels/w3.png" "$D/hsl-luminance.png" light 6 0,0,0,0,0,0,-5,-5,-5,0,0,0 Luminance

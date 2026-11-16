@@ -199,6 +199,24 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 56px; color: var(--f
 footer .in { display: grid; gap: 8px; }
 footer a { color: var(--muted); }
 
+/* the Picture Mode menu walk-through (v0.30) */
+.menu-walk { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 36px; align-items: start; }
+.menu-cam { display: grid; gap: 14px; }
+.menu-cam .stepper { justify-content: center; }
+.menu-pos { font-size: 14px; color: var(--muted); min-width: 150px; text-align: center; }
+.menu-pages { display: grid; gap: 12px; }
+.menu-page { background: #0a0b0d; border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.menu-page h3 { font-size: 13px; font-weight: 600; color: var(--muted); padding: 2px 10px 6px; }
+.menu-page h3 b { color: var(--ink); }
+.menu-page button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 15px; font-weight: 500; }
+.menu-page button:hover { color: var(--ink); background: #15181d; }
+.menu-page button[aria-current="true"] { background: #5e6a10; color: #fff; box-shadow: inset 0 0 0 2px #c8dc1e; }
+.menu-page button .new { margin-left: 6px; }
+.menu-text h3 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.menu-text p { color: #c9ced8; }
+.menu-text .pic { color: var(--muted); font-size: 14px; margin-top: 8px; }
+@media (max-width: 980px) { .menu-walk { grid-template-columns: 1fr; } }
+
 /* responsive */
 @media (max-width: 980px) {
   .hero .in, .viewer, .hal { grid-template-columns: 1fr; }
@@ -284,7 +302,7 @@ footer a { color: var(--muted); }
       </div>
       <div>
         <div class="lcd"><div class="screen"><img alt="Camera screen: Picture Mode on FILM 1, the rows down the left with their new pictures" src="pages/showcase/img/screens/film-01.png" loading="lazy"></div></div>
-        <p class="cap"><b>A new Picture Mode.</b> The film and its colour first, then white balance and tone, then lens and effects, five rows a page, each with its own picture.</p>
+        <p class="cap"><b>A new Picture Mode.</b> The film and its colour first, then white balance and tone, then lens and effects, five rows a page, each with its own picture. <a class="more" href="#menu">Walk through it →</a></p>
       </div>
     </div>
     <div class="cards" style="margin-top:22px">
@@ -298,6 +316,33 @@ footer a { color: var(--muted); }
       </div>
     </div>
     <p style="margin-top:14px"><a class="more" href="#editor">See every row and what it does to a photo →</a></p>
+  </div>
+</section>
+
+<section id="menu">
+  <div class="in">
+    <div class="head">
+      <div class="eyebrow">New in v0.30 · the colour profile menu</div>
+      <h2>Picture Mode, in the order the camera works.</h2>
+      <p>Press OK on a film and its settings run down the left of the screen, five rows to a page. v0.30 puts them in the order the camera applies them to a photo, gives each row a small picture of what it does, and uses the camera’s own names. Step through it as on the camera: ▲ ▼, or pick a row.</p>
+    </div>
+    <div class="menu-walk">
+      <div class="menu-cam">
+        <div class="lcd"><div class="screen fade" id="menuLcd">
+          <img alt="Camera screen: Picture Mode on FILM 1, the Film row" src="pages/showcase/img/screens/menu-00.png"><img alt="" class="off" src="pages/showcase/img/screens/menu-00.png">
+        </div></div>
+        <div class="stepper">
+          <button class="round" id="menuUp" aria-label="Previous row">▲</button>
+          <span class="menu-pos" id="menuPos" aria-live="polite">Row 1 of 16 · page 1</span>
+          <button class="round" id="menuDown" aria-label="Next row">▼</button>
+        </div>
+        <p class="media-note">On the camera: FILM 1, Portra 400, as built (emulator screens; the colour wheel drawn in)</p>
+        <div class="menu-text" id="menuText"></div>
+      </div>
+      <div class="menu-side">
+        <div class="menu-pages" id="menuPages"></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -691,6 +736,53 @@ footer a { color: var(--muted); }
     if (e.key === 'ArrowLeft') { showFilm(fi - 1); e.preventDefault(); }
   });
   if (FILMS.length) showFilm(0);
+
+  // ---- the Picture Mode menu walk-through (v0.30's order, five rows a page; FILM 1 as built)
+  const MENU_PAGES = ['The film and its colour', 'White balance and tone', 'Lens and effects', 'Grain'];
+  const MENU = [
+    { name: 'Film', pic: 'The film’s number, FILM 1 here.', text: 'Which look this is: COLOR 1–4, then FILM 1–20. Turn the dial to change film; its name shows under the list.' },
+    { name: 'Color Mix', tag: 'v0.30', pic: 'A ring with a red, a green and a blue dot.', text: 'The first thing the camera does to a film’s colour: it mixes red, green and blue into each other. Each colour can be made stronger or weaker, or turned toward its neighbour. Greys stay grey.' },
+    { name: 'RGB curves', tag: 'v0.30', pic: 'The curve box with three curves.', text: 'Next, a tone curve for each of red, green and blue, five points from black to white: add a colour to the shadows, take it out of the highlights.' },
+    { name: 'Color wheel (HSL)', pic: 'A colour pie: the wheel’s 12 colours.', text: 'Then the 12 colours one by one: saturation, hue and lightness, plus a tint for the shadows and one for the highlights (split toning). INFO steps through its pages.' },
+    { name: 'Split Tone Balance', pic: 'A dark-to-light bar with a small triangle.', text: 'Where the shadow and highlight tints meet: minus lets the shadow colour reach further up, plus the highlight colour further down.' },
+    { name: 'WB Compensation', pic: 'The camera’s own WB± picture, with the film’s shift (A1 G1 for Portra 400).', text: 'Page 2 starts with the colour of the light: a shift toward amber or blue and green or magenta, on top of any white balance.' },
+    { name: 'Highlight & Shadow', pic: 'The camera’s own tone-curve picture.', text: 'The camera’s tone curve: brighter or darker shadows, midtones and highlights.' },
+    { name: 'Blacks / Whites', pic: 'A black and a white square (it used to say “B/W”, which read like black and white).', text: 'Lift or deepen the blacks, brighten or soften the whites, on one grid.' },
+    { name: 'Contrast', pic: 'The camera’s own contrast picture.', text: 'The camera’s contrast, kept with each film.' },
+    { name: 'Sharpness', pic: 'The camera’s own sharpness picture.', text: 'From −5 (off) to +2.' },
+    { name: 'Noise Filter', pic: 'Its setting in words.', text: 'Page 3, lens and effects: noise reduction per film, Off to High.' },
+    { name: 'Vignette Correction', pic: 'Its setting in words.', text: 'Keep the lens’s natural darker corners, or let the camera correct them.' },
+    { name: 'Shading Effect', pic: 'The camera’s own shading picture.', text: 'Darker or lighter corners, as an effect.' },
+    { name: 'Glow Effect', pic: 'A white dot with a soft glow round it.', text: 'A soft glow around the light, or Clarity (crisper local contrast) on the minus side.' },
+    { name: 'Halation Effect', pic: 'A white dot in a red-orange ring.', text: 'The red-orange glow around bright lights, as on cinema film.' },
+    { name: 'Film Grain Effect', pic: 'The camera’s own grain picture.', text: 'Page 4, on its own: colour film grain, Off to High.' },
+  ];
+  const menuPages = $('menuPages');
+  let curMenu = 0;
+  MENU_PAGES.forEach((title, p) => {
+    const box = document.createElement('div'); box.className = 'menu-page';
+    box.innerHTML = `<h3><b>Page ${p + 1}</b> · ${title}</h3>`;
+    MENU.forEach((m, k) => {
+      if (Math.floor(k / 5) !== p) return;
+      const b = document.createElement('button'); b.type = 'button'; b.id = 'menu-' + k;
+      b.innerHTML = `${m.name}${m.tag ? ` <span class="new">${m.tag}</span>` : ''}`;
+      b.addEventListener('click', () => showMenu(k));
+      box.appendChild(b);
+    });
+    menuPages.appendChild(box);
+  });
+  function showMenu(k) {
+    curMenu = k = (k + MENU.length) % MENU.length;
+    const m = MENU[k];
+    fadeTo($('menuLcd'), `pages/showcase/img/screens/menu-${pad(k)}.png`, `Camera screen: Picture Mode on FILM 1, the ${m.name} row`);
+    $('menuPos').textContent = `Row ${k + 1} of 16 · page ${Math.floor(k / 5) + 1}`;
+    $('menuText').innerHTML = `<h3>${m.name}${m.tag ? ` <span class="new">new in ${m.tag}</span>` : ''}</h3><p>${m.text}</p><p class="pic">Its picture: ${m.pic}</p>`;
+    menuPages.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', String(b.id === 'menu-' + k)));
+    preload([`pages/showcase/img/screens/menu-${pad((k + 1) % MENU.length)}.png`]);
+  }
+  $('menuUp').addEventListener('click', () => showMenu(curMenu - 1));
+  $('menuDown').addEventListener('click', () => showMenu(curMenu + 1));
+  showMenu(0);
 
   // ---- editor rows: the camera screen, a before / after photo, and the HSL wheel's pages
   const PV = '<b>LookLab preview</b> on a neutral look: only this setting changes';
