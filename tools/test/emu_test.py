@@ -104,8 +104,9 @@ VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera s
                     # the dial position (el_ok -> cm_gnow) in video too, so group and code show it; no work follows
 
 # Debug log (v0.30.3, #65's comment): the report is written at a half-press's release only, never at the half-press
-# itself (it held the shutter up). Three clicks = six shutter events, three writes; before: six.
-DEBUG_LOG_RELEASES_ONLY = (r'^Written at shutter button event 6 \(a half-press and its release count one each\); '
+# itself (it held the shutter up). Three clicks = six shutter events; the first half-press loads the films (not logged),
+# so five are logged: three releases, three writes (before: five).
+DEBUG_LOG_RELEASES_ONLY = (r'^Written at shutter button event 5 \(a half-press and its release count one each\); '
                            r'log writes this power-on: 3$')
 # Noise Filter's row '*' (v0.30 test 13, owner 2026-11-16): a COLOR profile without a film, its Noise Filter on Camera
 # (slot +51 = 0), shows the camera's own Noise Filter, and its row has no '*', whatever that setting is. Before the fix
