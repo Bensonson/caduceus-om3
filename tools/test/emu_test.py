@@ -108,6 +108,12 @@ VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera s
 # camera's Off: the row is starred, as the profile is.
 NF_BYTE, NR_ROW_COLOR2, NR_SLOT_COLOR2 = 0x6295942d, 0x7e11, 32 + 64 + 51
 NR_ROW_STAR = lambda star: f'expect:isdef:{{ed_isdef}}:{NR_ROW_COLOR2:x}={0 if star else 1}'
+# The Blacks / Whites row (the eighth in Picture Mode) shows the camera's WB grid scene (element 24813) in the bottom
+# bar's holder, and Contrast, the next row, gets the bar's own scene (element 24771) back. gr_end does that at the end
+# of the screen update: a flash before it is camera-only (research/TESTING.md, "Past regressions").
+HOLDER_SCENE = lambda element: f'expect:mem:{{gr_cont}}+0*+308*+4={element & 255:02x}{element >> 8:02x}'
+GRID_ROW_AND_BACK = ('s1 wait wait ok wait ok wait ' + 'down wait ' * 7 + HOLDER_SCENE(24813) +
+                     ' down wait ' + HOLDER_SCENE(24771) + ' up wait ' + HOLDER_SCENE(24813) + ' poweroff')
 NOISE_FILTER_OFF_ROW = (f's1 wait wait {NR_ROW_STAR(False)} poke:{NF_BYTE:x}=fe wait {NR_ROW_STAR(False)} '
                         f'pokep:{NR_SLOT_COLOR2}=01 wait {NR_ROW_STAR(True)} poweroff')
 
@@ -223,6 +229,9 @@ TESTS = {
              expect=[FILM_2_LINE, *ck_line('no', 'none', 0, 15, 0)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_BAD'},
              expect=[*ck_line('no', 'not valid', 0, 15, 0)]),
+    ],
+    'grid-row-gives-the-bottom-bar-back': [
+        Boot(GRID_ROW_AND_BACK),
     ],
     'noise-filter-row-follows-the-camera-setting': [
         Boot(NOISE_FILTER_OFF_ROW),

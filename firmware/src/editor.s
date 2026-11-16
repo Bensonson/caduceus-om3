@@ -81,6 +81,9 @@
 .section .hook_pu,"ax"
  jmp cv_pu                        /* rgb-curves cv_pu, then pu_hook. stock 0x611d04ec (Picture Mode update): mov (0x6037a360),d0 */
  .byte 0xcb
+.section .hook_pe,"ax"
+ jmp gr_end                       /* stock 0x611d059c (Picture Mode update's end): mov (12,sp),d0; cmp 0,d0; bne 0x611d05b2 */
+ .byte 0xcb
 .section .hook_ic,"ax"
  jmp cv_ic                        /* rgb-curves cv_ic, then v0.27: ar_ic (▲ / ◀ pictures), then ic_get. v0.23 stock 0x610f5611 (picture id -> its slot in the picture table): mov d0,d1;
                                    * exthu d1; cmp 0,d1; bne 0x610f561b */
@@ -4682,7 +4685,7 @@ sc_cap:
 
 /* gr_upd: `call gr_upd,[d2,d3,a2,a3],20`, a0 -> the Picture Mode screen's current item (u16). On our row on COLOR 1-4:
  * gr_flag = look + 1, publish the grid block (gr_pub) and load the camera's WB grid scene (485) into its top-layer
- * holder; else gr_flag = 0 and the holder is emptied. */
+ * holder; else gr_flag = 0 (gr_end gives the holder its bottom bar back). */
 gr_upd:
  movhu (a0),d0
  clr d1
@@ -4726,15 +4729,32 @@ gr_upd:
 8:
  clr d0
  movbu d0,(gr_flag)
+9:
+ ret [d2,d3,a2,a3],20
+
+/* gr_end <- jmp from 0x611d059c, the end of the Picture Mode update, after it publishes the new row's values. Off our
+ * row, the holder gets its bottom bar back only here: loaded any earlier, the bar shows the last row's values until
+ * the publish, and the camera can display that frame. */
+gr_end:
+ add -4,sp                        /* our calls' slot (the screen update's own (0,sp) stays) */
+ movbu (gr_flag),d0
+ cmp 0,d0
+ bne 1f
  mov (gr_cont),a0
  call gr_is,[d2],8
  cmp 1,d0
- bne 9f
+ bne 1f
  mov (gr_cont),a0
  mov GLY,d0
- call sc_set,[d2,d3,a2,a3],28     /* back to its own layer (the bottom bar) */
-9:
- ret [d2,d3,a2,a3],20
+ call sc_set,[d2,d3,a2,a3],28
+1:
+ add 4,sp
+ mov (12,sp),d0
+ cmp 0,d0
+ beq 2f
+ jmp pe_ret
+2:
+ jmp pe_back
 
 /* gr_is: `call gr_is,[d2],8`, a0 = the holder (or 0) -> d0 = 1 when its scene is the WB grid (element 24813) */
 gr_is:

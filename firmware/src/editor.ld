@@ -38,6 +38,7 @@ SECTIONS {
   .hook_pme     0x6125becc : { *(.hook_pme) }
   .hook_sc      0x610cdf05 : { *(.hook_sc) }
   .hook_pu      0x611d04ec : { *(.hook_pu) }
+  .hook_pe      0x611d059c : { *(.hook_pe) }   /* the Picture Mode update's end: the bottom bar back off the grid rows */
   .hook_inf     0x611c29c2 : { *(.hook_inf) }   /* rgb-curves: INFO goes to the row's panel for 5397 / 5398 / RG_IT */
   .hook_rsi     0x611c296f : { *(.hook_rsi) }   /* rgb-curves: the held-OK reset the same */
   .hook_mx      0x6051485a : { *(.hook_mx) }    /* colour mix: the matrix function's row-scaling call */
@@ -90,6 +91,8 @@ sc_back       = 0x610cdf0b;
 sc_set        = 0x610cdf05;
 sc_ref        = 0x61192d6c;
 pu_back       = 0x611d04f2;
+pe_back       = 0x611d05a2;
+pe_ret        = 0x611d05b2;
 gx_back       = 0x610f601c;
 pme_back      = 0x6125bed1;
 ev_arg        = 0x6129b050;         /* ft1: the still set-up (Grainy Film's texture is made here) */

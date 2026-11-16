@@ -5427,3 +5427,23 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   "nothing unusual", 176 events, 18 photos. Code pairs seen (log code = EXIF): drive 0 = "Single Shot; Anti-shock",
   30 = "Single Shot"; AF 0 = S-AF, 1 = C-AF; face / eye 5 with detection on (owner), 0 off. The reporter's drive 11,
   AF 4, face / eye 6 and image quality 14 (owner 15) are settings not tried yet.
+## Grid rows' flash on leaving (2026-11-16; feature/menu-flicker; camera-tested, issue #66)
+- Camera (a 30 fps phone video of the rear screen, 2026-11-16): leaving Blacks / Whites for Contrast, or WB
+  compensation for Highlight & Shadow, shows one frame with the old row's title and a green box at the bottom centre
+  holding the old row's icon. That is the one-option choice bar, without the grid. The camera's own row changes show
+  only mixes of the old and new screens.
+- Cause (trace, emulator): gr_upd (hook 0x611d04ec) runs after the row's case draws, but before the update publishes
+  the new row's values (0x610cd5c4, ids 275 .. 17, 0x611d050f..0x611d0595). Leaving a grid row, it loaded the bar
+  (456) into the holder there, so the reloaded bar read the last row's published values for about 200k instructions.
+  The camera can display that frame. om-emu draws the screen only after the update, so it never shows it: frames 5 ms
+  after the key and an MMIO trace show OSD-engine writes only once the update has returned.
+- Fix: gr_end (new hook 0x611d059c, the update's end: `mov (12,sp),d0; cmp 0,d0; bne 0x611d05b2`) gives the holder its
+  bar back after the publishes. gr_upd only clears gr_flag off our rows. Emulator: the seven screens WB, H&S, B/W,
+  Contrast and back are byte-identical to the build without the fix. The trace shows sc_set 456 after the publishes.
+  Test `grid-row-gives-the-bottom-bar-back` checks the holder's scene (24813 on the row, 24771 after).
+- A grid in a layer of its own, which would need no bar reload, is not open: test 13 found the grid draws only in the
+  bottom bar's holder (see "Test 13" above).
+- Emulator tools (session_ed1.mjs): `frames:KEY:N:MS:PREFIX`, `TRACE=PC,...` (trace.jsonl), `MMIO=1` (with TRACE, in
+  the same file, in order), `expect:mem` with pointer chains.
+- **Camera (2026-11-16, build ec583c0, E1479999.BIN 973006ba…):** "no more flicker in the new firmware". The flash is
+  gone on both moves.
