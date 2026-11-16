@@ -5619,3 +5619,5 @@ Owner: "lets tackle that faster halation and the debug log". `try/v0.30.3` = mai
   (PB162917..929, Kodachrome 64, in ~1.5 s) whose release wrote nothing (the burst rule), then the next release did.
   Halation photos: PB162916 (5), PB162930 (3). The look of the fade: the owner's call (pending).
   Test 1 on the camera: event 16, 8 writes (releases only).
+- **Camera-tested (owner, 2026-11-17): test 2 "Looks good"** (the longer halo fade). With test 1's "much quicker" and the
+  debug log seen working, test 2 (`5a7f6896…`, feature/faster-halation 2a2104d) is the v0.30.3 candidate.
