@@ -4916,7 +4916,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   C1, and a Recall of C1 in video (films put back 0, camera settings written 0). Photo after video shows P's film at
   P and C1's film at C1. A video boot at P, a dial turn to C1, then photo and a half-press shows C1's film (FILM 3).
 
-## v0.30 test 8: issue #54 fixed on the merged build (2026-11-15; emulator only)
+## v0.30 test 8: issue #54 fixed on the merged build (2026-11-15; camera-tested)
 - **Test 8a camera-tested (owner, 2026-11-15):** 6fd2988 (colour menu test 7 + PR #55 + PR #56's early load + PR #57)
   with only a build-name commit (`try/v0.30-8a`, "v0.30-dev (test 8a: early load)", E1479999.BIN 8ace7752…4245).
   Owner: "This looks good and works well." CADLOG clean (10 shutter events, saves 1, card files match; copy kept
@@ -4953,3 +4953,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   test 7 pixel for pixel, except FILM 15's Color wheel "Vivid" and H&S values on an old om-emu settings file
   (nv0.json): test 8a (no #54 fix) shows the same, so it comes with #56's early load trusting the camera's own values
   of that old file; the blank-camera tests pass.
+- **Test 8 camera-tested (owner, 2026-11-15; E1479999.BIN 5768c9e1…7d7d, built from b9eba89):** "that seemed to work",
+  the #54 round trips (M <-> C1 while on) included. The CADLOG kept (copy kept privately) covers only a later power-on
+  (2 shutter events, no dial turns, the #54 counter 0, saves 1, card files match), so the round trips are the owner's
+  word, not the log. Test 8 is the v0.30 candidate.

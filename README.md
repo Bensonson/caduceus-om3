@@ -1,11 +1,10 @@
-> **Branch `feature/rgb-curves` (work in progress, not released):** per-film R / G / B tone curves and a per-film
-> colour mix, both edited on the camera (the RGB and Mix rows in Picture Mode). **Colour menu test 7 is camera-tested
-> and is the line** (2026-11-15, E1479999.BIN `cfd49927…`; owner: "that looks so good. like properly good."): the RGB
-> curves as test 4 (5 even points) and the Mix row (hue and strength of red, green and blue, the circle page), both in
-> photos only (video stays stock), plus the colour menu (new row order in pages of five, cell pictures, titles, and
-> page headers: Mix "Sat / colour name / Hue", RGB "Level / colour name / Pt"; the header stays in its outer look).
-> The live view shows changes at the next half-press, as with our other rows. Details: `research/NOTES.md`, "Per-film
-> R / G / B tone curves: build", "Colour mix per film" and "Colour menu".
+> **Branch `try/v0.30` (the v0.30 candidate, not released):** **test 8 is camera-tested** (2026-11-15, E1479999.BIN
+> `5768c9e1…`; owner: "that seemed to work"). It holds per-film R / G / B tone curves and a per-film colour mix, both
+> edited on the camera (the RGB and Mix rows in Picture Mode), and the colour menu (new row order, cell pictures,
+> titles, page headers), as colour menu test 7. It adds main's #53 video-freeze fix (PR #55) and the films loading
+> from camera memory at start-up (PR #56). It also has the emulator and static test suite (PR #57) and the fix for
+> issue #54 (a live dial turn between M and a custom mode no longer changes COLOR profiles never edited). Details:
+> `research/NOTES.md`, "Colour menu" and "v0.30 test 8".
 
 <h1 align="center">Caduceus for OM-3</h1>
 
