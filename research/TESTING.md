@@ -281,6 +281,7 @@ emulator test as proposed here would have failed. "Maybe" means it depends on a 
 | Where | Symptom | Catchable | Test that would catch it |
 |---|---|---|---|
 | v0.29.5, #53 | Video live view freezes at the first half-press after a photo session | Yes, the code path | `video-boot-after-photo-boot` |
+| v0.29.5, #54 | A live dial turn between M and a custom mode changed COLOR profiles never edited, `*` on them | No | None in the suite: om-emu closes a dial turn once, with the mode's code; the camera closes first at code 0. `research/emulator/issue54_sim.py` shows it with a simulation build |
 | e9b954f | Start-up path overwrote its caller's saved registers | Yes | Boot smoke, register watch |
 | 331691c | Custom mode showed the previous mode's films until a half-press | Yes | Custom modes |
 | 6438628, ea8b97c | A film picked with no half-press was lost at power-off | Yes | Film picked before the first half-press |
@@ -298,9 +299,9 @@ emulator test as proposed here would have failed. "Maybe" means it depends on a 
 | lk6, lk7 | Reboot at every half-press, 1 s hang on COLOR switch | No | None, cache |
 | #11, #12 | Video with a new film crashed, grain with glow crashed | No | None, video and stills |
 
-Of these 17, 7 are catchable, 4 maybe, and 6 not. The owner's camera or a user found every one of them first.
+Of these 18, 7 are catchable, 4 maybe, and 7 not. The owner's camera or a user found every one of them first.
 
-Two classes recur. Start-up and first half-press work accounts for six of the 17. The
+Two classes recur. Start-up and first half-press work accounts for six of the 18. The
 calling convention accounts for three. Settings kept per mode and across boots is the most testable class.
 
 ## Open questions

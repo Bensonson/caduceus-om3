@@ -215,6 +215,9 @@ for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
     }
     dd.m.setRegs(saved); console.log('DFLT ' + JSON.stringify(out));
   }
+  else if (t.startsWith('pokeb:')) {      // pokeb:ADDR=V writes one byte at an absolute address (hex), e.g. a flag of a simulation build
+    const [a, v] = t.slice(6).split('='); lab.sim.write(parseInt(a, 16) >>> 0, Uint8Array.from([Number(v) & 255]));
+  }
   else if (t.startsWith('pokep:')) {      // pokep:OFF=HEX,... writes bytes at P + OFF (decimal), e.g. pokep:685=01 sets the editor's dirty byte
     const P = POOL + u16(STATE) - 1; for (const kv of t.slice(6).split(',')) { const [o, hex] = kv.split('='); lab.sim.write((P + parseInt(o, 10)) >>> 0, Uint8Array.from(Buffer.from(hex, 'hex'))); }
   }

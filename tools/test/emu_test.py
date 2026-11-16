@@ -57,11 +57,11 @@ P_FILM_LINE = r'^Picture mode setting: 55 = COLOR 2, FILM 6$'
 C1_RECORD_LINE = r'^Custom modes: a valid record at the first look: yes'
 GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
 # The photo boot before it leaves the video boot with nothing put back and the photo switch read as video.
-# rc_go does no film work in video (#53): the custom-mode code never sees the mode (code 0, no record write). A build
-# without the fix reads mode code 194 and writes the record.
+# rc_go does no film work in video (#53): no film switched, no record write. A build without the fix writes the record.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
                     r'photo check .*: (193|10)$',    # 192 + the movie switch, or the video mode's code 10
-                    r'^Custom modes: group now .*: 0, mode code 0; .*record writes: 0,']
+                    r'^Custom modes: group now .*; .*films switched: 0, record writes: 0,']   # PR #56's early load reads
+                    # the dial position (el_ok -> cm_gnow) in video too, so group and code show it; no work follows
 
 
 @dataclass

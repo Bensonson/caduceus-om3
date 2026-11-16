@@ -4915,3 +4915,35 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 - **Camera (crombach, VF2 E1479999.BIN a121ee78…):** no freeze in 3 video boots with an early half-press at P, 3 at
   C1, and a Recall of C1 in video (films put back 0, camera settings written 0). Photo after video shows P's film at
   P and C1's film at C1. A video boot at P, a dial turn to C1, then photo and a half-press shows C1's film (FILM 3).
+
+## v0.30 test 8: issue #54 fixed on the merged build (2026-11-15; emulator only)
+- **Build:** `try/v0.30` = colour menu test 7 (da8abbc) + main (PR #55, #53's video fix) + PR #56 (early load) + PR #57
+  (tests) + the #54 fix (770f40d) + the tests adapted (d9e797b). Build name "v0.30-dev (test 8: #54 fix, early load)".
+- **#54, cause (analysis from crombach's CADLOG + emulator simulation):** the camera writes 1440 only at mode-dial turns
+  (bp1), and a live turn closes twice: first with the settings object's code (+24) 0 at the new dial position, then
+  with the mode's code (C7 then 53, C9 then 4; at M -> C1 the first close can be at B, C8, which changes no group).
+  sx_set's 1440 ran rc_go at both. At the first, cm_gnow took the group from the dial position and cm_load switched
+  the films and wrote the picture mode (901) while the camera still had the old mode's settings in: M's picture mode
+  became C1's (log: "54 = COLOR 1" in M, which was on COLOR 2) and C1's camera values no longer matched its own.
+  ss_photo shows the first close's code was 0 (codes 6..52 and 58.. read "not photo" and stop rc_go before cm_go).
+- **Fix:** sx_set's 1440 calls `rc_turn`, which leaves a close at code 0 alone (counted: CADLOG "dial-turn closes at
+  code 0 left alone (#54): N") and runs rc_go at the close with the mode's code. The first look after a power-on
+  (code 0 too) is not a 1440 close, so gx_map's first look keeps the dial-position fallback (k5). ext12 +128 B
+  (261,568 / 262,144).
+- **Emulator:** om-emu closes a turn once, with the code, so the suite cannot show #54. `research/emulator/issue54_sim.py`
+  builds a simulation copy whose 897 write (the start of a dial change) runs the dial-turn code at code 0 first:
+  6fd2988 "BUG" (M ends on 54 = COLOR 1, FILM 5, C1's film; switch logged at C7; 22 camera values differ from C1's
+  own), 770f40d "ok" (M on 55 = COLOR 2, FILM 6; none differ; 2 closes left alone). Without the simulation the fixed
+  build behaves as before (M -> C1 -> M: switched 2 + 2, M back on its film).
+- **Suite (PR #57) on test 8:** 13 / 13 pass. Adapted for this build (d9e797b): hook sections read from the included
+  `.inc` files; hooks.json takes the RGB curves / colour mix hooks (hook_inf: INFO in Picture Mode; hook_rsi: held-OK
+  reset; hook_mx: the colour matrix, gated by cv_ok, so it does nothing before our data loads) and patch sites
+  (curve-layer palette 29 / 30, the RGB and Mix rows' switch-table entries, cm_rst's word); the video test sets the
+  movie switch (om-emu 0819080 reads an unset switch as photo; main + #55 failed the test that way too) and checks
+  "films switched: 0, record writes: 0" (with #56, el_ok reads the dial position in video, so group / code show it);
+  `--without` v0.29.5: caught. KNOWN_FAILURES emptied (the no-half-press pick passes with #56).
+- **Early load + RGB curves / mix (emulator):** Mix Sat +2 / Hue -1 and RGB Level +1 set and half-pressed in boot 1;
+  boot 2 shows them (with their '*') before any half-press and after it. The 16 rows and the RGB / Mix pages match
+  test 7 pixel for pixel, except FILM 15's Color wheel "Vivid" and H&S values on an old om-emu settings file
+  (nv0.json): test 8a (no #54 fix) shows the same, so it comes with #56's early load trusting the camera's own values
+  of that old file; the blank-camera tests pass.
