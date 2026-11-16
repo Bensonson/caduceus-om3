@@ -7126,11 +7126,23 @@ fl_scp:
  mov d0,(32,sp)
  bra fl_pcp
 fl_lvp:
+ mov d1,d0
  movm [d2,d3,a2,a3],(sp)
  add -36,sp
  mov d0,(12,sp)
  mov mdr,d0
  mov d0,(8,sp)
+ call lv_chk,[],4                 /* #54: no picture while the dial's mode is not the one whose films are in */
+ cmp 0,d0
+ beq 78f
+ mov (8,sp),d0
+ mov d0,mdr
+ add 36,sp
+ movm (sp),[d2,d3,a2,a3]
+ mov lv_slot,a0
+ retf [],0
+78:
+ mov (12,sp),d1
  mov d1,d2
  add -15706,d2
  and 3,d2                         /* sd4: the '*' pictures too (owner: a changed COLOR 1 hid "FILM N" on the screen) */
@@ -12724,7 +12736,22 @@ sx_set:                           /* from sl_set (entered as the manager: d0 id,
  movbu (cm_ram + CM_LAST),d2      /* k3 / k6: the group's choice now (the picture mode the camera sets is not the */
  cmp 0xff,d2                      /* mode's own after a dial change: noted here, as it is set, not afterwards) */
  beq 02f
+ mov d1,d3
+ add -8,sp                        /* (0) call slot, (4) a0 */
+ mov a0,(4,sp)
+ call cm_gnow,[],0
+ mov (4,sp),a0
+ add 8,sp
+ mov d3,d1
+ cmp d2,d0
+ bne 04f                          /* a live dial turn not yet looked at (rc_go waits for the code, #54): the camera
+                                   * sets the new mode's picture mode, which is not the group's choice */
  movbu d1,(cm_gpm)
+ bra 03f
+04:
+ call lv_due,[d2,d3],12           /* #54: and the label shows no picture until the switch (d1, a0, a1 kept) */
+03:
+ mov 901,d0
 02:
  add -16,sp                       /* dr5: the dial position on COLOR keeps this choice (dm_rec); */
  mov a0,(4,sp)                    /* dr6: all on the stack (the camera's dial handler and the power-on */
@@ -16510,6 +16537,19 @@ rc_go:                            /* `call rc_go,[d2,d3,a2,a3],24` from sx_set's
  cmp 0,d0
  beq 9f                           /* video / S&Q: no film work. Films are photo only, and the camera's settings written
                                    * while video live view starts freeze its image (#53); the next photo look does it */
+ movbu (cm_init),d0
+ cmp 0,d0
+ beq 03f                          /* the first look: the dial stands for the code still 0 after a power-on */
+ call cm_gnow,[],0
+ movbu (cm_code),d0
+ cmp 0xc0,d0
+ bcs 03f
+ mov 1,d0                         /* a live dial turn: the dial has moved and the camera's code has not. The camera
+                                   * still holds the old mode's settings, so wait for the real code (gx_map, #54) */
+ movbu d0,(rc_pend)
+ movbu d0,(lv_hold)               /* #54: the label shows no picture until then */
+ bra 91f
+03:
  PVAL 9f
  mov (LPTR,a2),d0
  cmp 0,d0
@@ -16552,6 +16592,8 @@ rc_go:                            /* `call rc_go,[d2,d3,a2,a3],24` from sx_set's
  movbu d0,(rc_ab)
  call ss_wr,[d2,d3,a2,a3],20      /* p1 */
 9:
+ call lv_end,[],4                 /* #54: every way out but the wait: the label back, redrawn */
+91:
  clr d0
  movbu d0,(rc_busy)
  ret [d2,d3,a2,a3],24
@@ -16637,6 +16679,114 @@ rc_w:
  .long 0
 rc_pend:
  .byte 0
+
+/* ---- The shooting screen's label during a live dial turn (#54, owner 2026-11-15: no picture while the switch waits).
+ * The camera sets the new mode's picture mode at the turn and draws the label from the films still loaded, so it
+ * showed the old looks' "COLOR1*" until the switch. lv_hold is set while rc_go waits for the mode's code (its wait,
+ * and the 901 hook when the camera writes first), and fl_lvp then answers lv_slot, a picture with no ink. Every other
+ * way out of rc_go clears it (lv_end). The label is drawn only when the shooting screen's record (data item 38, 464 B)
+ * is written: the camera writes it (0x6122fb93) only when its contents differ (0x61230448), so neither a same-value
+ * 901 write nor none at all redraws it. lv_end writes the record back as it is, as the camera does, which marks it
+ * changed, and the screen then asks the label again. */
+ .set LV_ITEM, 38                 /* the shooting screen's record in the camera's data store (0x6036f6e4) */
+ .set LV_RLEN, 464
+lv_due:                           /* `call lv_due,[d2,d3],12` from sx_set's 901: lv_hold <- 1 when a photo mode's switch
+                                   * waits (rc_pend) or the mode's code is not yet a mode (cm_code 0xC0..). Keeps d1, a0,
+                                   * a1. Only with the films in: without them no rc_go runs to clear the hold, and the
+                                   * camera's own label would stay blank. */
+ mov d1,d2
+ mov a0,d3
+ call dm_ok,[],0                  /* films loaded? (d1; d0, a0, a1 kept) */
+ cmp 0,d1
+ beq 9f
+ movbu (rc_pend),d0
+ cmp 0,d0
+ bne 1f
+ movbu (cm_code),d0
+ cmp 0xc0,d0
+ bcs 9f
+1:
+ call ss_photo,[],0
+ cmp 0,d0
+ beq 9f
+ mov 1,d0
+ movbu d0,(lv_hold)
+9:
+ mov d2,d1
+ mov d3,a0
+ ret [d2,d3],12
+
+lv_end:                           /* `call lv_end,[],4` from rc_go: lv_hold <- 0; when it was set, the shooting screen's
+                                   * record written back (the label redrawn). Uses d0, d1, a0, a1. */
+ movbu (lv_hold),d0
+ cmp 0,d0
+ beq 9f
+ clr d0
+ movbu d0,(lv_hold)
+ mov lv_rec,a0
+ mov LV_ITEM,d0
+ mov LV_RLEN,d1
+ call ds_get,[],4
+ cmp 0,d0
+ beq 9f
+ mov lv_rec,a0
+ mov LV_ITEM,d0
+ mov LV_RLEN,d1
+ mov 0,a1
+ call ds_put,[d2,a2],16
+9:
+ ret [],4
+
+lv_chk:                           /* `call lv_chk,[],4` from fl_lvp -> d0 1 for no picture: lv_hold set, or a photo
+                                   * look after the first whose dial mode (cm_gnow) is not the group the films are in
+                                   * (CM_LAST). The camera can change the picture mode at a turn with no 901 write and
+                                   * read as video until the mode's code comes (DS3d), so rc_go cannot hold it. Sets
+                                   * lv_hold, so the switch's lv_end redraws. Uses d0, d1, a0, a1. */
+ movbu (lv_hold),d0
+ cmp 0,d0
+ bne 8f
+ movbu (cm_init),d0
+ cmp 0,d0
+ beq 9f
+ movbu (UI_PSW),d0
+ cmp 2,d0
+ bne 7f
+ call dm_ok,[],0
+ cmp 0,d1
+ beq 7f
+ call cm_gnow,[],0
+ movbu (cm_ram + CM_LAST),d1
+ cmp d1,d0
+ beq 7f
+ mov 1,d0
+ movbu d0,(lv_hold)
+8:
+ mov 1,d0
+ ret [],4
+7:
+ clr d0
+9:
+ ret [],4
+
+lv_hold:
+ .byte 0
+ .balign 4
+lv_slot:                          /* a slot word, as ic_get answers */
+ .long lv_desc
+lv_desc:                          /* as fl_lvp's: format 14, 96 x 44, the picture by its uncached address */
+ .short 14, 96, 44, 8, 0, 0
+ .long lv_pend - lv_pic, lv_pic + 0x40000000, 0
+ .balign 8
+lv_pic:                           /* type-11 stream (mkicons.encode11): 96 x 44 of color 0, as "FILM N" around its ink */
+ .byte 43, 0xf0, 5, 11
+ .rept 52
+ .long 0x0f00f00f, 0x000f00f0     /* 5 runs of 16 */
+ .endr
+ .long 0x0f00f00f, 0x000000f0     /* the last 4 */
+lv_pend:
+ .balign 4
+lv_rec:
+ .space LV_RLEN
 
 /* ---- Custom modes keep their own films (v0.30-dev k2, #41, owner 2026-11-14: "film saved with Assign"). Assign
  * (Shooting menu 1 > Custom Mode > Cn > Assign > Set) calls the facade's entry 18 (vtable word 0x60e574bc, stock
@@ -17326,12 +17476,25 @@ cm_force:
  * (UI_IN's index at 0xa32d9d0c, om-emu E147: 0 S, 1 A, 2 P, 3..7 C5..C1, 8 B, 9 M), since on the camera the code
  * read 0 at the first look after a power-on (k4's CADLOG: "code 0", so P's films went onto a custom mode). Notes the
  * code in cm_code, or 0xc0 | the position when the position decided. Uses d0, d1, a0. */
+ .set MC_B, 62                    /* #54: B's code in om-emu. On the camera B's code reads 0 (DS4 CADLOG, dial 8) */
+ .set DIAL_B, 8
 cm_gnow:
  mov (rc_in),a0
  cmp 0,a0
  beq 2f
  movbu (24,a0),d0
  movbu d0,(cm_code)
+ cmp MC_B,d0                      /* #54: B is a mode with no code of 1..5, so it counts as P / A / S / M / B */
+ beq 4f
+ cmp 0,d0
+ bne 5f
+ movbu (0xa32d9d0c),d1
+ cmp DIAL_B,d1
+ bne 5f
+4:
+ mov 5,d0
+ ret [],0
+5:
  cmp 53,d0
  bcs 1f
  cmp 58,d0
@@ -17587,6 +17750,8 @@ ss_photo:
  beq 3f
  cmp 6,d0
  bcs 1f
+ cmp MC_B,d0                      /* #54: B */
+ beq 1f
  cmp 53,d0
  bcs 8f
  cmp 58,d0

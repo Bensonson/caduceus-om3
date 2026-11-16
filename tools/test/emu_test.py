@@ -10,7 +10,7 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, json, os, pathlib, re, shutil, subprocess, sys, tempfile
+import argparse, concurrent.futures, json, os, pathlib, re, shutil, struct, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -32,13 +32,16 @@ LOG_PATH = 'OM3MOD/CADLOG.TXT'
 # A branch that changes these needs a suite pass on its HEAD before a pull request (tools/test/pr_gate.py).
 TESTED_PATHS = ('firmware/', 'card/', 'tools/emulator/', 'tools/test/')
 PASS_FILE = 'emu-test-pass.json'
-# Two sessions peak at about 1.3 GB each. More side by side has had runs killed (research/TESTING.md).
-DEFAULT_JOBS = 2
+# Each session peaks at about 1.3 GB. 4 side by side ran clean on a 32 GB Mac. Runs killed with exit 137 had
+# screenshots in them (research/TESTING.md).
+DEFAULT_JOBS = 4
 # Switch positions the driver sets before each boot (session_ed1.mjs PSET0, MODE0).
 PHOTO_SWITCH_PHOTO = 2
 MODE_DIAL_P = 2
 MODE_DIAL_C1 = 7
 MODE_DIAL_M = 9
+MODE_DIAL_B = 8
+UI_MODE_DIAL = 0xa32d9d0c    # the mode dial's position (cm_gnow)
 # The movie position, set explicitly: om-emu 0819080 (2026-11-14) reads an unset switch as photo, so a test that left it
 # unset ran in photo (v0.30 test 8, emulator).
 PHOTO_SWITCH_VIDEO = 1
@@ -58,6 +61,32 @@ C1_FILM_LINE = r'^Picture mode: COLOR 1, FILM 1\b.*\(setting 111 = 54\)'
 P_FILM_LINE = r'^Picture mode: COLOR 2, FILM 6\b.*\(setting 111 = 55\)'
 C1_RECORD_LINE = r'^CUSTOM MODES \(records valid at the first look: custom modes yes'
 GROUP_C1_LINE = r'^Now: group C1 \(last look: mode code 53\)'
+# A live dial turn from M to C1, as the camera makes it (#54): first the dial moves while the camera's mode code is not
+# yet a mode (the pokes: code 0, dial on C1, rc_go due at the next GUI event), then the real turn. Tokens name build
+# symbols in braces (run_test fills in their addresses). A switch run before the real code writes a record with the
+# dial's code 0xC0 | position on a later look (second byte below 0x80).
+def live_turn(dial, check_hold=False):
+    """One live dial turn to position dial, then a half-press. check_hold: lv_hold set during the wait, clear after."""
+    hold = lambda v: f' expect:mem:{{lv_hold}}={v}' if check_hold else ''
+    return (f'poke:{{rc_in}}+18*=00 poke:{UI_MODE_DIAL:x}={dial:02x} poke:{{rc_pend}}=01 wait wait wait{hold("01")} '
+            f'mode:{dial} wait wait wait{hold("00")} s1 wait wait')
+
+
+LIVE_TURN_START = 'wait wait wait s1 wait wait'
+# B has no mode code of its own (0 on the camera, 62 in om-emu), so a switch that waits for one never comes (#54).
+LIVE_TURN_C1_TO_B = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_B)} poweroff'
+LIVE_TURN_M_TO_C1 = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1)} poweroff'
+# The same turn and back to M. The camera sets C1's picture mode during the turn, before rc_go looks at C1, and M
+# must not keep it as its own choice.
+LIVE_TURN_M_TO_C1_AND_BACK = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1)} {live_turn(MODE_DIAL_M)} poweroff'
+# The same turn and back, with the label's hold checked at each step: set while the switch waits for the mode code,
+# clear once the mode is real (#54). om-emu's camera draws no label at a turn, so the byte stands for the picture.
+LIVE_TURN_HOLDS_THE_LABEL = (f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1, True)} {live_turn(MODE_DIAL_M, True)} '
+                             'poweroff')
+# Debug log dl9 (v0.30): a switch at the dial's code prints "(dial position N)", a first look adds its note.
+SWITCH_AT_DIAL_CODE = r'after event \d+: [^(]*\(dial position \d+\) -> (?!.*, first look after the films loaded)'
+# Without the fix the switch writes C1's films into M's set, and C1 then differs from its own values ("*").
+RESET_MODE_UNCHANGED_LINE = r"^Camera COLOR values that differed from a Reset custom mode's own: 0\b"
 # The photo boot before it leaves the video boot with nothing put back and the photo switch read as video.
 # rc_go does no film work in video (#53): no film switched, no record write. A build without the fix writes the record.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
@@ -136,6 +165,25 @@ TESTS = {
         Boot(BOOT1_ASSIGN_C1),
         Boot(C1_TURN_BEFORE_HALF_PRESS, expect=[GROUP_C1_LINE, C1_FILM_LINE], mode_dial=MODE_DIAL_M),
     ],
+    'live-dial-turn-waits-for-the-mode-code': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_M_TO_C1, expect=[GROUP_C1_LINE, C1_FILM_LINE, RESET_MODE_UNCHANGED_LINE],
+             reject=[SWITCH_AT_DIAL_CODE],
+             mode_dial=MODE_DIAL_M),
+    ],
+    'live-dial-turn-back-keeps-the-mode-choice': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_M_TO_C1_AND_BACK, expect=[P_FILM_LINE, RESET_MODE_UNCHANGED_LINE], reject=[SWITCH_AT_DIAL_CODE],
+             mode_dial=MODE_DIAL_M),
+    ],
+    'live-dial-turn-to-b-switches-the-films': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_C1_TO_B, expect=[P_FILM_LINE], mode_dial=MODE_DIAL_C1),
+    ],
+    'live-dial-turn-holds-the-label': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_HOLDS_THE_LABEL, expect=[P_FILM_LINE], mode_dial=MODE_DIAL_M),
+    ],
     'curves-file-kept-in-camera': [
         Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
              expect=[FILM_2_LINE, *ck_line('yes', 'taken', 20, 15, 1)]),
@@ -168,6 +216,8 @@ TESTS = {
 
 # Tests the current release fails, with the reason. They do not fail a run. Remove an entry once main passes it.
 KNOWN_FAILURES = {}   # v0.30 test 8: 'film-kept-with-no-half-press-after-pick' passes with PR #56 (early load)
+# Errors a test's runner turns into a failure of that test, not of the whole run.
+RUNNER_ERRORS = (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError)
 
 
 def git(*args, cwd=REPO):
@@ -253,37 +303,93 @@ def make_fixtures(out, looks):
     return paths
 
 
-def run_test(name, boots, emu, build, card0, out, fixtures=None):
+def elf_symbols(path):
+    """name -> address, from an ELF32 little-endian file's symbol tables."""
+    b = path.read_bytes()
+    shoff, = struct.unpack_from('<I', b, 0x20)
+    shentsize, shnum = struct.unpack_from('<HH', b, 0x2e)
+    secs = [struct.unpack_from('<10I', b, shoff + i * shentsize) for i in range(shnum)]
+    syms = {}
+    for _, kind, _, _, off, size, link, *_ in secs:
+        if kind != 2:    # SHT_SYMTAB
+            continue
+        names = secs[link][4]
+        for o in range(off, off + size, 16):
+            n, value = struct.unpack_from('<II', b, o)
+            syms[b[names + n:b.index(b'\0', names + n)].decode()] = value
+    return syms
+
+
+def boot_key(boot):
+    return boot.tokens, boot.mode_dial, boot.photo_switch, tuple(sorted(boot.card.items()))
+
+
+def run_boot(emu, build, d, i, boot, card, syms, fixtures=None):
+    """Boot i in d, from card, with d/nv.bin as the camera's settings -> (next card, log lines or None, errors, a
+    fatal error or None). syms caches the build's symbols for tokens that name them."""
+    nxt = d / f'card{i}.omsd'
+    if boot.card:
+        card = put_card_files(emu, card, boot.card, fixtures, d / f'card{i}-in.omsd')
+    tokens = boot.tokens
+    if '{' in tokens:
+        if not syms:
+            syms.update({k: f'{v:x}' for k, v in elf_symbols(build / 'p.elf').items()})
+        tokens = tokens.format_map(syms)
+    env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), 'MODE0': str(boot.mode_dial),
+           **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})}
+    try:
+        r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, tokens, env=env)
+    except subprocess.TimeoutExpired:
+        return nxt, None, [], f'boot {i}: no result after {BOOT_TIMEOUT_S} s'
+    (d / f'boot{i}.log').write_text(r.stdout + r.stderr)
+    if r.returncode:
+        return nxt, None, [], f'boot {i}: driver exit {r.returncode} (boot{i}.log)'
+    if not nxt.exists():
+        return nxt, None, [], f'boot {i}: driver saved no card (boot{i}.log)'
+    errors = []
+    if boot.tokens.split()[-1] == 'poweroff' and not json.loads((d / f'boot{i}.json').read_text())['log'][-1].get('power_off'):
+        errors.append(f'boot {i}: the firmware did not power off (boot{i}.json)')
+    return nxt, read_log(emu, nxt, d / f'cadlog{i}.txt'), errors, None
+
+
+def check_log(i, boot, lines):
+    """boot i's expect and reject against its log lines -> errors, and whether the test must stop."""
+    if lines is None:
+        return ([f'boot {i}: no {LOG_PATH} on the card'], True) if boot.expect or boot.reject else ([], False)
+    return ([f'boot {i}: no line matches {p}' for p in boot.expect if not any(re.search(p, l) for l in lines)] +
+            [f'boot {i}: unwanted line {l!r}' for p in boot.reject for l in lines if re.search(p, l)]), False
+
+
+def run_shared(emu, build, d, boot, card0, fixtures=None):
+    """A first boot that several tests share, run once in d -> run_boot's result, its errors naming d."""
+    d.mkdir(parents=True, exist_ok=True)
+    (d / 'nv.bin').unlink(missing_ok=True)
+    try:
+        nxt, lines, errors, fatal = run_boot(emu, build, d, 1, boot, card0, {}, fixtures)
+    except RUNNER_ERRORS as e:
+        nxt, lines, errors, fatal = None, None, [], f'boot 1: runner error: {e}'
+    return nxt, lines, [f'{e}, shared boot in {d}' for e in errors], fatal and f'{fatal}, shared boot in {d}'
+
+
+def run_test(name, boots, emu, build, card0, out, first=None, fixtures=None):
+    """first: run_shared's result for boots[0], used in its place."""
     d = out / name
     d.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), }
     (d / 'nv.bin').unlink(missing_ok=True)
-    card, errors = card0, []
+    card, errors, syms = card0, [], {}
     for i, boot in enumerate(boots, 1):
-        nxt = d / f'card{i}.omsd'
-        if boot.card:
-            card = put_card_files(emu, card, boot.card, fixtures, d / f'card{i}-in.omsd')
-        try:
-            r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, boot.tokens,
-                     env={**env, 'MODE0': str(boot.mode_dial),
-                     **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})})
-        except subprocess.TimeoutExpired:
-            return name, [f'boot {i}: no result after {BOOT_TIMEOUT_S} s']
-        (d / f'boot{i}.log').write_text(r.stdout + r.stderr)
-        if r.returncode:
-            return name, [f'boot {i}: driver exit {r.returncode} (boot{i}.log)']
-        if not nxt.exists():
-            return name, [f'boot {i}: driver saved no card (boot{i}.log)']
-        if boot.tokens.split()[-1] == 'poweroff' and not json.loads((d / f'boot{i}.json').read_text())['log'][-1].get('power_off'):
-            errors.append(f'boot {i}: the firmware did not power off (boot{i}.json)')
-        lines = read_log(emu, nxt, d / f'cadlog{i}.txt')
-        if lines is None:
-            if boot.expect or boot.reject:
-                return name, [f'boot {i}: no {LOG_PATH} on the card']
-            lines = []
-        errors += [f'boot {i}: no line matches {p}' for p in boot.expect if not any(re.search(p, l) for l in lines)]
-        errors += [f'boot {i}: unwanted line {l!r}' for p in boot.reject for l in lines if re.search(p, l)]
-        card = nxt
+        if i == 1 and first:
+            card, lines, errs, fatal = first
+            if not fatal and (card.parent / 'nv.bin').exists():
+                shutil.copy(card.parent / 'nv.bin', d / 'nv.bin')
+        else:
+            card, lines, errs, fatal = run_boot(emu, build, d, i, boot, card, syms, fixtures)
+        if fatal:
+            return name, [fatal]
+        found, stop = check_log(i, boot, lines)
+        errors += errs + found
+        if stop:
+            return name, errors
     return name, errors
 
 
@@ -339,18 +445,33 @@ def main():
     stock = static_check.find_stock(a.stock) if any(n in STATIC for n in names) else None
     runs = [(n, k) for n in names for k in range(1, a.repeat + 1)]
     print(f'{len(names)} tests{f" x {a.repeat}" if a.repeat > 1 else ""} on {build}, results in {out}')
+    def run_dir(k):
+        return out / f'run{k}' if a.repeat > 1 else out
+    # A first boot that two or more tests share runs once per run folder, and each of those tests starts from its result.
+    uses = {}
+    for n, k in runs:
+        if n in TESTS:
+            uses.setdefault((k, boot_key(TESTS[n][0])), []).append(n)
+    shared_keys = [key for key, ns in uses.items() if len(ns) > 1]
+    shared = {}
     def one(run):
         n, k = run
-        d = out / f'run{k}' if a.repeat > 1 else out
+        d = run_dir(k)
         try:
             if n in STATIC:
                 return n, static_check.CHECKS[n[len(STATIC_PREFIX):]](build, stock)
-            return run_audit(emu, build, d) if n == AUDIT else run_test(n, TESTS[n], emu, build, card0, d, fixtures)
+            if n == AUDIT:
+                return run_audit(emu, build, d)
+            first = shared.get((k, boot_key(TESTS[n][0])))
+            return run_test(n, TESTS[n], emu, build, card0, d, first and first.result(), fixtures)
         except static_check.Skip as e:
             return n, [f'could not run: {e}']
-        except (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError) as e:
+        except RUNNER_ERRORS as e:
             return n, [f'runner error: {e}']
     with concurrent.futures.ThreadPoolExecutor(a.jobs) as pool:
+        # Shared boots go in first: the pool starts them before any test that waits on one.
+        shared.update((key, pool.submit(run_shared, emu, build, run_dir(key[0]) / 'shared' / str(i),
+                                        TESTS[uses[key][0]][0], card0, fixtures)) for i, key in enumerate(shared_keys))
         done = list(pool.map(one, runs))
     results = {n: [] for n in names}
     for (n, k), (_, errors) in zip(runs, done):
