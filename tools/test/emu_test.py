@@ -10,7 +10,7 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, json, os, pathlib, re, shutil, subprocess, sys, tempfile
+import argparse, concurrent.futures, json, os, pathlib, re, shutil, struct, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -38,6 +38,8 @@ PHOTO_SWITCH_PHOTO = 2
 MODE_DIAL_P = 2
 MODE_DIAL_C1 = 7
 MODE_DIAL_M = 9
+MODE_DIAL_B = 8
+UI_MODE_DIAL = 0xa32d9d0c    # the mode dial's position (cm_gnow)
 PHOTO_SWITCH_VIDEO = None
 
 # From COLOR 1 on the shooting screen, picks FILM 2: the list runs COLOR 1-4, then the films.
@@ -55,6 +57,31 @@ C1_FILM_LINE = r'^Picture mode setting: 54 = COLOR 1, FILM 1$'
 P_FILM_LINE = r'^Picture mode setting: 55 = COLOR 2, FILM 6$'
 C1_RECORD_LINE = r'^Custom modes: a valid record at the first look: yes'
 GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
+# A live dial turn from M to C1, as the camera makes it (#54): first the dial moves while the camera's mode code is not
+# yet a mode (the pokes: code 0, dial on C1, rc_go due at the next GUI event), then the real turn. Tokens name build
+# symbols in braces (run_test fills in their addresses). A switch run before the real code writes a record with the
+# dial's code 0xC0 | position on a later look (second byte below 0x80).
+def live_turn(dial, check_hold=False):
+    """One live dial turn to position dial, then a half-press. check_hold: lv_hold set during the wait, clear after."""
+    hold = lambda v: f' expect:mem:{{lv_hold}}={v}' if check_hold else ''
+    return (f'poke:{{rc_in}}+18*=00 poke:{UI_MODE_DIAL:x}={dial:02x} poke:{{rc_pend}}=01 wait wait wait{hold("01")} '
+            f'mode:{dial} wait wait wait{hold("00")} s1 wait wait')
+
+
+LIVE_TURN_START = 'wait wait wait s1 wait wait'
+# B has no mode code of its own (0 on the camera, 62 in om-emu), so a switch that waits for one never comes (#54).
+LIVE_TURN_C1_TO_B = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_B)} poweroff'
+LIVE_TURN_M_TO_C1 = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1)} poweroff'
+# The same turn and back to M. The camera sets C1's picture mode during the turn, before rc_go looks at C1, and M
+# must not keep it as its own choice.
+LIVE_TURN_M_TO_C1_AND_BACK = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1)} {live_turn(MODE_DIAL_M)} poweroff'
+# The same turn and back, with the label's hold checked at each step: set while the switch waits for the mode code,
+# clear once the mode is real (#54). om-emu's camera draws no label at a turn, so the byte stands for the picture.
+LIVE_TURN_HOLDS_THE_LABEL = (f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1, True)} {live_turn(MODE_DIAL_M, True)} '
+                             'poweroff')
+SWITCH_AT_DIAL_CODE = r'^Custom modes, last switches .*\b[0-9A-F]{2}[0-7][0-9A-F]C[0-9A-F]{3}\b'
+# Without the fix the switch writes C1's films into M's set, and C1 then differs from its own values ("*").
+RESET_MODE_UNCHANGED_LINE = r"^Per-mode settings: camera COLOR values that differed from a Reset custom mode's own: 0 "
 # The photo boot before it leaves the video boot with nothing put back and the photo switch read as video.
 # rc_go does no film work in video (#53): no custom-mode record write. A build without the fix writes the record.
 # The early load reads the mode code in video, so the code itself shows nothing.
@@ -107,6 +134,25 @@ TESTS = {
     'dial-turn-before-first-half-press': [
         Boot(BOOT1_ASSIGN_C1),
         Boot(C1_TURN_BEFORE_HALF_PRESS, expect=[GROUP_C1_LINE, C1_FILM_LINE], mode_dial=MODE_DIAL_M),
+    ],
+    'live-dial-turn-waits-for-the-mode-code': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_M_TO_C1, expect=[GROUP_C1_LINE, C1_FILM_LINE, RESET_MODE_UNCHANGED_LINE],
+             reject=[SWITCH_AT_DIAL_CODE],
+             mode_dial=MODE_DIAL_M),
+    ],
+    'live-dial-turn-back-keeps-the-mode-choice': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_M_TO_C1_AND_BACK, expect=[P_FILM_LINE, RESET_MODE_UNCHANGED_LINE], reject=[SWITCH_AT_DIAL_CODE],
+             mode_dial=MODE_DIAL_M),
+    ],
+    'live-dial-turn-to-b-switches-the-films': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_C1_TO_B, expect=[P_FILM_LINE], mode_dial=MODE_DIAL_C1),
+    ],
+    'live-dial-turn-holds-the-label': [
+        Boot(BOOT1_ASSIGN_C1),
+        Boot(LIVE_TURN_HOLDS_THE_LABEL, expect=[P_FILM_LINE], mode_dial=MODE_DIAL_M),
     ],
     'video-boot-after-photo-boot': [
         Boot('s1 wait wait poweroff'),
@@ -181,18 +227,40 @@ def read_log(emu, card, dest):
     return [l.rstrip() for l in dest.read_bytes().decode('latin1').replace('\r', '').split('\n') if l.strip()]
 
 
+def elf_symbols(path):
+    """name -> address, from an ELF32 little-endian file's symbol tables."""
+    b = path.read_bytes()
+    shoff, = struct.unpack_from('<I', b, 0x20)
+    shentsize, shnum = struct.unpack_from('<HH', b, 0x2e)
+    secs = [struct.unpack_from('<10I', b, shoff + i * shentsize) for i in range(shnum)]
+    syms = {}
+    for _, kind, _, _, off, size, link, *_ in secs:
+        if kind != 2:    # SHT_SYMTAB
+            continue
+        names = secs[link][4]
+        for o in range(off, off + size, 16):
+            n, value = struct.unpack_from('<II', b, o)
+            syms[b[names + n:b.index(b'\0', names + n)].decode()] = value
+    return syms
+
+
 def boot_key(boot):
     return boot.tokens, boot.mode_dial, boot.photo_switch
 
 
-def run_boot(emu, build, d, i, boot, card):
+def run_boot(emu, build, d, i, boot, card, syms):
     """Boot i in d, from card, with d/nv.bin as the camera's settings -> (next card, log lines or None, errors, a
-    fatal error or None)."""
+    fatal error or None). syms caches the build's symbols for tokens that name them."""
     nxt = d / f'card{i}.omsd'
+    tokens = boot.tokens
+    if '{' in tokens:
+        if not syms:
+            syms.update({k: f'{v:x}' for k, v in elf_symbols(build / 'p.elf').items()})
+        tokens = tokens.format_map(syms)
     env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), 'MODE0': str(boot.mode_dial),
            **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})}
     try:
-        r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, boot.tokens, env=env)
+        r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, tokens, env=env)
     except subprocess.TimeoutExpired:
         return nxt, None, [], f'boot {i}: no result after {BOOT_TIMEOUT_S} s'
     (d / f'boot{i}.log').write_text(r.stdout + r.stderr)
@@ -219,7 +287,7 @@ def run_shared(emu, build, d, boot, card0):
     d.mkdir(parents=True, exist_ok=True)
     (d / 'nv.bin').unlink(missing_ok=True)
     try:
-        nxt, lines, errors, fatal = run_boot(emu, build, d, 1, boot, card0)
+        nxt, lines, errors, fatal = run_boot(emu, build, d, 1, boot, card0, {})
     except RUNNER_ERRORS as e:
         nxt, lines, errors, fatal = None, None, [], f'boot 1: runner error: {e}'
     return nxt, lines, [f'{e}, shared boot in {d}' for e in errors], fatal and f'{fatal}, shared boot in {d}'
@@ -230,14 +298,14 @@ def run_test(name, boots, emu, build, card0, out, first=None):
     d = out / name
     d.mkdir(parents=True, exist_ok=True)
     (d / 'nv.bin').unlink(missing_ok=True)
-    card, errors = card0, []
+    card, errors, syms = card0, [], {}
     for i, boot in enumerate(boots, 1):
         if i == 1 and first:
             card, lines, errs, fatal = first
             if not fatal and (card.parent / 'nv.bin').exists():
                 shutil.copy(card.parent / 'nv.bin', d / 'nv.bin')
         else:
-            card, lines, errs, fatal = run_boot(emu, build, d, i, boot, card)
+            card, lines, errs, fatal = run_boot(emu, build, d, i, boot, card, syms)
         if fatal:
             return name, [fatal]
         found, stop = check_log(i, boot, lines)
