@@ -5486,3 +5486,22 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - **Debug log cost (same comment):** with DEBUG.TXT on the card, the shutter fires late and sequential bursts go on
   after release. `lg_pr` runs `lg_write` at every shutter event (press and release) in the shutter task: ~63 setting
   reads, a 9216 B report built and written to the card, before `trig_resume`.
+- **Owner's camera (2026-11-17, v0.30.1 test 1): Glow 3 alone (Halation 0; PB162900 / 901, om3.1 code glow 3, halation
+  0) gives the black review and the Vivid freeze too.** So the shared route (job flag 0x80 on a COLOR job) is the cause,
+  not `hl_run` (and #27, Glow on v0.26.2, is the same bug). (A first try, PB162899, had Halation 3 instead of Glow 3.)
+- **Cause (Caduceus for the E-P7 found it first: cakelesscoder/caduceus-ep7 v0.31 "Rec View fix", `patches/recview`,
+  `docs/BLOOM_HALATION.md`, read only):** the camera strips the multi-pass effect flags (0x40 Star Light, 0x80 Soft Focus,
+  ...) from Art Filter jobs whose type is 0x1xx or 0x4x, the extra small developments of a shot (types 0x110 / 0x120,
+  capture kinds 0x2001 / 0x2006, the review picture among them), not the saved photo (type 0x1000). That strip never
+  runs for COLOR (key 11), so our 0x80 reached them. OM-3's job-type mapper is 0x60555b58 (E-P7 0x603ea909): `mov
+  a0,a2; movhu (186,a2),d0`, kinds 0x2001 / 0x2006 -> 0x100 | 0x10 / 0x20 (when 0x60559cc2 != 1), 0x1008 / 0x1006 ->
+  0, else 0x1000; the request builders call it right after the converter (`mov a3,a0; call 0x60555b58,[d2,a2],12`,
+  0x60553ae4; the result goes to params+40).
+- **Fix (0be3c0a, `feature/fix-65-review`):** `xb_rv` (xblock), called by `xb_cap` before it stores the flags: with 0x40
+  or 0x80 set, it asks 0x60555b58 for the job type (a0 = the source request at params+4 = (-8,a2)) and clears 0x40 /
+  0x80 for types 0x1xx / 0x4x, as the camera does for Art Filters. Keeps a2 / a3 / MDR. The photo (0x1000) and live
+  view (`xb_lv`, its own route) keep Glow / Halation; the review picture shows the film without them. A probe build
+  (p65a: log + a class-based skip at the work list's 0x80 test) was made first and dropped before any camera test once
+  the E-P7 finding gave the exact rule.
+- Build "v0.30.2-dev (test 1: #65 fix, Glow route off review)", E1479999.BIN `6cb4dfe8…35ae` (rebuilt byte for byte),
+  suite 22 of 22. om-emu develops no photos: camera-only ("Past regressions").
