@@ -5486,3 +5486,43 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - **Debug log cost (same comment):** with DEBUG.TXT on the card, the shutter fires late and sequential bursts go on
   after release. `lg_pr` runs `lg_write` at every shutter event (press and release) in the shutter task: ~63 setting
   reads, a 9216 B report built and written to the card, before `trig_resume`.
+- **Owner's camera (2026-11-17, v0.30.1 test 1): Glow 3 alone (Halation 0; PB162900 / 901, om3.1 code glow 3, halation
+  0) gives the black review and the Vivid freeze too.** So the shared route (job flag 0x80 on a COLOR job) is the cause,
+  not `hl_run` (and #27, Glow on v0.26.2, is the same bug). (A first try, PB162899, had Halation 3 instead of Glow 3.)
+- **Cause (Caduceus for the E-P7 found it first: cakelesscoder/caduceus-ep7 v0.31 "Rec View fix", `patches/recview`,
+  `docs/BLOOM_HALATION.md`, read only):** the camera strips the multi-pass effect flags (0x40 Star Light, 0x80 Soft Focus,
+  ...) from Art Filter jobs whose type is 0x1xx or 0x4x, the extra small developments of a shot (types 0x110 / 0x120,
+  capture kinds 0x2001 / 0x2006, the review picture among them), not the saved photo (type 0x1000). That strip never
+  runs for COLOR (key 11), so our 0x80 reached them. OM-3's job-type mapper is 0x60555b58 (E-P7 0x603ea909): `mov
+  a0,a2; movhu (186,a2),d0`, kinds 0x2001 / 0x2006 -> 0x100 | 0x10 / 0x20 (when 0x60559cc2 != 1), 0x1008 / 0x1006 ->
+  0, else 0x1000; the request builders call it right after the converter (`mov a3,a0; call 0x60555b58,[d2,a2],12`,
+  0x60553ae4; the result goes to params+40).
+- **Fix (0be3c0a, `feature/fix-65-review`):** `xb_rv` (xblock), called by `xb_cap` before it stores the flags: with 0x40
+  or 0x80 set, it asks 0x60555b58 for the job type (a0 = the source request at params+4 = (-8,a2)) and clears 0x40 /
+  0x80 for types 0x1xx / 0x4x, as the camera does for Art Filters. Keeps a2 / a3 / MDR. The photo (0x1000) and live
+  view (`xb_lv`, its own route) keep Glow / Halation; the review picture shows the film without them. A probe build
+  (p65a: log + a class-based skip at the work list's 0x80 test) was made first and dropped before any camera test once
+  the E-P7 finding gave the exact rule.
+- Build "v0.30.2-dev (test 1: #65 fix, Glow route off review)", E1479999.BIN `6cb4dfe8…35ae` (rebuilt byte for byte),
+  suite 22 of 22. om-emu develops no photos: camera-only ("Past regressions").
+
+### Caduceus for the E-P7's faster halation h6 (read only, 2026-11-17; owner: "they seem to have made it faster")
+- cakelesscoder/caduceus-ep7 `docs/HALATION_RED.md` §23 (v0.33, camera-tested on the E-P7): the same photo bit for bit
+  as their h2, 46-74 % fewer instructions (night scene with lights 108 M -> 28 M), no malloc. How: pass A ORs eight Y
+  samples and compares once, skips saturated cells; pass B blurs in place; pass C walks each row in 32-pair strips
+  between cell centres, skips strips and cell columns with no glow, walks only from the first to the last pair with
+  g >= 1, computes g * dY once per pair, eight pairs a loop turn; several rows per lock up to a cap of ~120 K
+  instructions masked (fewer flushes); the cell grid in a spare block tail instead of three mallocs.
+- Ours (`hl_run`) started from their h2 design but has its own changes (h2: chroma weight from a smoothed cell mean;
+  h4: the broad layer), so the same ideas would have to be applied to our code and checked bit for bit against our
+  model (`research/halation`). Not started.
+- **Camera-tested (owner, 2026-11-17): "The fix works"** (v0.30.2 test 1, `6cb4dfe8…35ae`): no black review, no freeze at
+  the Creative Dial to Vivid. Caveat (owner): "the playback doesn't display the glow settings". Expected from the fix:
+  the camera's playback shows the photo's small embedded preview, one of the shot's small developments (type 0x110 /
+  0x120) that no longer get 0x80; the saved photo itself (0x1000) should keep the glow / halo (to check on the card).
+  Possible refinement (analysis): one of the two small types may be the review picture and the other the embedded
+  preview; keeping 0x80 on the preview's type only would need one camera test per type.
+- **v0.30.2 release (2026-11-17; owner: "Let's keep it as is", the option that released the fix with the playback note):**
+  `firmware/VERSION` "v0.30.2 (Image Review fix for #65, camera-tested t1)", 52 characters: main.bin differs from test 1
+  only in the name, the code-block tag (twice) and the built-in GUIDES CRC (51 bytes). E1479999.BIN 7fbd3957…445b;
+  `patch.py --release v0.30.2` makes it byte for byte, `--release v0.30.1` still c2b583fd…. Extras as v0.30.1.

@@ -394,6 +394,17 @@ Stock: OLY_E_147_1100_0000_0000_3.BIN sha 8c133084…696d, main 5e8d376e…7d59.
 - The looks are only as good as the preview model (`src/preview.ts`) is of the camera; check a film on the camera
   before trusting it for anything critical.
 
+## v0.30.2 release (feature/fix-65-review on main 91ca69d; test 1, camera-tested 2026-11-17)
+
+v0.30.1 plus the #65 fix: `xb_rv` (xblock), called by `xb_cap` before it stores the COLOR job's flags, asks the camera's
+job-type mapper 0x60555b58 (a0 = the source request at params+4) and clears 0x40 / 0x80 for types 0x1xx / 0x4x, the
+shot's small extra developments (0x110 / 0x120 for capture kinds 0x2001 / 0x2006; the saved photo is 0x1000), as the
+camera does for Art Filter jobs (E-P7 strip 0x60353b15; idea from Caduceus for the E-P7 v0.31 `patches/recview`). No new
+hook; the block grew by xb_rv. The review picture and the playback preview show the film without Glow / Halation.
+- `firmware/VERSION` "v0.30.2 (Image Review fix for #65, camera-tested t1)", 52 characters as test 1's: main.bin differs
+  only in that string, the code-block tag and the built-in GUIDES CRC (51 bytes). E1479999.BIN 7fbd3957…445b;
+  `patch.py` makes it by default; `--release v0.30.1` still makes c2b583fd…. Extras as v0.30 (CURVES.BIN by hand).
+
 ## v0.30.1 release (try/v0.30.1 = main 89b3520 with PR #67; test 1, camera-tested 2026-11-17)
 
 v0.30 plus PR #67 (crombach, #66): `.hook_pe` at 0x611d059c, the end of the Picture Mode update (stock `mov (12,sp),d0;
