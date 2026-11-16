@@ -5234,3 +5234,6 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - **Build:** E1479999.BIN `d3ab5d4f…04f1` (rebuilt from 18a7a33 byte for byte). Package
   `test-builds/2026-11-16-v030-test13` (private), CURVES.BIN and the v0.29.5 go-back as test 12.
 - **Suite:** 21 of 21 pass (`Pass recorded on 18a7a33bf01c`).
+- **Camera-tested (owner, 2026-11-16): "this looks good and works as it should."** Debug log (test 13, 62 shutter
+  events, 98 photos, 23 shooting-mode changes, custom modes C1-C5 with films): "nothing unusual", no film with changes,
+  no reboot. Test 13 (`d3ab5d4f…04f1`) is the v0.30 candidate: test 11 + PR #59 (#54) + the Noise Filter row fix.
