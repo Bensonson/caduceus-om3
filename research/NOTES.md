@@ -5009,4 +5009,5 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   start marks, the chosen dot r 13 on a white r 16, the others r 8 dim; header "Saturation / colour / Hue" as test 7.
 - Owner: "the looklab doesnt need to have page 1, 2, 3, 4 on it": the page headings are gone; the rows keep the
   camera's order.
+- The Mix header and slider say "Sat", as the camera's page does (om-emu on the v0.30 build: "Sat ±0  Red  Hue ±0").
 
