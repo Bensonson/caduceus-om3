@@ -9242,6 +9242,9 @@ fl_stw:
  .set KCM_W, 40
  .set KBT_W, 42                   /* lg_cv[CI_BTN .. CI_DIAL + 15] */
 lg_pr:                            /* jmp from pr_ed, pr_hook's frame: as `call ed_trig; jmp trig_resume` there */
+ movbu (18,sp),d0                 /* v0.30.3: the shutter handler's event word (16,sp) {0x0100 half-press, 0x0101 its
+                                   * release} (om-emu trace at 0x60415216, 2026-11-17): byte 18 is 1 at the release */
+ movbu d0,(lg_rel)
  clr d0                           /* L1: the first shutter event releases the hooks held since the early load */
  movbu d0,(el_hold)
  call lg_pre,[d2,d3,a2,a3],36
@@ -9340,12 +9343,17 @@ lg_write:                         /* frame 40: (0) call slot, (4) handle */
  inc d0
  mov d0,(lg_ns)
 3:
- mov (lg_w),d0
- inc d0
- mov d0,(lg_w)
  call lg_cam,[d2,d3,a2,a3],24     /* dl8: the camera's own values at this event (a3 = the entry) */
  call lg_crf,[d2,d3,a2,a3],24     /* dl8: a few cached reads (buttons, dials, the rest of the camera) */
  call lg_line,[d2,d3,a2,a3],24    /* dl8: this event's line, made once */
+ call lg_due,[],0                 /* v0.30.3: write the file now? (d0; uses d0, d1) */
+ cmp 0,d0
+ bne 18f
+ jmp lg_out                       /* noted in memory only; the next write has it */
+18:
+ mov (lg_w),d0
+ inc d0
+ mov d0,(lg_w)
  mov lg_buf,a0                    /* the text */
  mov a0,(lg_cur)
  mov a0,(lg_ls)
@@ -11993,6 +12001,36 @@ lg_n:                             /* events so far this power-on */
  .long 0
 lg_w:                             /* CADLOG.TXT writes this power-on */
  .long 0
+/* lg_due (v0.30.3, issue #65's comment by flrvr: with DEBUG.TXT on, the shutter fired late and bursts went on after
+ * release, because the whole report was built and written to the card at every half-press and release, in the
+ * shutter's own task): `call lg_due,[],0` -> d0 1 to write the file now. Every event is still noted in memory (the
+ * ring, the camera's values); the file is written only at a release (never at a half-press, so the shutter is not
+ * held up), and not at the release that ends a burst (2 or more photos since that half-press: the burst's end is not
+ * held up either); the next qualifying release writes it, with everything noted meanwhile. Uses d0, d1. */
+lg_due:
+ movbu (lg_rel),d0
+ cmp 0,d0
+ bne 1f
+ mov (lg_np),d0                   /* a half-press: no write; the photo count it starts from */
+ mov d0,(lg_npp)
+ clr d0
+ retf [],0
+1:
+ mov (lg_np),d0
+ mov (lg_npp),d1
+ sub d1,d0
+ cmp 2,d0
+ bcs 2f
+ clr d0                           /* a burst's release: no write */
+ retf [],0
+2:
+ mov 1,d0
+ retf [],0
+lg_npp:                           /* lg_np at the last half-press */
+ .long 0
+lg_rel:                           /* this shutter event: 0 half-press, 1 release (lg_pr) */
+ .byte 0
+ .balign 4
 lg_ns:                            /* dl2: saves at shutter events (edits waiting before ed_trig, settings block there) */
  .long 0
 lg_cur:

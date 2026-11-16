@@ -98,6 +98,10 @@ VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera s
                     r'^Custom-mode record \(OM3C\): writes 0,']   # PR #56's early load reads
                     # the dial position (el_ok -> cm_gnow) in video too, so group and code show it; no work follows
 
+# Debug log (v0.30.3, #65's comment): the report is written at a half-press's release only, never at the half-press
+# itself (it held the shutter up). Three clicks = six shutter events, three writes; before: six.
+DEBUG_LOG_RELEASES_ONLY = (r'^Written at shutter button event 6 \(a half-press and its release count one each\); '
+                           r'log writes this power-on: 3$')
 # Noise Filter's row '*' (v0.30 test 13, owner 2026-11-16): a COLOR profile without a film, its Noise Filter on Camera
 # (slot +51 = 0), shows the camera's own Noise Filter, and its row has no '*', whatever that setting is. Before the fix
 # the row compared with Standard, so with the camera on Off the row was starred while the profile was not. The
@@ -232,6 +236,9 @@ TESTS = {
     ],
     'grid-row-gives-the-bottom-bar-back': [
         Boot(GRID_ROW_AND_BACK),
+    ],
+    'debug-log-written-at-releases-only': [
+        Boot('s1 wait wait s1 wait wait s1 wait wait poweroff', expect=[DEBUG_LOG_RELEASES_ONLY]),
     ],
     'noise-filter-row-follows-the-camera-setting': [
         Boot(NOISE_FILTER_OFF_ROW),
