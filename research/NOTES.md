@@ -4560,3 +4560,53 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
 - **Camera (crombach, VF2 E1479999.BIN a121ee78…):** no freeze in 3 video boots with an early half-press at P, 3 at
   C1, and a Recall of C1 in video (films put back 0, camera settings written 0). Photo after video shows P's film at
   P and C1's film at C1. A video boot at P, a dial turn to C1, then photo and a half-press shows C1's film (FILM 3).
+
+## Live dial turn between M and a custom mode (#54, 2026-11-15; emulator only)
+- **Fault (camera, v0.29.5 and later):** a dial turn with the camera on runs the custom-mode switch at an in-between
+  code, `0xC0` plus the raw dial (such as `C7` at C1), before the camera's real mode code (53). The camera still holds
+  the old mode's settings then, so the switch's film and picture-mode writes (`fl_sw`, 901) land in the old mode's set.
+  M's COLOR 1..4 then show "*", and the turn back writes M's films into C1's set (C1's COLOR 1 "*").
+- **Cause (code):** `cm_gnow` falls back to the mode dial whenever the code at `(24, rc_in)` is not 1..5 or 53..57.
+  That fallback is meant for the first look after a power-on, where the code still reads 0.
+- **Fix (DS1):** after the first look (`cm_init`), `rc_go` does no film work while `cm_gnow` takes the fallback
+  (`cm_code` 0xC0 or more). It sets `rc_pend`, so `gx_map` runs it again at each GUI event until the real code arrives.
+- **Emulator:** om-emu reports the real code at once, so the test `live-dial-turn-waits-for-the-mode-code` pokes the
+  in-between state (code 0, dial on C1, `rc_pend` 1) after the first look in M, then turns the dial to C1. EL14:
+  switch at `C7` (`8200C702`) and 22 changed COLOR values in C1. DS1: one switch, at code 53 (`82003502`), and 0
+  changed values.
+- **DS1 camera (crombach, 2026-11-15, E1479999.BIN 8fd0bf4a…):** the switch ran at the real codes only (`81003502` to
+  C1, `00050404` back to M) and no COLOR showed "*", after C1 was assigned again. A COLOR reset made inside C1 on
+  Reset does not last, so earlier damage to C1's saved settings kept its "*" until the new Assign. Fault: back in M,
+  the camera showed COLOR 1 (picture mode 54) instead of M's own choice.
+- **DS2:** the 901 hook notes the picture mode as the group's choice only when `cm_gnow` is the last look's group.
+  During a live turn the camera sets a picture mode of its own before `rc_go` looks at the new mode (the 901 hook's
+  comment). With the switch now waiting for the code, DS1 noted that one as M's choice and `cm_save` kept it at the
+  switch. om-emu's camera sets no picture mode at a turn, so the emulator does not show this (analysis, from the log).
+- **DS3 (the "COLOR1*" flash):** on the camera, a live turn from C1 back to M briefly showed "COLOR1*", then M's film.
+  The camera sets M's picture mode at the turn and the label draws it from C1's films, still loaded while the switch
+  waits. Now `lv_hold` is set while `rc_go` waits, and also by the 901 hook when the camera writes first while the
+  switch waits or the code is not yet a mode (photo only). While it is set, `fl_lvp` answers `lv_slot`, a 96 x 44
+  picture with no ink. `rc_go` clears it on every other way out (`lv_end`), and a power-off clears it with the rest of
+  RAM. Why no slot of 0: the label's setter (0x6128ac0a) skips a 0 slot and keeps the picture it holds, so the old
+  label would stay. The label redraws only when the shooting screen's record, data item 38 (464 B), is written. The
+  camera writes it (0x6122fb93, about every 240 ms in om-emu) only when its contents differ (0x61230448), so a
+  same-value 901 write does not redraw it. `lv_end` writes the record back unchanged (`ds_put`, as the camera's own
+  write), which marks it changed. Emulator: a turn that ends on the same mode, with no 901 write, now asks the label
+  again at once, and a poked hold blanks the label until it clears. Test `live-dial-turn-holds-the-label`. The flash
+  itself is camera only.
+- **DS3 on the camera:** "COLOR1*" still flashed on a turn from C1 back to M. The DS3d log of the label's events
+  shows why. The camera changed the picture mode with no 901 write, so `lv_due` never ran. `rc_go` ran during the
+  turn and left by its video path, because `ss_photo` reads the in-between mode code as not photo. So nothing set the
+  hold, and `fl_lvp` drew the stock "COLOR1*" (id 15710) at code `C7`. The switch then came at code `04` and the
+  label showed M's film. Log: `0080C701 82050402` for the switches, and the label events `4C720000 6C723D5E` for the
+  video exit and the stock draw.
+- **DS4:** `fl_lvp` now asks `lv_chk`, which also answers no picture on a photo look after the first, with the films
+  in and the photo switch on photo (`UI_PSW` 2), while the dial's mode (`cm_gnow`) is not the group the films are in
+  (`CM_LAST`). It sets `lv_hold`, so the switch's `lv_end` redraws the label. `cm_go` sets `CM_LAST` at each switch,
+  so the hold ends there. The emulator draws no label in that state, so this part is camera only.
+- **DS4 on the camera:** the C1 to M flash is gone. A live turn from C1 to B gave COLOR 4 a "*", and it stayed after
+  the turn back to C1. B has no mode code of 1..5: the camera reads 0 at B (DS4 CADLOG: a power-on in B, photo check
+  194, dial 8), and om-emu reads 62. So the wait for a real code never ended at B, no switch came, and C1's films
+  stayed on under B's own camera settings. `ss_photo` also read om-emu's 62 as video.
+- **DS5:** `cm_gnow` counts code 62, or code 0 with the dial on B, as B's own code (group 5), and `ss_photo` counts 62
+  as photo. Test `live-dial-turn-to-b-switches-the-films` fails on DS4 and passes on DS5.

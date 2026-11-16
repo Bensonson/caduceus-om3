@@ -209,3 +209,5 @@ dl_walk       = 0x610b9fe0;         /* #37: the state block walk's loop start (c
 dl_hit        = 0x610ba01a;         /* #37: the walk's end after .hook_dl's 5 bytes, an entry with a handler */
 dl_none       = 0x610ba054;         /* #37: the walk's return (d0 = found) */
 ex_back       = 0x60457580;         /* v0.27 EXIF: after the hook's 8 bytes */
+ds_get        = 0x610cd5ac;         /* #54: the camera's data store, read: a0 buffer, d0 item, d1 length (call [],4) */
+ds_put        = 0x610cd5c4;         /* #54: and write, marking the item changed: a1 0 as the camera's (call [d2,a2],16) */
