@@ -640,8 +640,8 @@ cv_v0:
  * cell and the '*' checks keep reading the camera's values. The dials and INFO are handled in cv_ev (the camera's dial
  * handler keeps its own running value, so its writes are not used).
  * Pictures while on (cv_ic): the curve halves 4147..4176 clear, the middle curves 4177..4206 our picture of the three
- * curves (cv_draw, drawn when anything changed), the header labels "Sh" 4208 -> R / G / B, "Hi" 4207 -> "Pt", "Mid"
- * 4331 clear, the guides 16247 / 16248 -> "Color [INFO]" (firmware/rgbpics.py). */
+ * curves (cv_draw, drawn when anything changed), the header labels (test 7) "Sh" 4208 -> "Level", "Hi" 4207 -> "Pt" (its "+" blank), "Mid"
+ * 4331 -> the colour's name in its colour, the guides 16247 / 16248 -> "Color [INFO]" (firmware/rgbpics.py). */
  .set CV_MIDV, 0                  /* a value in -7..+7: the middle curve's object (our picture) shows only then (om-emu) */
  .set HS_GSH, 0x612881f2          /* the page's reads (0x61288159): GetValue Hi / Sh / Mid return here */
  .set HS_GHI, 0x612881de
@@ -656,6 +656,10 @@ cv_v0:
  .set HS_HDRAW, 0x610daa1f        /* mix test 5: the page header's picture draw (its return into the lookup) */
  .set HS_MID0, 0x6146656c         /* its layout records of the middle slot: the dial symbol (Mid look), "Mid", the */
  .set HS_MIDN, 0x61466680 - HS_MID0  /* sign, the digits; the left slot's records lie below, the right's from 0x61466680 */
+.set HS_MLAB, 0x61466580         /* test 7: the middle slot's "Mid" label record (om-emu) */
+.set HS_DRAW2, 0x610eb160        /* test 7: the second lookup of each header picture (the one drawn; om-emu) */
+.set HS_RPM, 0x614666a8          /* test 7: the right slot's "±" and "+" sign records (om-emu; glyphs 1131 / 1132, */
+.set HS_RPLUS, 0x614666b8        /* both 13 x 30) */
  .set CVI0, 0x7f60                /* our picture ids (cv_ent order, rgbpics.py; 0x7f60.. is free) */
  .set CVI_N, 14                   /* + colour mix: "Sat" R / G / B, "Hue" R / G / B, the "Mix" cell */
  .set CVI_CELL, CVI0 + 6
@@ -1179,15 +1183,51 @@ cv_ic:
 1:
  mov mdr,d1                       /* mix test 5 (owner: "turn the center dial and number black"): on our pages the */
  cmp HS_HDRAW,d1                  /* H&S header's middle (its dial symbol, name, number) clear. The header's draw */
- bne 12f                          /* (return HS_HDRAW) passes in a0 the layout record of the spot: the middle's are */
- mov a0,d1                        /* HS_MID0.. (om-emu, in both of the panel's looks); the left and right values' */
- add -HS_MID0,d1                  /* records lie below and above, so their pictures, which the middle shares, stay */
- cmp HS_MIDN,d1
- bcc 12f
- mov (cv_on),d1
+ bne 18f                          /* (return HS_HDRAW) passes in a0 the layout record of the spot: the middle's are */
+ mov (cv_on),d1                   /* HS_MID0.. (om-emu, in both of the panel's looks); the left and right values' */
+ cmp 0,d1                         /* records lie below and above, so their pictures, which the middle shares, stay */
+ beq 12f
+ cmp 1,d1                         /* colour menu (test 7, spec section 4): on RGB the right value's sign records */
+ bne 15f                          /* ("±", "+") get a clear picture (14 x 30; the glyphs are 13 x 30), so it reads */
+ cmp HS_RPM,a0                    /* "Pt 2". Each header lookup is followed at once by a second one for the same id */
+ beq 17f                          /* (return HS_DRAW2, om-emu) whose picture is the one drawn: cv_sgn marks it */
+ cmp HS_RPLUS,a0
+ bne 15f
+17:
+ mov 1,d1
+ mov d1,(cv_sgn)
+ mov cv_ent + 4 * (CVI_N + 1),a0
+ retf [],0
+18:
+ cmp HS_DRAW2,d1
+ bne 12f
+ mov (cv_sgn),d1
  cmp 0,d1
  beq 12f
+ mov 0,d1
+ mov d1,(cv_sgn)
+ mov (cv_on),d1
+ cmp 1,d1
+ bne 12f
+ mov cv_ent + 4 * (CVI_N + 1),a0
+ retf [],0
+15:
+ mov 0,d1
+ mov d1,(cv_sgn)
+ mov a0,d1
+ add -HS_MID0,d1
+ cmp HS_MIDN,d1
+ bcc 12f
+ cmp HS_MLAB - HS_MID0,d1         /* test 7: the "Mid" label's record -> the colour's name in its colour */
+ beq 16f
  mov cv_ent + 4 * CVI_N,a0        /* a clear picture the size of the slot (a small one left old pixels, om-emu) */
+ retf [],0
+16:
+ movbu (cv_c),d1
+ add 10,d1
+ asl2 d1
+ mov cv_ent,a0
+ add d1,a0
  retf [],0
 12:
  mov d0,d1
@@ -1213,20 +1253,17 @@ cv_ic:
  cmp 4207,d1
  bcs cv_pic                       /* the middle curves: ours */
 3:
- cmp 4331,d1
- beq 7f
+ cmp 4331,d1                      /* test 7: "Mid" (any other lookup) -> the colour's name, as above */
+ beq 16b
  cmp 4208,d1
  bne 4f
- movbu (cv_c),d1                  /* "Sh" -> R / G / B; colour mix: "Sat" R / G / B */
- inc d1
- mov (cv_on),a0
+ mov (cv_on),a0                   /* test 7 (spec section 4): "Sh" -> "Level" on RGB, "Sat" on Mix */
  cmp 2,a0
- bne 31f
- add 6,d1
+ beq 31f
+ mov cv_ent + 4 * 9,a0
+ retf [],0
 31:
- asl2 d1
- mov cv_ent,a0
- add d1,a0
+ mov cv_ent + 4 * 7,a0
  retf [],0
 4:
  cmp 4207,d1
@@ -1237,11 +1274,7 @@ cv_ic:
  mov cv_ent + 16,a0               /* "Hi" -> "Pt" */
  retf [],0
 41:
- movbu (cv_c),d1                  /* colour mix: "Hue" R / G / B */
- add 10,d1
- asl2 d1
- mov cv_ent,a0
- add d1,a0
+ mov cv_ent + 4 * 8,a0            /* colour mix: "Hue" */
  retf [],0
 5:
  cmp 16247,d1
@@ -1748,6 +1781,8 @@ cv_h0:
 cv_pd:
  .space 64
 cv_on:
+ .long 0
+cv_sgn:                           /* test 7: 1 between RGB's right sign lookup and its second (drawn) lookup */
  .long 0
 cv_gen:
  .long 0

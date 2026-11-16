@@ -3,8 +3,8 @@
 > and is the line** (2026-11-15, E1479999.BIN `f85e7f86…`): the RGB curves as test 4 (5 even points), the Mix row
 > (hue and strength of red, green and blue, the circle page), both in photos only (video stays stock), the camera's
 > header on both pages kept in its outer look (no middle number or dial). The live view shows changes at the next
-> half-press, as with our other rows. Colour menu test 7 (new row order, cell pictures and titles, owner-approved
-> design) is emulator-checked only and waits for the camera test. Details: `research/NOTES.md`, "Per-film R / G / B
+> half-press, as with our other rows. Colour menu test 7 (new row order, cell pictures, titles and page headers,
+> owner-approved design) is emulator-checked only and waits for the camera test. Details: `research/NOTES.md`, "Per-film R / G / B
 > tone curves: build", "Colour mix per film" and "Colour menu".
 
 <h1 align="center">Caduceus for OM-3</h1>

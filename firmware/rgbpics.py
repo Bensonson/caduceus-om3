@@ -10,8 +10,9 @@ the curves themselves are drawn by the firmware at run time (cv_draw) on the cur
 - "Color [INFO]" guide (in place of "Mid [INFO]"), at most 160 px wide (checked in om-emu: the guide button is 180 px).
 - the row's left cell (100 x 76, as our other choice rows): "RGB", each letter in its colour.
 - a 2 x 2 clear picture (the camera's curve halves while our page shows).
-- colour mix (the Mix page, mockup C): "Sat" and "Hue" header labels in red, green, blue; the "Mix" row cell. And
-  mixtables(): the Mix page's circle tables (editor's colourmix.inc).
+- colour menu test 7 (spec section 4): white "Sat", "Hue", "Level" header labels, the colour's name ("Red", "Green",
+  "Blue") for the header's middle; the "Mix" row cell; clear pictures for the header's middle and RGB's right sign.
+  And mixtables(): the Mix page's circle tables (editor's colourmix.inc).
 usage: rgbpics.py [--preview PNG]     (build.py imports streams())"""
 import argparse, os, sys
 import numpy as np
@@ -95,12 +96,21 @@ def cell():
     return px
 
 
-def small_label(t, fill):
+def small_label(t, fill, cap=17, maxw=30):
     """colour mix test 2 (owner: "the words sat and hue get cut off"): the camera shows a header label in a 38 px box
     (a wider picture is cut there too, om-emu), so "Sat" / "Hue" are drawn smaller to fit it whole: ink inside 2..35"""
-    a = letters([(t, fill)], 38, 30, 17, 26, maxw=30, sx=0.92)
+    a = letters([(t, fill)], 38, 30, cap, 26, maxw=maxw, sx=0.92)
     cols = np.nonzero(a.any(axis=0))[0]
     assert cols.min() >= 2 and cols.max() <= 35, (t, cols.min(), cols.max())
+    return a
+
+
+def name_label(t, fill):
+    """colour menu (test 7, spec section 4): the colour's name in its colour in the header's middle slot (the camera's
+    "Mid" label place, a 50 px box), ink inside 2..47"""
+    a = letters([(t, fill)], 50, 30, 16, 26, maxw=42, sx=0.92)
+    cols = np.nonzero(a.any(axis=0))[0]
+    assert cols.min() >= 2 and cols.max() <= 47, (t, cols.min(), cols.max())
     return a
 
 
@@ -123,14 +133,18 @@ def mixcell():
 
 
 def pictures():
-    """(name, palette index array) in the order of the firmware's cv_pic table"""
+    """(name, palette index array) in the order of the firmware's cv_pic table. Colour menu (test 7, spec section 4):
+    entries 7..12 are the header's white "Sat", "Hue", "Level" and the middle slot's "Red", "Green", "Blue".
+    """
     return [('blank', np.zeros((2, 2), dtype=np.uint8)),
             ('R', label([('R', RED)])), ('G', label([('G', GREEN)])), ('B', label([('B', BLUE)])),
             ('Pt', label([('Pt', WHITE)])), ('guide', guide()), ('cell', cell())] + \
-           [('Sat ' + n, small_label('Sat', c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
-           [('Hue ' + n, small_label('Hue', c)) for n, c in (('R', RED), ('G', GREEN), ('B', BLUE))] + \
+           [('Sat', small_label('Sat', WHITE)), ('Hue', small_label('Hue', WHITE)),
+            ('Level', small_label('Level', WHITE, cap=14, maxw=30))] + \
+           [(n, name_label(n, c)) for n, c in (('Red', RED), ('Green', GREEN), ('Blue', BLUE))] + \
            [('Mix cell', mixcell())] + \
-           [('clear 50 x 34', np.zeros((34, 50), dtype=np.uint8))]   # mix test 5: the H&S header's middle, cleared
+           [('clear 50 x 34', np.zeros((34, 50), dtype=np.uint8))] + \
+           [('clear 14 x 30', np.zeros((30, 14), dtype=np.uint8))]   # test 7: RGB's right "±" / "+" sign, cleared
 
 
 def streams():

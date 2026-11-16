@@ -4697,8 +4697,8 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 
 ### Colour menu: order, cell pictures, titles (test 7, 2026-11-15; emulator only)
 - Owner: "build the mockup that color menu design has done"; spec (owner-approved, private):
-  color-menu-design/SPEC.md. Built on test 6 (e1ede86); its section 4 (new RGB / Mix headers) skipped: test 6's
-  headers stay (owner: "perfect").
+  color-menu-design/SPEC.md. Built on test 6 (e1ede86). Its section 4 (new RGB / Mix headers) was skipped at first,
+  then built (owner: "i want the rewrite that I have approved in the menu redesign"): see "headers" below.
 - **Order (pm_list):** 111, MX_IT, RG_IT, 5397, TB_IT, AB_IT, 5398, BK_IT, 8, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT,
   5400 (pages of five: the film and its colour in the camera's order, white balance and tone, detail / lens / light,
   Film Grain Effect alone). The camera allocates the row list to its count, so no size limit.
@@ -4719,4 +4719,23 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   (Mix / RGB / wheel / grids / sliders / choices); the screens outside Picture Mode identical to test 6. (The WB
   fine-tune screen's INFO gives om-emu an "event storm" in test 6 too: not new.) ext11 60,720 / 65,536, ext12 260,288 /
   262,144.
-
+- **Headers (spec section 4, 2026-11-15; emulator only).** Mix: left "Sat ±0" (rear dial), middle the colour's name in
+  its colour ("Red" / "Green" / "Blue"), right "Hue ±0" (front dial). RGB: left "Level ±0", middle the colour's name,
+  right "Pt 2" (no sign). Test 6's behaviour kept: INFO stays in the outer look (cv_inf), the dial symbols over the two
+  outer values, nothing greyed.
+  - "Saturation" does not fit: the left label box is 38 px (pictures wider are cut, test 2); "Saturation" is 102 px at
+    the labels' size, 67 px at the smallest readable one. "Sat" (34 px) is the closest that fits.
+  - Pictures (rgbpics): 7 "Sat", 8 "Hue", 9 "Level" (cap 14, squeezed to 30 px), white; 10..12 the names, 50 px wide
+    (the middle "Mid" label's box), cap 16 squeezed to 42 px; 15 a clear 14 x 30. The R / G / B letter labels (1..3)
+    are no longer used by the header.
+  - cv_ic: 4208 -> "Level" / "Sat", 4207 -> "Pt" / "Hue"; the middle's "Mid" record (0x61466580) and any other 4331
+    lookup -> the name; the middle's other records stay clear.
+  - **Two lookups per header picture (om-emu trace):** the header first looks a picture up with MDR HS_HDRAW
+    (0x610daa1f, a0 = the record), then at once again for the same id with MDR 0x610eb160 (a0 = a draw object, the
+    same for every record), and that second picture is the one drawn; the first one's size is the box it is drawn
+    in. So for RGB's right sign ("±" record 0x614666a8, "+" 0x614666b8; glyphs 1131 / 1132, both 13 x 30 from the
+    camera's table at (0x60379740) + 4 x id) the first lookup returns the clear 14 x 30 and sets cv_sgn, and the
+    second lookup (cv_sgn set, RGB on) returns it too and clears cv_sgn. A 2 x 2 blank in the first lookup alone left a
+    bit of the glyph; a red test picture showed the box lands exactly between "Pt" and the digit.
+  - om-emu: Mix and RGB headers as above through value changes and INFO (Red -> Green -> Blue); the 16-row sheet and
+    the screens outside Picture Mode identical to test 7's first build. ext11 60,752 / 65,536, ext12 260,736 / 262,144.
