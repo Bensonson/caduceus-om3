@@ -58,6 +58,27 @@ if (WATCH.size) {
   dbg.traceExec((r) => { const g = dbg.regs(); if (process.env.WIDS && !((g.d0 >>> 0) >= 928 && (g.d0 >>> 0) <= 975) && !(((g.d0 >>> 0) >> 4) >= 928 && ((g.d0 >>> 0) >> 4) <= 975 && (g.d0 >>> 0) < 0x10000)) return; if (process.env.WFROM && !globalThis.__armed) return; if (hits.length < 200000) { const h = { step: curStep, pc: r.pc.toString(16), mdr: (g.mdr >>> 0).toString(16), sp: (g.sp >>> 0), d0: g.d0 | 0, d1: g.d1 | 0, d2: g.d2 | 0, d3: g.d3 | 0, a0: (g.a0 >>> 0).toString(16) }; if (r.pc === 0x6051861a) { const out = u32((g.a2 >>> 0) + 12); h.rec = []; for (let i = 0; i < 12; i++) { const b = rd(out + 836 + 24 * i + 18, 6); const sh = (o) => ((b[o] | b[o + 1] << 8) << 16) >> 16; h.rec.push([sh(0), sh(2), sh(4)]); } } if (process.env.WTID) { const cpu = u32(0x8050), t1 = u32((0x97f00004 + 4 * cpu) >>> 0), t2 = u32((t1 + 96) >>> 0), t3 = u32(t2); h.tid = u16((t3 + 16) >>> 0); h.hls = u16(0x62b4dd14); } if (process.env.WSTACK) { h.stk = []; for (let k = 0; k < 160; k++) { const v = u32(((g.sp >>> 0) + 4 * k) >>> 0); if (v >= 0x60021020 && v < 0x62020fe0) h.stk.push(k * 4 + ':' + v.toString(16)); } } hits.push(h); if (process.env.WLIVE) console.log('HIT ' + JSON.stringify(h)); } }, { pcs: [...WATCH] });   // WLIVE=1: each hit printed at once (a run that crashes writes no OUT)
 }
 lab.sim.write(0xa32de590, new Uint8Array([0xff, 0x03, 0, 0])); lab.sim.write(0x60369308, new Uint8Array([0x00, 0xf0, 0, 0]));
+const shot = (file, tick = true) => {
+    if (tick) s.scene_frame(); s.a15_apply('tft'); const comp = lab.compose('tft', true, true); const w = comp.header.width, h = comp.header.height, px = comp.raw; const bpp = px.length / (w * h); console.log('shot', w, h, bpp, comp.status, comp.errors.length);
+    const raw = Buffer.alloc((w * 3 + 1) * h);
+    for (let y = 0; y < h; y++) { raw[y * (w * 3 + 1)] = 0; for (let x = 0; x < w; x++) { const i = (y * w + x) * bpp, o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = px[i]; raw[o + 1] = px[i + 1]; raw[o + 2] = px[i + 2]; } }
+    const crcT = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcT[n] = c >>> 0; }
+    const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+    const chunk = (ty, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(ty), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+    const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 2;
+    fs.writeFileSync(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
+};
+// TRACE=PC,... (hex): log each time the code reaches a PC, with its step and d0 / a0 (trace.jsonl), from the trace record
+// itself (the debugger cannot read registers while the run is paused in the trace).
+if (process.env.TRACE) Debugger.attach(lab.sim, { lab }).traceExec((r) => fs.appendFileSync('trace.jsonl', JSON.stringify({ step: curStep, pc: r.pc.toString(16), d0: r.d0, d1: r.d1, a0: r.a0.toString(16), insns: r.insns }) + '\n'),
+  { pcs: process.env.TRACE.split(',').map((x) => parseInt(x, 16) >>> 0) });
+// MMIO=1: log the CPU's MMIO writes (name, address, insns) to mmio.jsonl, to time display updates against TRACE.
+if (process.env.MMIO) Debugger.attach(lab.sim, { lab }).traceMmio((r) => fs.appendFileSync(process.env.TRACE ? 'trace.jsonl' : 'mmio.jsonl', JSON.stringify({ step: curStep, name: r.name, addr: (r.addr >>> 0).toString(16), value: (r.value >>> 0).toString(16), pc: r.pc?.toString(16), insns: r.insns }) + '\n'), { dir: 'w' });
+// SHOTAT=PC,... (hex): during a frames: token, also shoot the screen as it stands when the code reaches each PC
+// (at_PC_N.png, no scene tick first), the state the camera's display can show mid-update.
+let shotArm = false, shotN = 0;
+if (process.env.SHOTAT) Debugger.attach(lab.sim, { lab }).traceExec((r) => { if (shotArm) shot('at_' + r.pc.toString(16) + '_' + shotN++ + '.png', false); },
+  { pcs: process.env.SHOTAT.split(',').map((x) => parseInt(x, 16) >>> 0) });
 for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
   if (process.env.WFROM && t === process.env.WFROM) globalThis.__armed = true;
   curStep = t + "#" + log.length;
@@ -69,16 +90,20 @@ for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
     const parts = []; for (const [lo, hi] of [[0x60000000, 0x63000000], [0xa2000000, 0xa6000000]]) { for (let a = lo; a < hi; a += 0x100000) parts.push(Buffer.from(rd(a, 0x100000))); }
     fs.writeFileSync(t.slice(5), Buffer.concat(parts));
   }
-  else if (t.startsWith('shot:')) {
-    s.scene_frame(); s.a15_apply('tft'); const comp = lab.compose('tft', true, true); const w = comp.header.width, h = comp.header.height, px = comp.raw; const bpp = px.length / (w * h); console.log('shot', w, h, bpp, comp.status, comp.errors.length);
-    const raw = Buffer.alloc((w * 3 + 1) * h);
-    for (let y = 0; y < h; y++) { raw[y * (w * 3 + 1)] = 0; for (let x = 0; x < w; x++) { const i = (y * w + x) * bpp, o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = px[i]; raw[o + 1] = px[i + 1]; raw[o + 2] = px[i + 2]; } }
-    const crcT = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcT[n] = c >>> 0; }
-    const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
-    const chunk = (ty, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(ty), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
-    const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 2;
-    fs.writeFileSync(t.slice(5), Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
+  else if (t.startsWith('frames:')) {
+    // frames:KEY:N:MS:PREFIX presses KEY, then shoots N frames MS ms apart (PREFIX0.png..), the key held 150 ms:
+    // shows a redraw before it settles (a plain key token idles 1350 ms first). Each frame is a fresh compose.
+    const [k, n, ms, pre] = t.slice(7).split(':'); let held = true, at = lab.lab_time();
+    shotArm = true; s.key(k, 'down'); s.camapp.pump();
+    for (let i = 0; i < Number(n); i++) {
+      if (held && i * Number(ms) >= 150) { s.key(k, 'up'); s.camapp.pump(); held = false; }
+      at += Number(ms) * 1e6;
+      s.idle_slice(at); shot(pre + i + '.png', !process.env.RAWFRAMES);
+    }
+    if (held) { s.key(k, 'up'); s.camapp.pump(); }
+    shotArm = false;
   }
+  else if (t.startsWith('shot:')) shot(t.slice(5));
   else if (t.startsWith('descswap:')) {
     const [da, file, w, h] = t.slice(9).split('@'); const dd = Debugger.attach(lab.sim, { lab });
     const buf = fs.readFileSync(file), at = ((saved_sp_for_desc ??= (dd.m.getRegs()[8] - 0x20000) & ~0xff) >>> 0);
@@ -96,7 +121,11 @@ for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
   }
   else if (t.startsWith('expect:mem:')) {
     // expect:mem:ADDR=HEX ends the run with exit 1 unless the bytes at ADDR are HEX, as om-emu's session.mjs. All hex.
-    const [where, hex] = t.slice(11).split('='), got = Buffer.from(rd(parseInt(where, 16), hex.length / 2)).toString('hex');
+    // ADDR may follow pointers: BASE+OFF*+OFF*...+OFF reads the word at BASE + OFF for each OFF* (poke:'s form, chained).
+    const [where, hex] = t.slice(11).split('='), [base, ...offs] = where.split('+');
+    let at = parseInt(base, 16);
+    for (const o of offs) at = o.endsWith('*') ? u32((at + parseInt(o, 16)) >>> 0) : (at + parseInt(o, 16)) >>> 0;
+    const got = Buffer.from(rd(at >>> 0, hex.length / 2)).toString('hex');
     if (got !== hex.toLowerCase()) { console.error(`expect:mem ${where}: ${got}, not ${hex}`); process.exit(1); }
   }
   else if (t.startsWith('expect:isdef:')) {

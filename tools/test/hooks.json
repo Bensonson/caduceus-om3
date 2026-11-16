@@ -76,6 +76,10 @@
    "addr": "0x603e7891",
    "len": 7
   },
+  "hook_pe": {
+   "addr": "0x611d059c",
+   "len": 6
+  },
   "hook_pg": {
    "addr": "0x611d07a4",
    "len": 24
