@@ -4695,7 +4695,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   over Sat / Hue, values white, middle empty). Camera-tested: the selector set in cv_inf, the middle clearing. **Test 6
   (E1479999.BIN f85e7f86…, f4a053b) is the line for the RGB curves + colour mix.**
 
-### Colour menu: order, cell pictures, titles (test 7, 2026-11-15; emulator only)
+### Colour menu: order, cell pictures, titles, headers (test 7, 2026-11-15; camera-tested)
 - Owner: "build the mockup that color menu design has done"; spec (owner-approved, private):
   color-menu-design/SPEC.md. Built on test 6 (e1ede86). Its section 4 (new RGB / Mix headers) was skipped at first,
   then built (owner: "i want the rewrite that I have approved in the menu redesign"): see "headers" below.
@@ -4739,3 +4739,5 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     bit of the glyph; a red test picture showed the box lands exactly between "Pt" and the digit.
   - om-emu: Mix and RGB headers as above through value changes and INFO (Red -> Green -> Blue); the 16-row sheet and
     the screens outside Picture Mode identical to test 7's first build. ext11 60,752 / 65,536, ext12 260,736 / 262,144.
+- **Camera (2026-11-15), test 7 with the headers (E1479999.BIN `cfd4992752c2…df85d`, commit 3ba1355):** owner: "that looks
+  so good. like properly good." Camera-tested; the current line for RGB curves + colour mix + the colour menu.

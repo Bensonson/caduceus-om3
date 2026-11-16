@@ -1,11 +1,11 @@
 > **Branch `feature/rgb-curves` (work in progress, not released):** per-film R / G / B tone curves and a per-film
-> colour mix, both edited on the camera (the RGB and Mix rows in Picture Mode). **Colour mix test 6 is camera-tested
-> and is the line** (2026-11-15, E1479999.BIN `f85e7f86…`): the RGB curves as test 4 (5 even points), the Mix row
-> (hue and strength of red, green and blue, the circle page), both in photos only (video stays stock), the camera's
-> header on both pages kept in its outer look (no middle number or dial). The live view shows changes at the next
-> half-press, as with our other rows. Colour menu test 7 (new row order, cell pictures, titles and page headers,
-> owner-approved design) is emulator-checked only and waits for the camera test. Details: `research/NOTES.md`, "Per-film R / G / B
-> tone curves: build", "Colour mix per film" and "Colour menu".
+> colour mix, both edited on the camera (the RGB and Mix rows in Picture Mode). **Colour menu test 7 is camera-tested
+> and is the line** (2026-11-15, E1479999.BIN `cfd49927…`; owner: "that looks so good. like properly good."): the RGB
+> curves as test 4 (5 even points) and the Mix row (hue and strength of red, green and blue, the circle page), both in
+> photos only (video stays stock), plus the colour menu (new row order in pages of five, cell pictures, titles, and
+> page headers: Mix "Sat / colour name / Hue", RGB "Level / colour name / Pt"; the header stays in its outer look).
+> The live view shows changes at the next half-press, as with our other rows. Details: `research/NOTES.md`, "Per-film
+> R / G / B tone curves: build", "Colour mix per film" and "Colour menu".
 
 <h1 align="center">Caduceus for OM-3</h1>
 
