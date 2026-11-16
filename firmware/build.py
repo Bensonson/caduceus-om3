@@ -19,6 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from oe_container import parse, encode, wordsum
+from provenance import source_digest
 
 
 class P:                                   # toolchain and stock identity (set from the command line)
@@ -805,7 +806,7 @@ def build(defaults, testfile, out):
     (out / 'main.bin').write_bytes(bytes(m)); (out / 'E1479999.BIN').write_bytes(pkg)
     nm = subprocess.run([P.TC / 'binutils/nm-new', out / 'p.elf'], capture_output=True, text=True).stdout
     syms = {l.split()[2]: int(l.split()[0], 16) for l in nm.splitlines() if len(l.split()) == 3}
-    rep = dict(package_sha256=hashlib.sha256(pkg).hexdigest(), main_sha256=hashlib.sha256(bytes(m)).hexdigest(),
+    rep = dict(source_sha256=source_digest(ROOT), package_sha256=hashlib.sha256(pkg).hexdigest(), main_sha256=hashlib.sha256(bytes(m)).hexdigest(),
                main_bytes_changed=sum(x != y for x, y in zip(m, mc['dec'])),
                ext1=dict(addr=hex(EXT1[0]), bytes=len(blobs['.ext1'])), ext4=dict(addr=hex(EXT4[0]), bytes=len(blobs['.ext4'])), ext10=dict(addr=hex(EXT10[0]), bytes=len(blobs['.ext10'])), ext6=dict(addr=hex(EXT6[0]), bytes=len(blobs['.ext6'])), ext5=dict(addr=hex(EXT5[0]), bytes=len(blobs['.ext5'])), ext3=dict(addr=hex(EXT3[0]), bytes=len(blobs['.ext3'])), ext8=dict(addr=hex(EXT8[0]), bytes=len(blobs['.ext8'])), ext9=dict(addr=hex(EXT9[0]), bytes=len(blobs['.ext9'])),
                bundles_bin_sha256=hashlib.sha256(test).hexdigest(), defaults_sha256=hashlib.sha256(dflt).hexdigest(),

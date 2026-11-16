@@ -9,6 +9,7 @@ graphics are stored here: the tools make them from the official firmware file yo
 | [`NOTES.md`](NOTES.md) | **The lab notebook.** Every firmware address, hook, test result and dead end, in order (newest at the end). Read the section for an area before changing it. "camera" = seen on a real OM-3, "emulator" = om-emu only. |
 | [`../docs/DEVELOPER_NOTES.md`](../docs/DEVELOPER_NOTES.md) | The cleaned-up summary per release. |
 | [`../docs/FILM_SIMULATION_ROADMAP.md`](../docs/FILM_SIMULATION_ROADMAP.md) | What we want to add for film looks, with effort and status. |
+| [`TESTING.md`](TESTING.md) | Deterministic firmware tests (2026-11-15, emulator only): how to run the suite `tools/test/emu_test.py` (emulator tests plus the static build checks of `tools/test/static_check.py`), the pull request check, what om-emu can check, what to test next, and which past regressions it would catch. |
 | `film-grading/` | Film looks graded on the camera (2026-11-11): measured slider response on a colour chart, the camera model and the solver behind films.py `GRADED`. |
 | `grain/` | The grain model (bit-exact with the camera's Monochrome grain). |
 | `tools/` | Decode the firmware container (`oe_decode.py`), list its sections and free tails (`sections.py`), check anchor addresses (`check_anchors.py`), disassemble a range (`dis.sh`). |

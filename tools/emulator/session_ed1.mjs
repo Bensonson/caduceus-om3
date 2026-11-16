@@ -39,6 +39,14 @@ const snap = (k) => {
   log.push(e);
   console.log(JSON.stringify(e));
 };
+const PHOTO_VIDEO_SWITCH = 0x1909;   // uiin input code of the photo/video switch
+const { uiin_layout, set_bit } = await import(EMU + '/src/lab/play.mjs');
+const pset = (code, k) => { const { groups } = uiin_layout(rom); const pos = []; groups.forEach(({ entries }, g) => entries.forEach(([b, bit, c, typ, pol]) => { if (c === code && typ === 1) pos.push([g, b, bit, pol]); }));
+  pos.forEach(([g, b, bit, pol], i) => set_bit(s.images[g], b, bit, i === k ? pol : 1 - pol));
+  for (const g of new Set(pos.map((x) => x[0]))) { const [codes] = s.push_group(g); for (const c of codes || []) { const [idx] = s.keymap(c); if (idx !== null) s.event(idx); } }
+  if (s.camapp) s.camapp.pump(); return pos.length; };
+if (process.env.PSET0) console.error('pset0', pset(PHOTO_VIDEO_SWITCH, parseInt(process.env.PSET0, 10)));
+if (process.env.MODE0) s.switch_input('mode_dial', parseInt(process.env.MODE0, 10));
 s.idle_slice(lab.lab_time() + 1500e6); snap('start');
 const { Debugger } = await import(EMU + '/src/debug/debugger.mjs');
 const WATCH = new Set((process.env.WATCH || '').split(',').filter(Boolean).map((x) => parseInt(x, 16) >>> 0));
@@ -54,6 +62,8 @@ for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
   if (process.env.WFROM && t === process.env.WFROM) globalThis.__armed = true;
   curStep = t + "#" + log.length;
   const m = /^(main|sub)([+-]\d+)$/.exec(t);
+  if (t.startsWith('pset:')) { console.error('pset', pset(PHOTO_VIDEO_SWITCH, parseInt(t.slice(5), 10))); continue; }
+  if (t.startsWith('mode:')) { s.switch_input('mode_dial', parseInt(t.slice(5), 10)); if (s.camapp) s.camapp.pump(); continue; }
   if (m) { s.dial_input(m[1], parseInt(m[2], 10)); s.camapp.pump(); }
   else if (t.startsWith('dump:')) {
     const parts = []; for (const [lo, hi] of [[0x60000000, 0x63000000], [0xa2000000, 0xa6000000]]) { for (let a = lo; a < hi; a += 0x100000) parts.push(Buffer.from(rd(a, 0x100000))); }
