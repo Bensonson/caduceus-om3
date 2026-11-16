@@ -5596,3 +5596,16 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   / LABELS / TONES built in, as v0.29); VERSION "v0.30.1 + faster halation (h7 test 1)". No #65 fix in it (that is
   feature/fix-65-review; merging the two conflicts only in VERSION and these notes). Camera test: the same night scene
   at Halation 5 with this and with v0.30.1, the halo compared by eye and the save time counted.
+
+## v0.30.3 test 1: faster halation (h7) + the debug log written at releases only (2026-11-17; emulator only)
+Owner: "lets tackle that faster halation and the debug log". `try/v0.30.3` = main (v0.30.2) + the debug log change
+(4940e1a, aligned in a later commit) + `feature/faster-halation` (h7, merged as its session built it).
+- **Debug log:** `lg_pr` notes the shutter handler's event byte (18,sp) (the event word (16,sp) is 0x0100 at the
+  half-press and 0x0101 at its release in om-emu, traced at 0x60415216) in `lg_rel`; `lg_write` still records every
+  event (ring, camera values, the line), then `lg_due` lets the report be built and written only at a release, and not
+  at the release that ends a burst (2+ photos since the half-press, `lg_npp`); `lg_w` now counts real writes. The first
+  build trapped in om-emu on a misaligned `lg_npp` (code before it): fixed with `.balign 4`. Test
+  `debug-log-written-at-releases-only` (three clicks: event 5, 3 writes; the first half-press loads the films and is
+  not logged): pass; `--without` v0.30.2: caught. The burst rule needs photos: camera-only.
+- Build "v0.30.3-dev (test 1: faster halation, debug log fix)" (52 characters), E1479999.BIN `3f5440bc…75b7`, rebuilt
+  byte for byte; suite 24 of 24 (incl. `halation-matches-the-model`). Package `test-builds/2026-11-17-v0303-test1`.
