@@ -410,7 +410,8 @@ to "v0.30 test 13", "Debug log dl8" / "dl9").
   differs only in that string, the code-block tag and the built-in GUIDES copy's CRC (53 bytes). E1479999.BIN
   481f3678…7a54; `patch.py` makes it by default. Suite on the release build: all pass.
 - Release extras: `CURVES.BIN` 4c009f9c…2291 (test 9's sample: LookLab's 20 against v0.29.5's LOOKS.BIN, camera-tested
-  from test 9 on), attached by the release workflow from v0.30; `LOOKS.BIN`, `DEBUG.TXT` and the photo code kit as v0.29.5.
+  from test 9 on), uploaded to the GitHub release by hand (`.github/workflows/releases.yml` attaches only the older
+  extras; changing it needs a token with the `workflow` scope); `LOOKS.BIN`, `DEBUG.TXT` and the photo code kit as v0.29.5.
 
 ## v0.29.5 release (feature/per-mode-settings-2; builds p1 and p2, camera-tested 2026-11-15)
 

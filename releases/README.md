@@ -43,7 +43,7 @@ Always copy the version's own `GUIDES.BIN` (from v0.20 it carries code made for 
 
 Each version is also published on the repo's **Releases** page (tag `v0.16` … `v0.27.1`) with the whole project as
 it was at that version: a GitHub Action (`.github/workflows/releases.yml`) publishes every folder here once, so a
-new version only needs its folder. Optional extras in a folder (`DEBUG.TXT`, `*.zip`, from v0.27; `CURVES.BIN`, from v0.30) are attached too;
+new version only needs its folder. Optional extras in a folder (`DEBUG.TXT`, `*.zip`, from v0.27) are attached too (v0.30's `CURVES.BIN` by hand);
 the launchers never copy them to the card.
 **v0.28-alpha** is a test version: it is published by hand as a GitHub pre-release from `feature/v0.28-halation`
 (not from `main`), and the launchers in its download make it by default. **v0.29-beta** is published the same way from
