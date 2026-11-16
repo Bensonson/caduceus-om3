@@ -10,7 +10,7 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, json, os, pathlib, re, subprocess, sys, tempfile
+import argparse, concurrent.futures, json, os, pathlib, re, shutil, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -30,8 +30,9 @@ LOG_PATH = 'OM3MOD/CADLOG.TXT'
 # A branch that changes these needs a suite pass on its HEAD before a pull request (tools/test/pr_gate.py).
 TESTED_PATHS = ('firmware/', 'card/', 'tools/emulator/', 'tools/test/')
 PASS_FILE = 'emu-test-pass.json'
-# Two sessions peak at about 1.3 GB each. More side by side has had runs killed (research/TESTING.md).
-DEFAULT_JOBS = 2
+# Each session peaks at about 1.3 GB. 4 side by side ran clean on a 32 GB Mac. Runs killed with exit 137 had
+# screenshots in them (research/TESTING.md).
+DEFAULT_JOBS = 4
 # Switch positions the driver sets before each boot (session_ed1.mjs PSET0, MODE0).
 PHOTO_SWITCH_PHOTO = 2
 MODE_DIAL_P = 2
@@ -55,11 +56,11 @@ P_FILM_LINE = r'^Picture mode setting: 55 = COLOR 2, FILM 6$'
 C1_RECORD_LINE = r'^Custom modes: a valid record at the first look: yes'
 GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
 # The photo boot before it leaves the video boot with nothing put back and the photo switch read as video.
-# rc_go does no film work in video (#53): the custom-mode code never sees the mode (code 0, no record write). A build
-# without the fix reads mode code 194 and writes the record.
+# rc_go does no film work in video (#53): no custom-mode record write. A build without the fix writes the record.
+# The early load reads the mode code in video, so the code itself shows nothing.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
                     r'photo check .*: 193$',
-                    r'^Custom modes: group now .*: 0, mode code 0; .*record writes: 0,']
+                    r'^Custom modes: group now .*; .*record writes: 0,']
 
 
 @dataclass
@@ -114,10 +115,9 @@ TESTS = {
 }
 
 # Tests the current release fails, with the reason. They do not fail a run. Remove an entry once main passes it.
-KNOWN_FAILURES = {
-    'film-kept-with-no-half-press-after-pick':
-        'v0.29.5 loses a pick made with no half-press after it, fixed on feature/early-load',
-}
+KNOWN_FAILURES = {}
+# Errors a test's runner turns into a failure of that test, not of the whole run.
+RUNNER_ERRORS = (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError)
 
 
 def git(*args, cwd=REPO):
@@ -181,35 +181,69 @@ def read_log(emu, card, dest):
     return [l.rstrip() for l in dest.read_bytes().decode('latin1').replace('\r', '').split('\n') if l.strip()]
 
 
-def run_test(name, boots, emu, build, card0, out):
+def boot_key(boot):
+    return boot.tokens, boot.mode_dial, boot.photo_switch
+
+
+def run_boot(emu, build, d, i, boot, card):
+    """Boot i in d, from card, with d/nv.bin as the camera's settings -> (next card, log lines or None, errors, a
+    fatal error or None)."""
+    nxt = d / f'card{i}.omsd'
+    env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), 'MODE0': str(boot.mode_dial),
+           **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})}
+    try:
+        r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, boot.tokens, env=env)
+    except subprocess.TimeoutExpired:
+        return nxt, None, [], f'boot {i}: no result after {BOOT_TIMEOUT_S} s'
+    (d / f'boot{i}.log').write_text(r.stdout + r.stderr)
+    if r.returncode:
+        return nxt, None, [], f'boot {i}: driver exit {r.returncode} (boot{i}.log)'
+    if not nxt.exists():
+        return nxt, None, [], f'boot {i}: driver saved no card (boot{i}.log)'
+    errors = []
+    if boot.tokens.split()[-1] == 'poweroff' and not json.loads((d / f'boot{i}.json').read_text())['log'][-1].get('power_off'):
+        errors.append(f'boot {i}: the firmware did not power off (boot{i}.json)')
+    return nxt, read_log(emu, nxt, d / f'cadlog{i}.txt'), errors, None
+
+
+def check_log(i, boot, lines):
+    """boot i's expect and reject against its log lines -> errors, and whether the test must stop."""
+    if lines is None:
+        return ([f'boot {i}: no {LOG_PATH} on the card'], True) if boot.expect or boot.reject else ([], False)
+    return ([f'boot {i}: no line matches {p}' for p in boot.expect if not any(re.search(p, l) for l in lines)] +
+            [f'boot {i}: unwanted line {l!r}' for p in boot.reject for l in lines if re.search(p, l)]), False
+
+
+def run_shared(emu, build, d, boot, card0):
+    """A first boot that several tests share, run once in d -> run_boot's result, its errors naming d."""
+    d.mkdir(parents=True, exist_ok=True)
+    (d / 'nv.bin').unlink(missing_ok=True)
+    try:
+        nxt, lines, errors, fatal = run_boot(emu, build, d, 1, boot, card0)
+    except RUNNER_ERRORS as e:
+        nxt, lines, errors, fatal = None, None, [], f'boot 1: runner error: {e}'
+    return nxt, lines, [f'{e}, shared boot in {d}' for e in errors], fatal and f'{fatal}, shared boot in {d}'
+
+
+def run_test(name, boots, emu, build, card0, out, first=None):
+    """first: run_shared's result for boots[0], used in its place."""
     d = out / name
     d.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), }
     (d / 'nv.bin').unlink(missing_ok=True)
     card, errors = card0, []
     for i, boot in enumerate(boots, 1):
-        nxt = d / f'card{i}.omsd'
-        try:
-            r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, boot.tokens,
-                     env={**env, 'MODE0': str(boot.mode_dial),
-                     **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})})
-        except subprocess.TimeoutExpired:
-            return name, [f'boot {i}: no result after {BOOT_TIMEOUT_S} s']
-        (d / f'boot{i}.log').write_text(r.stdout + r.stderr)
-        if r.returncode:
-            return name, [f'boot {i}: driver exit {r.returncode} (boot{i}.log)']
-        if not nxt.exists():
-            return name, [f'boot {i}: driver saved no card (boot{i}.log)']
-        if boot.tokens.split()[-1] == 'poweroff' and not json.loads((d / f'boot{i}.json').read_text())['log'][-1].get('power_off'):
-            errors.append(f'boot {i}: the firmware did not power off (boot{i}.json)')
-        lines = read_log(emu, nxt, d / f'cadlog{i}.txt')
-        if lines is None:
-            if boot.expect or boot.reject:
-                return name, [f'boot {i}: no {LOG_PATH} on the card']
-            lines = []
-        errors += [f'boot {i}: no line matches {p}' for p in boot.expect if not any(re.search(p, l) for l in lines)]
-        errors += [f'boot {i}: unwanted line {l!r}' for p in boot.reject for l in lines if re.search(p, l)]
-        card = nxt
+        if i == 1 and first:
+            card, lines, errs, fatal = first
+            if not fatal and (card.parent / 'nv.bin').exists():
+                shutil.copy(card.parent / 'nv.bin', d / 'nv.bin')
+        else:
+            card, lines, errs, fatal = run_boot(emu, build, d, i, boot, card)
+        if fatal:
+            return name, [fatal]
+        found, stop = check_log(i, boot, lines)
+        errors += errs + found
+        if stop:
+            return name, errors
     return name, errors
 
 
@@ -263,18 +297,33 @@ def main():
     stock = static_check.find_stock(a.stock) if any(n in STATIC for n in names) else None
     runs = [(n, k) for n in names for k in range(1, a.repeat + 1)]
     print(f'{len(names)} tests{f" x {a.repeat}" if a.repeat > 1 else ""} on {build}, results in {out}')
+    def run_dir(k):
+        return out / f'run{k}' if a.repeat > 1 else out
+    # A first boot that two or more tests share runs once per run folder, and each of those tests starts from its result.
+    uses = {}
+    for n, k in runs:
+        if n in TESTS:
+            uses.setdefault((k, boot_key(TESTS[n][0])), []).append(n)
+    shared_keys = [key for key, ns in uses.items() if len(ns) > 1]
+    shared = {}
     def one(run):
         n, k = run
-        d = out / f'run{k}' if a.repeat > 1 else out
+        d = run_dir(k)
         try:
             if n in STATIC:
                 return n, static_check.CHECKS[n[len(STATIC_PREFIX):]](build, stock)
-            return run_audit(emu, build, d) if n == AUDIT else run_test(n, TESTS[n], emu, build, card0, d)
+            if n == AUDIT:
+                return run_audit(emu, build, d)
+            first = shared.get((k, boot_key(TESTS[n][0])))
+            return run_test(n, TESTS[n], emu, build, card0, d, first and first.result())
         except static_check.Skip as e:
             return n, [f'could not run: {e}']
-        except (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError) as e:
+        except RUNNER_ERRORS as e:
             return n, [f'runner error: {e}']
     with concurrent.futures.ThreadPoolExecutor(a.jobs) as pool:
+        # Shared boots go in first: the pool starts them before any test that waits on one.
+        shared.update((key, pool.submit(run_shared, emu, build, run_dir(key[0]) / 'shared' / str(i),
+                                        TESTS[uses[key][0]][0], card0)) for i, key in enumerate(shared_keys))
         done = list(pool.map(one, runs))
     results = {n: [] for n in names}
     for (n, k), (_, errors) in zip(runs, done):

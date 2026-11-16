@@ -150,10 +150,13 @@ def known_intervals(build, m):
     return iv
 
 
-def site_runs(build, stock):
+def site_positions(build, stock):
     m, s = read_main(build), stock_main(stock)
-    pos = uncovered_positions(changed_runs(m, s), known_intervals(build, m))
-    return [f'{hx(MAIN_BASE + a)}:{n}' for a, n in group(pos)]
+    return uncovered_positions(changed_runs(m, s), known_intervals(build, m))
+
+
+def site_runs(build, stock):
+    return [f'{hx(MAIN_BASE + a)}:{n}' for a, n in group(site_positions(build, stock))]
 
 
 # ---------------------------------------------------------------- checks
@@ -227,11 +230,17 @@ def changed_bytes(build, stock):
     """Hooks, section tails, the loader word and the built-in files come from the build. The scattered patch sites
     (call displacements, table words, descriptors) have no source in the build dir, so hooks.json holds a reviewed
     snapshot of them instead."""
-    now = set(site_runs(build, stock))
-    want = set(load_baseline()['patch_sites'])
-    fails = [f'new changed run {r} (address:length): {REVIEW_SITE}' for r in sorted(now - want)[:MAX_LISTED]]
-    fails += [f'changed run {r} is gone: {REVIEW_SITE}' for r in sorted(want - now)[:MAX_LISTED]]
-    more = len(now - want) + len(want - now) - len(fails)
+    pos = site_positions(build, stock)
+    want = load_baseline()['patch_sites']
+    runs = {r: (int(r.split(':')[0], 16) - MAIN_BASE, int(r.split(':')[1])) for r in want}
+    # A patched word can match the stock byte by chance (a pointer into our code that moved), so a reviewed run may
+    # shrink. Each changed byte must lie in a reviewed run, and each reviewed run must still change a byte.
+    new = [f'{hx(MAIN_BASE + a)}:{n}' for a, n in group(uncovered_positions(pos, [(a, a + n) for a, n in runs.values()]))]
+    hit = {r for r, (a, n) in runs.items() if (i := bisect.bisect_left(pos, a)) < len(pos) and pos[i] < a + n}
+    gone = sorted(set(want) - hit)
+    fails = [f'new changed run {r} (address:length): {REVIEW_SITE}' for r in new[:MAX_LISTED]]
+    fails += [f'changed run {r} is gone: {REVIEW_SITE}' for r in gone[:MAX_LISTED]]
+    more = len(new) + len(gone) - len(fails)
     return fails + ([f'... and {more} more'] if more > 0 else [])
 
 
