@@ -1,7 +1,8 @@
 > [!NOTE]
-> **Branch `try/v0.30-dl9` (v0.30 test 10, not released):** v0.30 test 9 (RGB curves, colour mix, the colour menu,
-> CURVES.BIN, PRs #55 / #56 / #57, the #54 fix) plus the complete debug log dl9 (camera-tested on v0.29.5). Details:
-> `research/NOTES.md`, "v0.30 test 8", "Debug log dl8", "dl9" and "v0.30 test 10".
+> **Branch `try/v0.30-dl9` (the v0.30 candidate, not released):** **test 11 is camera-tested** (2026-11-15,
+> E1479999.BIN `0f690519…`; owner: "It looks amazing"). It holds RGB curves, colour mix, the colour menu (the Mix /
+> RGB headers' R, G, B centred), CURVES.BIN, PRs #55 / #56 / #57, the #54 fix and the complete debug log dl9.
+> Details: `research/NOTES.md`, "v0.30 test 8" to "v0.30 test 11", "Debug log dl8" and "dl9".
 
 
 <h1 align="center">Caduceus for OM-3</h1>
