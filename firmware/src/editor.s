@@ -12026,6 +12026,7 @@ lg_due:
 2:
  mov 1,d0
  retf [],0
+ .balign 4
 lg_npp:                           /* lg_np at the last half-press */
  .long 0
 lg_rel:                           /* this shutter event: 0 half-press, 1 release (lg_pr) */
