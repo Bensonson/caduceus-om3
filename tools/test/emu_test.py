@@ -46,7 +46,7 @@ PHOTO_SWITCH_VIDEO = 1
 # From COLOR 1 on the shooting screen, picks FILM 2: the list runs COLOR 1-4, then the films.
 # Keep in sync with FILM_2_LINE.
 PICK_FILM_2 = 'ok wait ok wait right wait right wait right wait right wait right wait ok wait menu wait wait'
-FILM_2_LINE = r'^Picture mode setting: \d+ = COLOR \d+, FILM 2$'
+FILM_2_LINE = r'^Picture mode: COLOR \d+, FILM 2\b'   # debug log dl9 (v0.30 test 10): NOW's picture mode line
 
 # In P: picks a film, assigns it to C1 (menu), then picks another film in P.
 BOOT1_ASSIGN_C1 = ('s1 wait wait ok wait ok wait right wait right wait right wait right wait ok wait menu wait wait s1 wait wait menu wait right wait right wait right wait right wait right wait right wait right wait ok wait ok wait down wait ok wait ok wait menu wait menu wait menu wait wait ok wait ok wait right wait right wait right wait right wait right wait ok wait menu wait wait s1 wait wait poweroff')
@@ -54,15 +54,16 @@ C1_TURN_WHILE_OFF = 'wait wait wait s1 wait wait poweroff'
 C1_TURN_BEFORE_HALF_PRESS = 'wait wait wait mode:7 wait wait wait s1 wait wait poweroff'
 VIDEO_BOOT = 'wait wait wait s1 wait wait poweroff'
 # Picture mode 54 = COLOR 1 is C1's film (FILM 1), 55 = COLOR 2 is the film picked last in P (FILM 6).
-C1_FILM_LINE = r'^Picture mode setting: 54 = COLOR 1, FILM 1$'
-P_FILM_LINE = r'^Picture mode setting: 55 = COLOR 2, FILM 6$'
-C1_RECORD_LINE = r'^Custom modes: a valid record at the first look: yes'
-GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
+C1_FILM_LINE = r'^Picture mode: COLOR 1, FILM 1\b.*\(setting 111 = 54\)'
+P_FILM_LINE = r'^Picture mode: COLOR 2, FILM 6\b.*\(setting 111 = 55\)'
+C1_RECORD_LINE = r'^CUSTOM MODES \(records valid at the first look: custom modes yes'
+GROUP_C1_LINE = r'^Now: group C1 \(last look: mode code 53\)'
 # The photo boot before it leaves the video boot with nothing put back and the photo switch read as video.
 # rc_go does no film work in video (#53): no film switched, no record write. A build without the fix writes the record.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
-                    r'photo check .*: (193|10)$',    # 192 + the movie switch, or the video mode's code 10
-                    r'^Custom modes: group now .*; .*films switched: 0, record writes: 0,']   # PR #56's early load reads
+                    r'photo check: (switch position 1|mode code 10)\)$',    # the movie switch, or the video mode's code 10
+                    r'^This power-on: Assigns \d+, films switched 0,',
+                    r'^Custom-mode record \(OM3C\): writes 0,']   # PR #56's early load reads
                     # the dial position (el_ok -> cm_gnow) in video too, so group and code show it; no work follows
 
 
@@ -87,29 +88,34 @@ FIXTURES = {
 EDIT_RGB = 'ok wait ok wait down wait down wait main+1 wait menu wait wait'
 
 
+CK_WORDS = ['none', 'none (its film has some)', "its film's", 'changed']   # has values x 2 + differs from the built-in
+
+
 def ck_line(mem, card, matches, on_builtin, with_values):
-    """CADLOG's CURVES.BIN line: on_builtin / with_values are bit masks, bit k-1 for COLOR k."""
-    return (rf"^CURVES\.BIN \(each film's built-in curves and mix\): in camera memory: {mem}; this power-on's card: {card}; "
-            rf"films it matches: {matches}; COLOR k on its film's built-in \(bit k-1\): {on_builtin}; "
-            rf"COLOR k with curves or mix \(bit k-1\): {with_values};")
+    """CADLOG's CURVES.BIN lines (debug log dl9, v0.30 test 10: START-UP's file line and NOW's line per COLOR):
+    on_builtin / with_values are bit masks, bit k-1 for COLOR k."""
+    words = [CK_WORDS[2 * (with_values >> k & 1) + (1 - (on_builtin >> k & 1))] for k in range(4)]
+    return [rf"^CURVES\.BIN \(each film's built-in curves and mix\): in camera memory: {mem}; this power-on's card: {card}; "
+            rf"films it matches: {matches}$",
+            '^Curves / mix on COLOR 1-4: ' + re.escape(', '.join(words)) + '$']
 
 
 TESTS = {
     'boot-smoke': [
         Boot('s1 wait wait poweroff', expect=[
             r'^Card files: all match this firmware$',
-            r'^LOOKS\.BIN looks loaded: yes$',
-            r'^GUIDES\.BIN code block loaded: yes$',
-            r'^Films from: the card',
-            r'^Block written this power-on: 1 times',
+            r'^Loaded: films \(LOOKS\) yes,',
+            r'^Loaded: GUIDES code block yes,',
+            r'^Films: from the card',
+            r'^Films block in camera memory: writes 1,',
         ]),
     ],
     'films-from-camera-memory': [
-        Boot('s1 wait wait poweroff', expect=[r'^Films from: the card']),
+        Boot('s1 wait wait poweroff', expect=[r'^Films: from the card']),
         Boot('s1 wait wait poweroff', expect=[
-            r'^Films in camera memory: a valid block at power-on: yes',
-            r'^Films from: the camera',
-        ], reject=[r'^Films from: the card']),
+            r'^Films: .*; films block in camera memory at power-on: valid',
+            r'^Films: from the camera',
+        ], reject=[r'^Films: from the card']),
     ],
     'film-kept-with-half-press-after-pick': [
         Boot('s1 wait wait poweroff'),
@@ -132,27 +138,27 @@ TESTS = {
     ],
     'curves-file-kept-in-camera': [
         Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
-             expect=[FILM_2_LINE, ck_line('yes', 'taken', 20, 15, 1)]),
+             expect=[FILM_2_LINE, *ck_line('yes', 'taken', 20, 15, 1)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': None},
-             expect=[FILM_2_LINE, ck_line('yes', 'none', 20, 15, 1)]),
+             expect=[FILM_2_LINE, *ck_line('yes', 'none', 20, 15, 1)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
-             expect=[ck_line('yes', 'the same', 20, 15, 1)]),
+             expect=[*ck_line('yes', 'the same', 20, 15, 1)]),
     ],
     'curves-file-new-values-follow-edits-stay': [
         Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
-             expect=[ck_line('yes', 'taken', 20, 15, 1)]),
+             expect=[*ck_line('yes', 'taken', 20, 15, 1)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_B'},
-             expect=[ck_line('yes', 'taken', 20, 15, 1)]),
+             expect=[*ck_line('yes', 'taken', 20, 15, 1)]),
         Boot(f'wait wait s1 wait wait {EDIT_RGB} s1 wait wait poweroff',
-             expect=[ck_line('yes', 'the same', 20, 14, 1)]),
+             expect=[*ck_line('yes', 'the same', 20, 14, 1)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
-             expect=[ck_line('yes', 'taken', 20, 14, 1)]),
+             expect=[*ck_line('yes', 'taken', 20, 14, 1)]),
     ],
     'curves-file-none-or-not-valid': [
         Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff',
-             expect=[FILM_2_LINE, ck_line('no', 'none', 0, 15, 0)]),
+             expect=[FILM_2_LINE, *ck_line('no', 'none', 0, 15, 0)]),
         Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_BAD'},
-             expect=[ck_line('no', 'not valid', 0, 15, 0)]),
+             expect=[*ck_line('no', 'not valid', 0, 15, 0)]),
     ],
     'video-boot-after-photo-boot': [
         Boot('s1 wait wait poweroff'),

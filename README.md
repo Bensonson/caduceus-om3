@@ -1,10 +1,8 @@
-> **Branch `try/v0.30` (the v0.30 candidate, not released):** **test 8 is camera-tested** (2026-11-15, E1479999.BIN
-> `5768c9e1…`; owner: "that seemed to work"). It holds per-film R / G / B tone curves and a per-film colour mix, both
-> edited on the camera (the RGB and Mix rows in Picture Mode), and the colour menu (new row order, cell pictures,
-> titles, page headers), as colour menu test 7. It adds main's #53 video-freeze fix (PR #55) and the films loading
-> from camera memory at start-up (PR #56). It also has the emulator and static test suite (PR #57) and the fix for
-> issue #54 (a live dial turn between M and a custom mode no longer changes COLOR profiles never edited). Details:
-> `research/NOTES.md`, "Colour menu" and "v0.30 test 8".
+> [!NOTE]
+> **Branch `try/v0.30-dl9` (v0.30 test 10, not released):** v0.30 test 9 (RGB curves, colour mix, the colour menu,
+> CURVES.BIN, PRs #55 / #56 / #57, the #54 fix) plus the complete debug log dl9 (camera-tested on v0.29.5). Details:
+> `research/NOTES.md`, "v0.30 test 8", "Debug log dl8", "dl9" and "v0.30 test 10".
+
 
 <h1 align="center">Caduceus for OM-3</h1>
 
