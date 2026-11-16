@@ -5241,3 +5241,6 @@ Owner: "merge dl9 in for one more test". Branch `try/v0.30-dl9` = try/v0.30 (tes
   the RGB row unstarred); the film screens and the rest byte-identical. Text: New in v0.30 and the films section say the
   films are regraded and that the camera takes the grades from CURVES.BIN once; the release has to carry the standard
   CURVES.BIN for that (cad).
+- try/v0.30-dl9 merged in (test 11, 333523c: the debug log dl9 and the Mix / RGB headers' R / G / B centred) and make.sh
+  re-run on that build (E1479999.BIN 0f690519…, the same as the test 11 package): only row-mix, row-rgb and kept-star
+  changed (the centred letter).
