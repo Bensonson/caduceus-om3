@@ -11,6 +11,8 @@ Only the **OM SYSTEM OM-3 on firmware 1.1**. To check, open *Setup › Firmware*
 E-P7 there's a sister project, [Caduceus for the E-P7](https://github.com/cakelesscoder/caduceus-ep7). Other cameras
 aren't supported.
 
+Why not other cameras, including the new OM SYSTEM PEN? See [Other cameras](../README.md#other-cameras).
+
 ### Is it safe for my camera?
 
 It's experimental, so there's some risk: it can crash or freeze the camera, and you use it at your own risk. Every
