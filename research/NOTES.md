@@ -5112,3 +5112,6 @@ Owner: "merge dl9 in for one more test". Branch `try/v0.30-dl9` = try/v0.30 (tes
 - **Write cost** (om-emu instructions per write, the P run: edit, Assign C1, dial turns; test 9 -> test 10): average
   214,582 -> 199,431, longest 226,291 -> 219,705; 7 early writes higher (the most +18.9k, the live film check after the
   menu Assign, as in dl9); first write 573.6k -> 597.0k (+4%).
+- **Plus the Mix / RGB page headers** (R, G, B; try/v0.30 7a92cd3, merged as 1f705bf; ext12 248,944). Package
+  `test-builds/2026-11-15-v030-test10`: E1479999.BIN **6c8e8b25…598e**, CURVES.BIN 4c009f9c…2291 (test 9's), go-back
+  v0.29.5 01ea3d14…bd59. Suite (om-emu-new) on that build: **16 of 16 pass** (static checks with hooks.json as it is).
