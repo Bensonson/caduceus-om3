@@ -5526,3 +5526,34 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   `firmware/VERSION` "v0.30.2 (Image Review fix for #65, camera-tested t1)", 52 characters: main.bin differs from test 1
   only in the name, the code-block tag (twice) and the built-in GUIDES CRC (51 bytes). E1479999.BIN 7fbd3957…445b;
   `patch.py --release v0.30.2` makes it byte for byte, `--release v0.30.1` still c2b583fd…. Extras as v0.30.1.
+
+## Faster looks (2026-11-16; feature/look-perf; emulator only)
+Goal: a look costs less per development and per save, with the same output. om-emu instruction counts, repeatable
+run to run (an ncall of the camera's RGB stage 0x60516ad9, then our tone hook, on a fake COLOR job; the stage's own
+10,568 left out).
+- **Where the time went (v0.30):** st_run's pass over the 960 table entries, one channel at a time: no look 252, split
+  toning 46,405, one curved channel 70,803, three curves + split toning 119,207. Blacks / Whites (`tone`, ext5)
+  ~11,400 with values set, 123 without: left as it is. cv_set's rebuild per pass is ~700 (under 1 %): no cache.
+- **st_all (ext12):** the R, G and B tables are identical before the pass (st_run's gate), so the balance, the weights
+  and the Hermite basis depend on t only: worked out once per entry, then each channel's own K and block (macro STC,
+  unrolled; one path per pass: split toning + curves, split toning only, curves only). Counts: split toning 36,905
+  (-20 %), one curve 44,776 (-37 %), three curves + split toning 71,947 (-40 %). Tables byte-identical to v0.30 in
+  all cases.
+- **sd_crc (ext4, every CRC: films block, sets, curves record, CURVES.BIN, BUNDLES.BIN):** a nibble at a time from a
+  16-word table (`sd_nib`, 64 B) instead of a bit at a time: 3,336 bytes (the curves record, cv_hdr at each save, interrupts
+  on) 180,260 -> 56,719. Same CRC-32 as zlib. A 256-word table would be ~1.7x faster again but is 1 KB: ext4 has 520 B
+  left, and ext12's other callers' timing was not checked.
+- Test `look-tables-match-the-model` (emu_test.py): the three paths' tables against a Python model (split toning as
+  research/splittone/model.py bend28, curves as research/rgbcurves/model.py, both parts' running max), and sd_crc
+  against zlib. Passes on v0.30 and on this branch.
+- Not known: whether any of this is visible on the camera (no camera timing exists).
+- **Dropped dial clicks on the RGB and Mix pages (camera, user):** a fast turn skipped values, while H&S counted
+  every click. Two causes. First, `cv_ev` cut the event's signed click count (a1) to +-1. It now moves by the whole
+  count, clamped to +-`CV_CLK`. Test `rgb-page-counts-every-click` catches the old build. Second, `cv_draw` cost
+  ~3.63M instructions per redraw: each row tested all 300 columns of all three curves. It now keeps each row's
+  column range per curve (`CW_XR`, work area 0x8000..0x9000) and scans only that range. The run encoder got a
+  tighter loop. Counts: 3.63M -> 1.06M (flat curves), Mix page 1.34M -> 1.00M. Streams byte-identical over 61
+  curve, color, and point states. Camera-tested 2026-11-16 (user, build `5ebd047`): fast turns no longer skip values.
+- Camera, 2026-11-16 (user, build `5ebd047`): burst, start-up, and video OK. The card log for that power-on (9
+  photos on FILM 10 Velvia 50, then M video) says "nothing unusual". Save and reload: curve and mix edits kept
+  through a power cycle (user), and the films block read valid at the next power-on (generation 367).

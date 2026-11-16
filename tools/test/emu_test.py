@@ -10,7 +10,7 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, datetime, functools, json, os, pathlib, re, shutil, struct, subprocess, sys, tempfile
+import argparse, concurrent.futures, datetime, functools, importlib.util, json, os, pathlib, re, shutil, struct, subprocess, sys, tempfile, zlib
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -19,11 +19,31 @@ import static_check  # noqa: E402
 from provenance import source_digest  # noqa: E402
 sys.path.insert(0, str(REPO / 'card'))
 import mkcurves  # noqa: E402
+_spec = importlib.util.spec_from_file_location('curves_model', REPO / 'research/rgbcurves/model.py')
+curves_model = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(curves_model)
 
 DRIVER = REPO / 'tools/emulator/session_ed1.mjs'
 DEBUG_TXT = REPO / 'debug-log/DEBUG.TXT'
 MODEL = 'E147'
 AUDIT = 'patch-audit'
+ENGINE = 'look-tables-match-the-model'
+DIAL = 'rgb-page-counts-every-click'
+REAR_DIAL = 0x9032                               # the rear dial's event (cv_ev); a1 its signed clicks
+# (name, a1): first no clicks (the value as it is), then a fast turn of 3, then one past the range.
+DIAL_CASES = [('as-is', 0), ('up-3', -3), ('down-20', 20)]
+CV_ESZ = 26                                      # a cv_ram slot (rgbcurves.inc CV_ESZ)
+RGB_STAGE, TONE_NEXT = 0x60516ad9, 0x60518fa4   # the camera's RGB gamma stage; where our tone hook returns to
+TABLE_ENTRIES, TABLE_BYTES = 320, 640            # one channel's table at O+1252: 256 + 64 u16
+CV_LIVE, CV_SLOTS = 16, 4 * CV_ESZ               # cv_ram's live[0..3] (rgbcurves.inc CV_LV, CV_ESZ)
+CRC_BYTES = 3336                                 # the curves record's CRC span (CV_MLEN - 12)
+# COLOR 1's slot +55..+58 (Shadows colour, strength code, Highlights colour, strength code), Tone Balance, R / G / B
+# curve values (value 1 unused). Each case runs st_all on a different path.
+ENGINE_CASES = {
+    'curves': (bytes([12, 0, 12, 0]), 0, [[0, 0, 2, 4, 2, 0], [-1, 0, -2, 0, 3, 1], [2, 0, 1, -3, 0, -2]]),
+    'split-toning': (bytes([8, 5, 1, 5]), -3, [[0] * 6] * 3),
+    'split-toning-and-curves': (bytes([3, 0xfd, 6, 2]), 2, [[0, 0, 7, -7, 7, -7], [0] * 6, [-7, 0, 0, 0, 0, 7]]),
+}
 STATIC_PREFIX = 'static:'
 STATIC = [STATIC_PREFIX + n for n in static_check.CHECKS]
 BOOT_TIMEOUT_S = 300
@@ -136,7 +156,8 @@ FIXTURES = {
     'CURVES_BAD': lambda looks, names: (lambda b: b[:40] + bytes([b[40] ^ 1]) + b[41:])(FIXTURES['CURVES_A'](looks, names)),
 }
 # From the shooting screen: the RGB row (the third in Picture Mode), the rear dial once on Red's first point, out.
-EDIT_RGB = 'ok wait ok wait down wait down wait main+1 wait menu wait wait'
+OPEN_RGB = 'ok wait ok wait down wait down wait'
+EDIT_RGB = f'{OPEN_RGB} main+1 wait menu wait wait'
 
 
 CK_WORDS = ['none', 'none (its film has some)', "its film's", 'changed']   # has values x 2 + differs from the built-in
@@ -451,6 +472,119 @@ def run_audit(emu, build, out):
     return AUDIT, [f'{k}: {json.dumps(audit[k])}' for k in ('unloaded', 'tasks') if audit[k]]
 
 
+def tone_strength(code):
+    """a stored strength code -5..5 -> strength 0..10 (st_run; research/splittone/model.py strength)"""
+    return 2 * code if code >= 0 else -2 * code - 1
+
+
+def look_model(table, ks, kh, balance, curves):
+    """st_run's R, G, B tables from one stock table: split toning (research/splittone/model.py bend28), plus each
+    channel's curve delta (research/rgbcurves/model.py), then the clamp and each part's running max."""
+    c = 2048 - 256 * balance
+    f1, f2 = 134217728 // c, 134152192 // (4095 - c)
+    out = []
+    for ch in range(3):
+        p = curves_model.prm(curves[ch]) if any(curves[ch]) else None
+        for part in (table[:256], table[256:]):
+            mx = 0
+            for t in part:
+                u = (t * f1) >> 16 if t < c else (((t - c) * f2) >> 16) + 2048
+                s = 4095 - u
+                d = (ks[ch] * (((u * s >> 12) * s) >> 12) + kh[ch] * (((u * u >> 12) * s) >> 12)) >> 9
+                if p:
+                    d += curves_model.d_at(p, t)
+                mx = max(mx, max(0, min(4095, t + d)))
+                out.append(mx)
+    return out
+
+
+def run_ncall(emu, build, d, card0, tokens, spec):
+    """One boot of the driver in d: tokens ending in ncall, which runs spec's calls -> {name: result}, or an error."""
+    (d / 'spec.json').write_text(json.dumps(spec))
+    env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NCALL': str(d / 'spec.json'), 'NOUT': str(d / 'out.json')}
+    r = node(DRIVER, emu, build / 'main.bin', card0, d / 'boot.json', d / 'card.omsd', tokens, env=env)
+    (d / 'boot.log').write_text(r.stdout + r.stderr)
+    if r.returncode or not (d / 'out.json').exists():
+        return f'driver exit {r.returncode}, no ncall result (boot.log)'
+    return {o['name']: o for o in json.loads((d / 'out.json').read_text())['out']}
+
+
+def run_dial(emu, build, out, card0):
+    """The RGB page open: one rear-dial event carrying several clicks (a fast turn on the camera) moves the selected
+    value by all of them, clamped to -7..+7. om-emu's dial tokens send one click an event, so the test calls cv_ev."""
+    d = out / DIAL
+    d.mkdir(parents=True, exist_ok=True)
+    sym = elf_symbols(build / 'p.elf')
+    def call(name, clicks):
+        return {'name': name, 'pc': hex(sym['cv_ev']), 'stop': [hex(sym['pm_ev'])], 'max': 200000,
+                'regs': {'d0': hex(REAR_DIAL), 'a1': str(clicks)},
+                'read': [[hex(sym['cv_k']), 4], [hex(sym['cv_c']), 2], [hex(sym['cv_ram'] + CV_LIVE), CV_SLOTS]]}
+    res = run_ncall(emu, build, d, card0, f's1 wait wait {OPEN_RGB} ncall', [call(n, c) for n, c in DIAL_CASES])
+    if isinstance(res, str):
+        return DIAL, [res]
+    def value(o):
+        k, (c, p) = int.from_bytes(bytes.fromhex(o['mem'][0]), 'little'), bytes.fromhex(o['mem'][1])
+        b = bytes.fromhex(o['mem'][2])[CV_ESZ * k + 6 * c + (p + 1 if p else 0)]
+        return b - 256 if b > 127 else b
+    errors, v = [], value(res[DIAL_CASES[0][0]])
+    for name, clicks in DIAL_CASES[1:]:
+        v = max(-7, min(7, v - clicks))     # the rear dial: a1 < 0 raises the value
+        got = value(res[name])
+        if got != v:
+            errors.append(f'{name}: the value is {got}, {clicks} clicks from the last should give {v} (out.json)')
+    return DIAL, errors
+
+
+def run_engine(emu, build, out, card0):
+    """The look engine in om-emu, called on a fake COLOR job: the camera's RGB stage, then our tone hook (st_run).
+    The tables must match look_model, and sd_crc zlib's CRC-32."""
+    d = out / ENGINE
+    d.mkdir(parents=True, exist_ok=True)
+    sym = elf_symbols(build / 'p.elf')
+    # The fake COLOR still of research/splittone/probe_test.py: at B the calls (stage, then tone), context C at B+0x200
+    # (C+4 request R at B+0x400, C+12 output O at B+0x1000, C+48 11), R+8 its id with key 11 (COLOR), R+14 0x1000.
+    job = [['B', 'dd'], ['B+1', f'={RGB_STAGE:#x}-B'], ['B+5', 'f010'],
+           ['B+7', 'dd'], ['B+8', f'={sym["tone"]:#x}-(B+7)'], ['B+12', 'f038'],
+           ['B+0x200', '00' * 0x100], ['B+0x400', '00' * 0x800], ['B+0x1000', '00' * 0x1000],
+           ['B+0x204', '=B+0x400'], ['B+0x20c', '=B+0x1000'], ['B+0x230', '=11'],
+           ['B+0x408', '00000b00'], ['B+0x40e', '0010'], ['B+0x400+1660', '40143018' * 2]]
+    tables = ['B+0x1000+1252', 3 * TABLE_BYTES]
+    live0 = f'{sym["cv_ram"] + CV_LIVE:#x}'
+    spec = []
+    for name, (slot, balance, curves) in ENGINE_CASES.items():
+        cv = bytes(v & 255 for ch in curves for v in ch) + bytes(CV_SLOTS - 18)
+        mem = job + [['P+87', slot.hex()], ['P+65', f'{balance & 255:02x}'], [live0, cv.hex()]]
+        base = {'pc': 'B', 'regs': {'a0': 'B+0x200', 'd3': 'B+0x200'}, 'max': 5000000, 'mem': mem, 'read': [tables]}
+        spec += [{**base, 'name': name + ':stage', 'stop': ['B+7']},
+                 {**base, 'name': name, 'stop': [hex(TONE_NEXT)], 'read': [tables, [f'{sym["st_k"]:#x}', 36]]}]
+    spec.append({'name': 'reset', 'pc': 'B', 'stop': ['B'], 'max': 1,
+                 'mem': [['P+87', '00000000'], ['P+65', '00'], [live0, bytes(CV_SLOTS).hex()]]})
+    crc_data = bytes((i * 151 + 7) & 255 for i in range(CRC_BYTES))
+    for n in (1, 5, CRC_BYTES):
+        spec.append({'name': f'crc{n}', 'pc': 'B', 'stop': ['B+7'], 'max': 1000000,
+                     'mem': [['B', 'dd'], ['B+1', f'={sym["sd_crc"]:#x}-B'], ['B+5', 'c00c'], ['B+0x100', crc_data.hex()]],
+                     'regs': {'d0': '0xffffffff', 'd1': str(n), 'a0': 'B+0x100'}})
+    res = run_ncall(emu, build, d, card0, 's1 ncall', spec)
+    if isinstance(res, str):
+        return ENGINE, [res]
+    u16s = lambda h: list(struct.unpack(f'<{len(h) // 4}H', bytes.fromhex(h)))
+    errors = []
+    for name, (slot, balance, curves) in ENGINE_CASES.items():
+        before, after = u16s(res[name + ':stage']['mem'][0]), u16s(res[name]['mem'][0])
+        st_k = [b - 256 if b > 127 else b for b in bytes.fromhex(res[name]['mem'][1])]
+        k = [[st_k[3 * col + ch] * tone_strength(code - 256 if code > 127 else code) if col < 12 else 0
+              for ch in range(3)] for col, code in (slot[0:2], slot[2:4])]
+        want = look_model(before[:TABLE_ENTRIES], *k, balance, curves)
+        if after != want:
+            bad = next(i for i in range(len(want)) if after[i] != want[i])
+            errors.append(f'{name}: table entry {bad} is {after[bad]}, the model says {want[bad]} (out.json)')
+    for n in (1, 5, CRC_BYTES):
+        got, want = int(res[f'crc{n}']['regs']['d0'], 16), zlib.crc32(crc_data[:n]) ^ 0xffffffff
+        if got != want:
+            errors.append(f'sd_crc over {n} bytes: {got:08x}, CRC-32 {want:08x}')
+    return ENGINE, errors
+
+
 def newest_looks():
     def key(d):
         n, _, pre = d.name.lstrip('v').partition('-')
@@ -462,7 +596,7 @@ def newest_looks():
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('build', type=pathlib.Path)
-    ap.add_argument('--only', nargs='+', choices=sorted([*TESTS, AUDIT, *STATIC]))
+    ap.add_argument('--only', nargs='+', choices=sorted([*TESTS, AUDIT, ENGINE, DIAL, *STATIC]))
     ap.add_argument('--jobs', type=lambda v: max(1, int(v)), default=DEFAULT_JOBS)
     ap.add_argument('--out', type=pathlib.Path)
     ap.add_argument('--looks', type=pathlib.Path)
@@ -485,7 +619,7 @@ def main():
     looks = (a.looks or newest_looks()).resolve()
     make_card(emu, build, looks, card0)
     fixtures = make_fixtures(out, looks)
-    names = a.only or sorted([*TESTS, AUDIT, *STATIC])
+    names = a.only or sorted([*TESTS, AUDIT, ENGINE, DIAL, *STATIC])
     stock = static_check.find_stock(a.stock) if any(n in STATIC for n in names) else None
     runs = [(n, k) for n in names for k in range(1, a.repeat + 1)]
     print(f'{len(names)} tests{f" x {a.repeat}" if a.repeat > 1 else ""} on {build}, results in {out}')
@@ -506,6 +640,10 @@ def main():
                 return n, static_check.CHECKS[n[len(STATIC_PREFIX):]](build, stock)
             if n == AUDIT:
                 return run_audit(emu, build, d)
+            if n == ENGINE:
+                return run_engine(emu, build, d, card0)
+            if n == DIAL:
+                return run_dial(emu, build, d, card0)
             first = shared.get((k, boot_key(TESTS[n][0])))
             return run_test(n, TESTS[n], emu, build, card0, d, first and first.result(), fixtures)
         except static_check.Skip as e:

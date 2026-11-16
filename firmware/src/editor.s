@@ -841,26 +841,37 @@ sd_bad:
  mov 1,d0
  ret [d2,d3,a2,a3],16
 
-/* sd_crc: d0 = running CRC, a0 = data, d1 = length (> 0) -> d0. */
+/* sd_crc: d0 = running CRC, a0 = data, d1 = length (> 0) -> d0. CRC-32 (reflected, 0xedb88320), a nibble at a time
+ * from sd_nib. Keeps a1. */
 sd_crc:
+ add -4,sp
+ mov a1,(sp)
+ mov sd_nib,a1
+1:
  movbu (a0),d2
  xor d2,d0
- mov 8,d3
-sd_b1:
- btst 1,d0
- beq sd_b0
- lsr 1,d0
- xor 0xedb88320,d0
- bra sd_b2
-sd_b0:
- lsr 1,d0
-sd_b2:
- add -1,d3
- bne sd_b1
+ mov d0,d2
+ and 15,d2
+ asl2 d2
+ mov (d2,a1),d2
+ lsr 4,d0
+ xor d2,d0
+ mov d0,d2
+ and 15,d2
+ asl2 d2
+ mov (d2,a1),d2
+ lsr 4,d0
+ xor d2,d0
  inc a0
  add -1,d1
- bne sd_crc
+ bne 1b
+ mov (sp),a1
+ add 4,sp
  ret [d2,d3],12
+ .balign 4
+sd_nib:                           /* the CRC of each nibble value, 4 steps of 0xedb88320 */
+ .long 0x00000000,0x1db71064,0x3b6e20c8,0x26d930ac,0x76dc4190,0x6b6b51f4,0x4db26158,0x5005713c
+ .long 0xedb88320,0xf00f9344,0xd6d6a3e8,0xcb61b38c,0x9b64c2b0,0x86d3d2d4,0xa00ae278,0xbdbdf21c
 
 sd_path:
  .asciz "C:\\OM3MOD\\BUNDLES.BIN"
@@ -8164,9 +8175,9 @@ s_wl:
  * Camera-proven with fixed values (probe st1). Gates: COLOR still
  * (key 11, or 12 with +1731 0, as tone); P valid; a strength set; R, G and B tables identical before (stock COLOR
  * copies one curve three times: a repeated pass never bends twice and art curves are left alone).
- * Frame: (0) getter return, (4..28) registers, (32..52) Ks R G B, Kh R G B, (56) segment, (60) running max, (64) d0,
- * (68) Ks, (72) Kh of the segment, v0.28 (76) c, (80) f1 = 2^27 / c, (84) f2 = 2047 << 16 / (4095 - c), (88) t,
- * rgb-curves (92) the segment channel's curve block or 0, (96) k, then the COLOR's curved channels (rgbcurves.inc:
+ * Frame: (0) getter return, (4..28) registers, (32..52) Ks R G B, Kh R G B (st_all reads them, keep in sync), (56)
+ * strengths / curves mask, (64) d0, v0.28 (76) c, (80) f1 = 2^27 / c, (84) f2 = 2047 << 16 / (4095 - c),
+ * rgb-curves (96) k, then the COLOR's curved channels (rgbcurves.inc:
  * each entry also gets its channel's curve delta D(t); a COLOR with curves and no split toning runs with K = 0).
  * Stores: own stack frame, O+1252..O+3171, cv_pb / cv_pp. */
 .section .ext11,"ax"
@@ -8348,106 +8359,8 @@ st_run:
  add 2,d1
  cmp 640,d1
  bne 5b
- clr d0
- mov d0,(56,sp)                   /* segment 0..5: channel = seg / 2, the 256 entries (even) or the 64 (odd) */
-6:
- mov (56,sp),d0
- mov d0,d1
- lsr 1,d1                         /* channel */
- mov d1,d2
- asl2 d2
- mov sp,a1
- add d2,a1
- mov (32,a1),d2
- mov d2,(68,sp)                   /* Ks */
- mov (44,a1),d2
- mov d2,(72,sp)                   /* Kh */
- mov d1,d2                        /* rgb-curves: the channel's curve block or 0 */
- asl2 d2
- mov cv_pp,a0
- add d2,a0
- mov (a0),d2
- mov d2,(92,sp)
- mov 640,d2
- mul d1,d2
- mov a3,a0
- add 1252,a0
- add d2,a0                        /* this channel's table */
- mov a0,a1
- add 512,a1
- btst 1,d0
- beq 7f
- mov a1,a0                        /* the 64-entry part */
- add 128,a1
-7:
- clr d2
- mov d2,(60,sp)                   /* running max */
-8:
- movhu (a0),d0                    /* t */
- mov d0,(88,sp)
- mov (76,sp),d1                   /* v0.28: u = t moved by the balance */
- cmp d1,d0
- bcc 81f
- mov (80,sp),d1
- mul d1,d0
- lsr 16,d0
- bra 82f
-81:
- sub d1,d0
- mov (84,sp),d1
- mul d1,d0
- lsr 16,d0
- add 2048,d0
-82:
- mov 4095,d1
- sub d0,d1                        /* s */
- mov d0,d2
- mul d1,d2
- lsr 12,d2
- mul d1,d2
- lsr 12,d2                        /* ws */
- mov (68,sp),d3
- mul d3,d2                        /* Ks ws */
- mov d0,d3
- mul d0,d3
- lsr 12,d3
- mul d1,d3
- lsr 12,d3                        /* wh */
- mov (72,sp),d1
- mul d1,d3                        /* Kh wh */
- add d3,d2
- asr 9,d2                         /* v0.28: half the v0.26 step */
- mov (92,sp),d1                   /* rgb-curves: + the channel's curve delta D(t) */
- cmp 0,d1
- beq 83f
- mov (88,sp),d0
- call cv_d,[d2,d3,a2,a3],44       /* keeps d2, d3, a0..a3 */
- add d0,d2
-83:
- mov (88,sp),d0                   /* t */
- add d2,d0
- bge 9f
- clr d0
-9:
- cmp 4095,d0
- ble 10f
- mov 4095,d0
-10:
- mov (60,sp),d1
- cmp d1,d0
- bge 11f
- mov d1,d0                        /* keep it rising */
-11:
- mov d0,(60,sp)
- movhu d0,(a0)
- add 2,a0
- cmp a1,a0
- bne 8b
- mov (56,sp),d0
- inc d0
- mov d0,(56,sp)
- cmp 6,d0
- bne 6b
+ mov sp,a0                        /* the table pass (rgbcurves.inc), with this frame's K, c, f1, f2 */
+ call st_all,[d2,d3,a2,a3],132
 s9:
  mov (28,sp),d0
  mov d0,mdr
