@@ -5465,3 +5465,14 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   built-in GUIDES CRC (53 bytes). E1479999.BIN c2b583fd…4bc5; `patch.py --release v0.30.1` makes it byte for byte,
   `--release v0.30` still 481f3678…. `releases/v0.30.1`: patch.json, CURVES.BIN / LOOKS.BIN / DEBUG.TXT / photo code
   kit as v0.30, SHA256SUMS, NOTES.md; CURVES.BIN goes on the GitHub release by hand (the workflow doesn't list it).
+
+## Reboot when resetting many films before a half-press (owner, 2026-11-17; emulator: not reproduced)
+- Owner: in the COLOR profiles / films, resetting (held OK) many changed films one after another before a half-press,
+  then scrolling on, reboots the camera. Fits the one reboot seen on v0.30 test 12 (film switching in the Super Control
+  Panel). All the owner's films had changes.
+- om-emu (v0.30.1 build, Picture Mode list from the Super Control Panel): (1) 14 held-OK resets on unchanged cells,
+  then 40 scrolls; (2) Contrast changed on FILM 1-12 (10 films starred, saved by a half-press), next boot 12 resets
+  with no half-press, then 56 scrolls; (3) Contrast and Sharpness changed on all 24 cells (all 20 films starred), next
+  boot 24 resets, 40 scrolls and 24 dial bursts of 3..9 steps. No crash or restart in any; CADLOG "nothing unusual",
+  films with changes "none" after the resets. So camera-only so far (timing, live view): needs the owner's exact steps
+  and a CADLOG taken with no half-press after the reboot.
