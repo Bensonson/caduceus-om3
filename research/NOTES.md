@@ -4443,4 +4443,12 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
 - Owner: "the looklab doesnt need to have page 1, 2, 3, 4 on it": the page headings are gone; the rows keep the
   camera's order.
 - The Mix header and slider say "Sat", as the camera's page does (om-emu on the v0.30 build: "Sat ±0  Red  Hue ±0").
+- **CURVES.BIN (2026-11-15; owner's choice "New card file", format from the RGB Curves session, docs/FORMATS.md
+  "CURVES.BIN v1" on try/v0.30 c33dc42):** `webapp/src/curvesbin.ts` writes it from the bank and the LOOKS.BIN bytes it
+  goes with (each entry's check = CRC-32 of that film's 64-byte record). Export: Save to the SD card and the card zip
+  add OM3MOD/CURVES.BIN when the firmware choice is "v0.28 or later" (older firmware never reads it), plus a single-file
+  button. The RGB / Mix panels now say it goes to the camera this way (v0.30). vitest `curvesbin.test.ts`: the standard
+  20's LOOKS.BIN equals releases/v0.29.5/LOOKS.BIN and CURVES.BIN equals the reference build (card/mkcurves.py) byte for
+  byte (sha256 4c009f9c…2291; Portra 400's entry 1c8fb44b 00f0000000001201 0000ffffff00 0000). Not camera-tested
+  (firmware reads it from test 9).
 
