@@ -205,12 +205,49 @@ xb_cap:
  bne 6f
  call xb_art,[],0
 6:
+ call xb_rv,[d2,d3],12            /* #65: not on a shot's small extra pictures (Image Review) */
  mov d1,(a2)
  jmp fx_tail
 7:
  clr d0
 8:
  jmp fx_back
+
+/* xb_rv (#65, 2026-11-17): `call xb_rv,[d2,d3],12` from xb_cap before it stores the flags, d1 = the COLOR job's
+ * flags, a2 = params+12 -> d1. The camera strips its multi-pass effect flags (0x40 Star Light, 0x80 Soft Focus, ...)
+ * from Art Filter jobs whose type is 0x1xx or 0x4x: the extra small developments of a shot (types 0x110 / 0x120 for
+ * capture kinds 0x2001 / 0x2006, e.g. the Image Review picture), not the saved photo (type 0x1000). That strip never
+ * runs for COLOR (key 11), so our Glow / Halation flag 0x80 reached them: the review picture came out black, and the
+ * next switch to a standard picture mode froze live view (#65, #27). Here the same rule for our COLOR jobs. The job
+ * type comes from the camera's own mapper 0x60555b58 (a0 = the source request at params+4, `call ..,[d2,a2],12`, as
+ * the request builders 0x6054f71d.. / 0x60553ae4 call it right after this converter). Found by Caduceus for the
+ * E-P7 (cakelesscoder/caduceus-ep7, v0.31 "Rec View fix", patches/recview), ported here in our own code.
+ * Keeps a2, a3 and MDR; uses d0, a0, a1. */
+xb_rv:
+ mov d1,d2
+ mov mdr,d0
+ mov d0,d3
+ mov d2,d0
+ and 0xc0,d0
+ beq 9f
+ mov (-8,a2),a0                   /* the source request (params+4) */
+ cmp 0,a0
+ beq 9f
+ call TYPEMAP,[d2,a2],12          /* d0 = the job type */
+ mov d0,d1
+ and 0xf00,d1
+ cmp 0x100,d1
+ beq 8f
+ and 0xf0,d0
+ cmp 0x40,d0
+ bne 9f
+8:
+ and 0xffffff3f,d2                /* 0x40 and 0x80 off, as the camera does for Art Filter jobs */
+9:
+ mov d3,d0
+ mov d0,mdr
+ mov d2,d1
+ ret [d2,d3],12
 
 /* live view / movie (record -> development request 0x6046b86c, COLOR, the stock Art Effect gates passed):
  * a2 = request (+12 flags), a3 = record+248, d3 live. Glow only (Clarity is invisible on combiner 12, as Caduceus). */

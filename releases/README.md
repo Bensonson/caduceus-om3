@@ -5,6 +5,7 @@ card files it needs, the expected checksums, and short notes. No OM firmware is 
 
 | Version | What's new | Status |
 |---|---|---|
+| [v0.30.2](v0.30.2/NOTES.md) | v0.30.1 plus one fix: with Image Review on, Glow / Clarity / Halation photos no longer give a black review or freeze live view at the switch to a standard picture mode (#65) | Camera-tested |
 | [v0.30.1](v0.30.1/NOTES.md) | v0.30 plus one fix: no more one-frame flash when leaving the B/W or WB Compensation row (#66, by crombach) | Camera-tested |
 | [v0.30](v0.30/NOTES.md) | v0.29.5 plus Color Mix and RGB curves (photos), the 20 films regraded with them (`CURVES.BIN`, optional), a new Picture Mode order, films ready at switch-on, fixes for live dial turns (#54), a video freeze (#53) and Noise Filter's "*" | Camera-tested |
 | [v0.29.5](v0.29.5/NOTES.md) | v0.29.4 plus custom modes that keep their own copy of everything (films, all their changes, the picture settings); Assign › Reset puts one back to the films as built | Camera-tested |

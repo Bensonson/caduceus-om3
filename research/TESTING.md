@@ -85,6 +85,7 @@ The gate and the digest have unit tests that need no firmware:
 | `live-dial-turn-to-b-switches-the-films` | A live turn from C1 to B switches to the P / A / S / M / B films, though B has no mode code of its own (#54) |
 | `live-dial-turn-holds-the-label` | During a live turn's wait for the mode code, the shooting screen's label holds no picture, and the hold clears once the mode is real (#54) |
 | `video-boot-after-photo-boot` | A video boot after a photo boot does no film or custom-mode work (#53) |
+| `debug-log-written-at-releases-only` | Three half-presses: the debug log is written at the three releases only, not at the half-presses (v0.30.3; the burst rule needs photos: camera-only) |
 | `noise-filter-row-follows-the-camera-setting` | A COLOR profile without a film, its Noise Filter on Camera: the Noise Filter row has no '*' with the camera's own Noise Filter on Standard or on Off, and gets one when Standard is chosen while the camera is on Off (v0.30 test 13) |
 | `curves-file-kept-in-camera` | v0.30 `CURVES.BIN`: taken at the first half-press, a film picked shows its values, kept over a boot with no file, the same file again changes nothing |
 | `curves-file-new-values-follow-edits-stay` | A new `CURVES.BIN` reaches a film you never changed; a curve changed on the RGB page stays when another file comes |
@@ -343,6 +344,7 @@ emulator test as proposed here would have failed. "Maybe" means it depends on a 
 | DS2, #54 | A live turn from C1 back to M briefly shows "COLOR1*" before M's film | No | None, the camera's own picture-mode write at a turn. `live-dial-turn-holds-the-label` checks the hold |
 | DS3, #54 | The same flash: at the turn the camera reads as video and makes no 901 write, so no hold is set | No | None, the emulator draws no label while the mode code is in between |
 | e9b954f | Start-up path overwrote its caller's saved registers | Yes | Boot smoke, register watch |
+| v0.28–v0.30.1, #65 (#27) | With Image Review on, a Glow or Halation photo gives a black review picture, then the Creative Dial to a standard picture mode freezes live view | No | None, om-emu develops no photos (the review picture is one of the shot's small extra developments) |
 | v0.30, menu-flicker | Leaving Blacks / Whites or WB compensation flashes the old row's bottom bar for a frame | No | None, om-emu draws only after the screen update. `grid-row-gives-the-bottom-bar-back` checks the bar comes back |
 | 331691c | Custom mode showed the previous mode's films until a half-press | Yes | Custom modes |
 | 6438628, ea8b97c | A film picked with no half-press was lost at power-off | Yes | Film picked before the first half-press |
