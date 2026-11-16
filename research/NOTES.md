@@ -5414,3 +5414,9 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   non-COLOR live view. Not found by reading; not reproduced on the owner's camera yet.
 - Log nit: for the standard modes the event table's Picture column prints "898 (not a dial position)", which pushes
   Ed / Sv / Photos out of their columns.
+- **Owner's camera, v0.30 (2026-11-17; camera-tested): not reproduced.** P/A group (A), FILM 9 CineStill 800T on COLOR 2
+  with Halation 5 (the photos' om3.1 code: halation 5, glow 0, grain Off): four RAW+JPEG shots (PB162871..874, single,
+  anti-shock), then the Creative Dial to the standard position (events 31-34 log "898", saves fine), back to FILM 9,
+  one JPEG (PB162875): no freeze. CADLOG "nothing unusual". Differences from the reporter: custom mode C1 with Save
+  Settings Hold (owner: A), drive [11] (owner [0]), AF mode [4] (owner [0]), face / eye [6] (owner [0]), NAMES.BIN and
+  the old card files on their card.
