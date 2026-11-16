@@ -128,6 +128,9 @@ section:nth-of-type(even) { background: var(--bg2); }
 .rows button:hover { color: var(--ink); background: #15181d; }
 .rows button[aria-selected="true"] { background: #5e6a10; color: #fff; box-shadow: inset 0 0 0 2px #c8dc1e; }
 .rows .new { margin: 0; }
+.rows-group { font-size: 12px; font-weight: 600; color: var(--faint); padding: 10px 12px 3px; }
+.rows-group:first-child { padding-top: 4px; }
+.row-text .pic { color: var(--muted); font-size: 14px; margin-top: 8px; }
 .editor-main { display: grid; gap: 20px; align-content: start; min-width: 0; }
 .editor-media { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
 .editor-media .compare { aspect-ratio: 3 / 2; background: #08090b; }
@@ -199,24 +202,6 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 56px; color: var(--f
 footer .in { display: grid; gap: 8px; }
 footer a { color: var(--muted); }
 
-/* the Picture Mode menu walk-through (v0.30) */
-.menu-walk { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 36px; align-items: start; }
-.menu-cam { display: grid; gap: 14px; }
-.menu-cam .stepper { justify-content: center; }
-.menu-pos { font-size: 14px; color: var(--muted); min-width: 150px; text-align: center; }
-.menu-pages { display: grid; gap: 12px; }
-.menu-page { background: #0a0b0d; border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
-.menu-page h3 { font-size: 13px; font-weight: 600; color: var(--muted); padding: 2px 10px 6px; }
-.menu-page h3 b { color: var(--ink); }
-.menu-page button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 15px; font-weight: 500; }
-.menu-page button:hover { color: var(--ink); background: #15181d; }
-.menu-page button[aria-current="true"] { background: #5e6a10; color: #fff; box-shadow: inset 0 0 0 2px #c8dc1e; }
-.menu-page button .new { margin-left: 6px; }
-.menu-text h3 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-.menu-text p { color: #c9ced8; }
-.menu-text .pic { color: var(--muted); font-size: 14px; margin-top: 8px; }
-@media (max-width: 980px) { .menu-walk { grid-template-columns: 1fr; } }
-
 /* responsive */
 @media (max-width: 980px) {
   .hero .in, .viewer, .hal { grid-template-columns: 1fr; }
@@ -224,6 +209,7 @@ footer a { color: var(--muted); }
   .editor { grid-template-columns: 1fr; }
   .rows { display: flex; overflow-x: auto; scrollbar-width: none; }
   .rows button { white-space: nowrap; }
+  .rows-group { display: none; }
   .three { grid-template-columns: 1fr; max-width: 560px; }
 }
 @media (max-width: 1080px) {
@@ -302,7 +288,7 @@ footer a { color: var(--muted); }
       </div>
       <div>
         <div class="lcd"><div class="screen"><img alt="Camera screen: Picture Mode on FILM 1, the rows down the left with their new pictures" src="pages/showcase/img/screens/film-01.png" loading="lazy"></div></div>
-        <p class="cap"><b>A new Picture Mode.</b> The film and its colour first, then white balance and tone, then lens and effects, five rows a page, each with its own picture. <a class="more" href="#menu">Walk through it →</a></p>
+        <p class="cap"><b>A new Picture Mode.</b> The film and its colour first, then white balance and tone, then lens and effects, five rows a page, each with its own picture. <a class="more" href="#editor">Walk through it →</a></p>
       </div>
     </div>
     <div class="cards" style="margin-top:22px">
@@ -316,33 +302,6 @@ footer a { color: var(--muted); }
       </div>
     </div>
     <p style="margin-top:14px"><a class="more" href="#editor">See every row and what it does to a photo →</a></p>
-  </div>
-</section>
-
-<section id="menu">
-  <div class="in">
-    <div class="head">
-      <div class="eyebrow">New in v0.30 · the colour profile menu</div>
-      <h2>Picture Mode, in the order the camera works.</h2>
-      <p>Press OK on a film and its settings run down the left of the screen, five rows to a page. v0.30 puts them in the order the camera applies them to a photo, gives each row a small picture of what it does, and uses the camera’s own names. Step through it as on the camera: ▲ ▼, or pick a row.</p>
-    </div>
-    <div class="menu-walk">
-      <div class="menu-cam">
-        <div class="lcd"><div class="screen fade" id="menuLcd">
-          <img alt="Camera screen: Picture Mode on FILM 1, the Film row" src="pages/showcase/img/screens/menu-00.png"><img alt="" class="off" src="pages/showcase/img/screens/menu-00.png">
-        </div></div>
-        <div class="stepper">
-          <button class="round" id="menuUp" aria-label="Previous row">▲</button>
-          <span class="menu-pos" id="menuPos" aria-live="polite">Row 1 of 16 · page 1</span>
-          <button class="round" id="menuDown" aria-label="Next row">▼</button>
-        </div>
-        <p class="media-note">On the camera: FILM 1, Portra 400, as built (emulator screens; the colour wheel drawn in)</p>
-        <div class="menu-text" id="menuText"></div>
-      </div>
-      <div class="menu-side">
-        <div class="menu-pages" id="menuPages"></div>
-      </div>
-    </div>
   </div>
 </section>
 
@@ -389,9 +348,9 @@ footer a { color: var(--muted); }
 <section id="editor">
   <div class="in">
     <div class="head">
-      <div class="eyebrow">Picture Mode rows</div>
+      <div class="eyebrow">Picture Mode rows · new order in v0.30</div>
       <h2>A colour editor on the camera.</h2>
-      <p>Below the film list, each film gets a column of settings, in the order the camera works on a photo: the film’s colour first, then white balance and tone, then lens and effects. Change any of them on the camera and the photo follows at once. Pick a setting to see its screen on the camera and what it does to a photo.</p>
+      <p>Press OK on a film and its settings run down the left of the screen, five rows to a page, in the order the camera applies them to a photo: the film and its colour first, then white balance and tone, then lens and effects, then grain. Each row has a small picture of what it does. Change any of them on the camera and the photo follows at once. Pick a setting to see its screen on the camera and what it does to a photo.</p>
     </div>
     <div class="editor">
       <div class="rows" id="rows" role="tablist" aria-label="Settings"></div>
@@ -737,53 +696,6 @@ footer a { color: var(--muted); }
   });
   if (FILMS.length) showFilm(0);
 
-  // ---- the Picture Mode menu walk-through (v0.30's order, five rows a page; FILM 1 as built)
-  const MENU_PAGES = ['The film and its colour', 'White balance and tone', 'Lens and effects', 'Grain'];
-  const MENU = [
-    { name: 'Film', pic: 'The film’s number, FILM 1 here.', text: 'Which look this is: COLOR 1–4, then FILM 1–20. Turn the dial to change film; its name shows under the list.' },
-    { name: 'Color Mix', tag: 'v0.30', pic: 'A ring with a red, a green and a blue dot.', text: 'The first thing the camera does to a film’s colour: it mixes red, green and blue into each other. Each colour can be made stronger or weaker, or turned toward its neighbour. Greys stay grey.' },
-    { name: 'RGB curves', tag: 'v0.30', pic: 'The curve box with three curves.', text: 'Next, a tone curve for each of red, green and blue, five points from black to white: add a colour to the shadows, take it out of the highlights.' },
-    { name: 'Color wheel (HSL)', pic: 'A colour pie: the wheel’s 12 colours.', text: 'Then the 12 colours one by one: saturation, hue and lightness, plus a tint for the shadows and one for the highlights (split toning). INFO steps through its pages.' },
-    { name: 'Split Tone Balance', pic: 'A dark-to-light bar with a small triangle.', text: 'Where the shadow and highlight tints meet: minus lets the shadow colour reach further up, plus the highlight colour further down.' },
-    { name: 'WB Compensation', pic: 'The camera’s own WB± picture, with the film’s shift (A1 G1 for Portra 400).', text: 'Page 2 starts with the colour of the light: a shift toward amber or blue and green or magenta, on top of any white balance.' },
-    { name: 'Highlight & Shadow', pic: 'The camera’s own tone-curve picture.', text: 'The camera’s tone curve: brighter or darker shadows, midtones and highlights.' },
-    { name: 'Blacks / Whites', pic: 'A black and a white square (it used to say “B/W”, which read like black and white).', text: 'Lift or deepen the blacks, brighten or soften the whites, on one grid.' },
-    { name: 'Contrast', pic: 'The camera’s own contrast picture.', text: 'The camera’s contrast, kept with each film.' },
-    { name: 'Sharpness', pic: 'The camera’s own sharpness picture.', text: 'From −5 (off) to +2.' },
-    { name: 'Noise Filter', pic: 'Its setting in words.', text: 'Page 3, lens and effects: noise reduction per film, Off to High.' },
-    { name: 'Vignette Correction', pic: 'Its setting in words.', text: 'Keep the lens’s natural darker corners, or let the camera correct them.' },
-    { name: 'Shading Effect', pic: 'The camera’s own shading picture.', text: 'Darker or lighter corners, as an effect.' },
-    { name: 'Glow Effect', pic: 'A white dot with a soft glow round it.', text: 'A soft glow around the light, or Clarity (crisper local contrast) on the minus side.' },
-    { name: 'Halation Effect', pic: 'A white dot in a red-orange ring.', text: 'The red-orange glow around bright lights, as on cinema film.' },
-    { name: 'Film Grain Effect', pic: 'The camera’s own grain picture.', text: 'Page 4, on its own: colour film grain, Off to High.' },
-  ];
-  const menuPages = $('menuPages');
-  let curMenu = 0;
-  MENU_PAGES.forEach((title, p) => {
-    const box = document.createElement('div'); box.className = 'menu-page';
-    box.innerHTML = `<h3><b>Page ${p + 1}</b> · ${title}</h3>`;
-    MENU.forEach((m, k) => {
-      if (Math.floor(k / 5) !== p) return;
-      const b = document.createElement('button'); b.type = 'button'; b.id = 'menu-' + k;
-      b.innerHTML = `${m.name}${m.tag ? ` <span class="new">${m.tag}</span>` : ''}`;
-      b.addEventListener('click', () => showMenu(k));
-      box.appendChild(b);
-    });
-    menuPages.appendChild(box);
-  });
-  function showMenu(k) {
-    curMenu = k = (k + MENU.length) % MENU.length;
-    const m = MENU[k];
-    fadeTo($('menuLcd'), `pages/showcase/img/screens/menu-${pad(k)}.png`, `Camera screen: Picture Mode on FILM 1, the ${m.name} row`);
-    $('menuPos').textContent = `Row ${k + 1} of 16 · page ${Math.floor(k / 5) + 1}`;
-    $('menuText').innerHTML = `<h3>${m.name}${m.tag ? ` <span class="new">new in ${m.tag}</span>` : ''}</h3><p>${m.text}</p><p class="pic">Its picture: ${m.pic}</p>`;
-    menuPages.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', String(b.id === 'menu-' + k)));
-    preload([`pages/showcase/img/screens/menu-${pad((k + 1) % MENU.length)}.png`]);
-  }
-  $('menuUp').addEventListener('click', () => showMenu(curMenu - 1));
-  $('menuDown').addEventListener('click', () => showMenu(curMenu + 1));
-  showMenu(0);
-
   // ---- editor rows: the camera screen, a before / after photo, and the HSL wheel's pages
   const PV = '<b>LookLab preview</b> on a neutral look: only this setting changes';
   const ILL = '<b>Illustration</b>: LookLab preview doesn’t model this setting';
@@ -802,35 +714,38 @@ footer a { color: var(--muted); }
       title: 'Highlights (split toning)', text: 'Tints the bright parts toward one colour, 0 to 10. Here Orange at 10: warm light on the clouds and rocks. Use Shadows and Highlights together for a classic split tone.' },
   ];
   const ROWS = [
-    { id: 'mix', name: 'Color Mix', tag: 'v0.30', labs: ['Original', 'Red: Sat +3, Hue +4'],
-      text: 'Mixes the camera’s red, green and blue into each other, before everything else, −7 to +7 each: Sat makes a colour stronger or weaker, Hue turns it toward the next one (red toward yellow, green toward cyan, blue toward purple). Greys stay grey. The page is a ring with each colour as a dot; INFO picks the colour. Here red turns toward orange and gets stronger.' },
-    { id: 'rgb', name: 'RGB curves', tag: 'v0.30', labs: ['Original', 'Blue: point 2 +5, point 4 −4'],
+    { id: 'film', name: 'Film', screen: 'film-01', before: 'pages/showcase/img/films/meadow-00.jpg', after: 'pages/showcase/img/films/meadow-01.jpg', labs: ['Original', 'FILM 1: Portra 400'], note: '<b>LookLab preview</b> of the film as the camera makes it', group: 'The film and its colour', pic: 'The film’s number, FILM 1 here.',
+      text: 'Which look: COLOR 1–4, then FILM 1–20. Turn the dial to change film; its name shows under the list. The rows below belong to this film.' },
+    { id: 'mix', pic: 'A ring with a red, a green and a blue dot.', name: 'Color Mix', tag: 'v0.30', labs: ['Original', 'Red: Sat +3, Hue +4'],
+      text: 'The first thing the camera does to a film’s colour: it mixes red, green and blue into each other, −7 to +7 each: Sat makes a colour stronger or weaker, Hue turns it toward the next one (red toward yellow, green toward cyan, blue toward purple). Greys stay grey. The page is a ring with each colour as a dot; INFO picks the colour. Here red turns toward orange and gets stronger.' },
+    { id: 'rgb', pic: 'The curve box with three curves.', name: 'RGB curves', tag: 'v0.30', labs: ['Original', 'Blue: point 2 +5, point 4 −4'],
       text: 'A tone curve for each of red, green and blue, with five points from black to white, −7 to +7 each: raise a colour where you want more of it. Here blue goes up in the shadows and down in the highlights, for cool shadows and warm light. INFO picks the colour, the front dial the point, the rear dial its level.' },
-    { id: 'hsl', name: 'Color wheel (HSL)', pages: HSL_PAGES },
-    { id: 'tone-balance', name: 'Split Tone Balance', tag: 'v0.28', labs: ['Split Tone Balance −5', 'Split Tone Balance +5'],
+    { id: 'hsl', pic: 'A colour pie: the wheel’s 12 colours.', name: 'Color wheel (HSL)', pages: HSL_PAGES },
+    { id: 'tone-balance', pic: 'A dark-to-light bar with a small triangle.', name: 'Split Tone Balance', tag: 'v0.28', labs: ['Split Tone Balance −5', 'Split Tone Balance +5'],
       text: 'Where the split toning’s two colours meet, −5 to +5: minus lets the shadow colour reach further up, plus the highlight colour further down. Here with cyan shadows and orange highlights.' },
-    { id: 'wb', name: 'WB Compensation', labs: ['B 7 (blue)', 'A 7 (amber)'],
+    { id: 'wb', group: 'White balance and tone', pic: 'The camera’s own WB± picture.', name: 'WB Compensation', labs: ['B 7 (blue)', 'A 7 (amber)'],
       text: 'Shifts the colour balance from blue to amber (and green to magenta), −7 to +7, in every white balance mode. Each film also remembers the white balance you last used with it.' },
-    { id: 'curve', name: 'Highlight & Shadow', labs: ['Original', 'Shadows +7, Highlights −7'],
+    { id: 'curve', pic: 'The camera’s own tone-curve picture.', name: 'Highlight & Shadow', labs: ['Original', 'Shadows +7, Highlights −7'],
       text: 'The camera’s own tone curve: brighter or darker shadows, midtones and highlights, −7 to +7. Here the shadows open up and the bright clouds come down.' },
-    { id: 'blacks-whites', name: 'Blacks / Whites', tag: 'v0.28', labs: ['Original', 'Blacks +7'],
+    { id: 'blacks-whites', pic: 'A black and a white square (it used to say “B/W”, which read like black and white).', name: 'Blacks / Whites', tag: 'v0.28', labs: ['Original', 'Blacks +7'],
       text: 'Blacks and Whites on one grid, −7 to +7 each: left / right for Blacks, up / down for Whites. Plus lifts the blacks or brightens the whites; minus deepens or softens them. Blacks +7 gives the faded look of a print.' },
-    { id: 'contrast', name: 'Contrast', labs: ['Contrast −2', 'Contrast +2'], text: 'The camera’s own contrast, kept with each film.' },
-    { id: 'sharpness', name: 'Sharpness', labs: ['Off (−5)', '+2'], note: CROP,
+    { id: 'contrast', pic: 'The camera’s own contrast picture.', name: 'Contrast', labs: ['Contrast −2', 'Contrast +2'], text: 'The camera’s own contrast, kept with each film.' },
+    { id: 'sharpness', pic: 'The camera’s own sharpness picture.', name: 'Sharpness', labs: ['Off (−5)', '+2'], note: CROP,
       text: '−5 is off, −4 to −1 softer, 0 the camera’s normal, +1 and +2 crisper.' },
-    { id: 'noise', name: 'Noise Filter', labs: ['Off', 'High'], note: ILL, text: 'Off, Low, Std or High, set per film: from all the grit of a high ISO to smooth.' },
-    { id: 'vignette', name: 'Vignette Correction', labs: ['Off', 'On'], note: ILL,
+    { id: 'noise', group: 'Lens and effects', pic: 'Its setting in words.', name: 'Noise Filter', labs: ['Off', 'High'], note: ILL, text: 'Off, Low, Std or High, set per film: from all the grit of a high ISO to smooth.' },
+    { id: 'vignette', pic: 'Its setting in words.', name: 'Vignette Correction', labs: ['Off', 'On'], note: ILL,
       text: 'Off keeps the lens’s natural darker corners; On lets the camera correct them.' },
-    { id: 'shading', name: 'Shading Effect', labs: ['Original', 'Shading −5'], text: 'Darker or lighter corners, as an effect, −5 to +5.' },
-    { id: 'glow', name: 'Glow Effect', labs: ['Original', 'Glow +5'],
+    { id: 'shading', pic: 'The camera’s own shading picture.', name: 'Shading Effect', labs: ['Original', 'Shading −5'], text: 'Darker or lighter corners, as an effect, −5 to +5.' },
+    { id: 'glow', pic: 'A white dot with a soft glow round it.', name: 'Glow Effect', labs: ['Original', 'Glow +5'],
       text: '+1 to +5 adds a soft glow around the light; −1 to −5 adds Clarity (crisper local contrast) instead.' },
-    { id: 'halation', name: 'Halation Effect', tag: 'v0.28', labs: ['Halation 0', 'Halation 5'], before: 'pages/showcase/img/halation/neon-0.jpg', after: 'pages/showcase/img/halation/neon-5.jpg',
+    { id: 'halation', pic: 'A white dot in a red-orange ring.', name: 'Halation Effect', tag: 'v0.28', labs: ['Halation 0', 'Halation 5'], before: 'pages/showcase/img/halation/neon-0.jpg', after: 'pages/showcase/img/halation/neon-5.jpg',
       text: 'A red-orange glow around bright lights, as on cinema film, 0 to 5. Works with or without Glow.' },
-    { id: 'grain', name: 'Film Grain Effect', labs: ['Off', 'High'], note: CROP, text: 'Off, Low, Med or High. Added in colour, with no extra wait after the photo.' },
+    { id: 'grain', group: 'Grain', pic: 'The camera’s own grain picture.', name: 'Film Grain Effect', labs: ['Off', 'High'], note: CROP, text: 'Off, Low, Med or High. Added in colour, with no extra wait after the photo.' },
   ];
   const rowsBox = $('rows'), pagesBox = $('hslPages');
   let curRow = 0, curPage = 0;
   ROWS.forEach((r, k) => {
+    if (r.group) { const g = document.createElement('div'); g.className = 'rows-group'; g.setAttribute('role', 'presentation'); g.textContent = r.group; rowsBox.appendChild(g); }
     const b = document.createElement('button');
     b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'row-' + r.id;
     b.innerHTML = `<span>${r.name}</span>${r.tag ? `<span class="new">${r.tag}</span>` : ''}`;
@@ -851,7 +766,7 @@ footer a { color: var(--muted); }
   function showRow(k, focus, fromUser = true) {
     curRow = k = (k + ROWS.length) % ROWS.length;
     const r = ROWS[k], p = r.pages ? r.pages[curPage] : r;
-    const screen = r.pages ? p.screen : `row-${r.id}`, demo = p.demo ?? r.id;
+    const screen = r.pages ? p.screen : r.screen ?? `row-${r.id}`, demo = p.demo ?? r.id;
     fadeTo($('rowLcd'), `pages/showcase/img/screens/${screen}.png`, `Camera screen: ${r.name}${r.pages ? ', ' + p.name + ' page' : ''}, ${p.labs[1]}`);
     $('rowBefore').src = p.before ?? `pages/showcase/img/demos/${demo}-a.jpg`;
     $('rowAfter').src = p.after ?? `pages/showcase/img/demos/${demo}-b.jpg`;
@@ -860,18 +775,18 @@ footer a { color: var(--muted); }
     $('lcdNote').innerHTML = r.pages ? WHEEL : `On the camera: ${p.labs[1]} (emulator screen)`;
     $('photoNote').innerHTML = p.note ?? PV;
     const title = r.pages ? p.title : r.name, tag = r.tag;
-    $('rowText').innerHTML = `<h3>${title}${tag ? ` <span class="new">new in ${tag}</span>` : ''}</h3><p>${p.text}</p>`;
+    $('rowText').innerHTML = `<h3>${title}${tag ? ` <span class="new">new in ${tag}</span>` : ''}</h3><p>${p.text}</p>${r.pic ? `<p class="pic">Its picture in the camera’s list: ${r.pic}</p>` : ''}`;
     pagesBox.hidden = !r.pages;
     pagesBox.querySelectorAll('.chip').forEach((b, j) => b.setAttribute('aria-pressed', String(j === curPage)));
     rowsBox.querySelectorAll('button').forEach((b, j) => { b.setAttribute('aria-selected', String(j === k)); b.tabIndex = j === k ? 0 : -1; });
-    const btn = rowsBox.children[k];
+    const btn = rowsBox.querySelectorAll('button')[k];
     if (focus) btn.focus();
     if (fromUser && rowsBox.scrollWidth > rowsBox.clientWidth) btn.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduce ? 'auto' : 'smooth' });
     const nx = ROWS[(k + 1) % ROWS.length];      // warm up the next setting's pictures
-    if (!nx.pages) preload([`pages/showcase/img/demos/${nx.id}-a.jpg`, `pages/showcase/img/demos/${nx.id}-b.jpg`]);
+    if (!nx.pages) preload([nx.before ?? `pages/showcase/img/demos/${nx.id}-a.jpg`, nx.after ?? `pages/showcase/img/demos/${nx.id}-b.jpg`]);
   }
   showRow(0, false, false);
-  preload([...ROWS.filter((r) => !r.pages).map((r) => `pages/showcase/img/screens/row-${r.id}.png`), ...HSL_PAGES.map((p) => `pages/showcase/img/screens/${p.screen}.png`)]);
+  preload([...ROWS.filter((r) => !r.pages).map((r) => `pages/showcase/img/screens/${r.screen ?? 'row-' + r.id}.png`), ...HSL_PAGES.map((p) => `pages/showcase/img/screens/${p.screen}.png`)]);
 })();
 </script>
 </body>

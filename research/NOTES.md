@@ -5037,8 +5037,10 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   stars under "Your changes stay with each film", LookLab's Mix / RGB curves in its card. Private preview for the owner:
   a claude.ai artifact (links to LookLab / install don't work there).
 - Left for the release: USING.md / CHANGELOG etc. (cad).
-- **The colour profile menu, shown and explained (owner: "show off the new color profil menu and explain it"):** a
-  section "Picture Mode, in the order the camera works" after New in v0.30: FILM 1 (Portra 400 as built) with the
-  cursor on each of its 16 rows (make.sh \`menu\`, \`menu-00..15.png\`; the wheel row drawn in by wheel.py from FILM 1's
-  Color values), ▲ ▼ or a row list grouped by the camera's four pages, and per row what it does, why it sits there and
-  what its picture shows.
+- **The colour profile menu, shown and explained (owner: "show off the new color profil menu and explain it"):** first as
+  its own walk-through section (FILM 1 with the cursor on each of 16 rows); then (owner: "combine the new picture mode
+  rows you made with the following and only keep one") folded into "A colour editor on the camera": a Film row first
+  (FILM 1's screen, the meadow before / after Portra 400), the camera's groups as labels in the row list (the film and
+  its colour, white balance and tone, lens and effects, grain), the intro on the order and the five-row pages, and for
+  each row what its picture in the camera's list shows. The walk-through section, its 16 menu screens and their make.sh
+  lines are gone.
