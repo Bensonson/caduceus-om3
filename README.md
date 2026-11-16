@@ -1,7 +1,8 @@
 > **Branch `feature/looklab-rgb-curves` (work in progress, not released):** LookLab edits and previews the RGB curves and
 > the colour mix of `feature/rgb-curves` (curves: R / G / B, 5 points, −7..+7; mix: Sat and Hue for R / G / B, −7..+7;
-> the camera's own maths). Preview only: neither is in `LOOKS.BIN` yet, so they are set on the camera's RGB and Mix rows.
-> Details: `research/NOTES.md`, "LookLab: RGB curves and colour mix".
+> the camera's own maths), the camera's 20 films with their new curves + mix grades, and the editor in the camera's new
+> Picture Mode order (colour menu test 7). Preview only: curves and mix are not in `LOOKS.BIN` yet, so they are set on the
+> camera's RGB and Mix rows. Details: `research/NOTES.md`, "LookLab: RGB curves and colour mix".
 
 <h1 align="center">Caduceus for OM-3</h1>
 

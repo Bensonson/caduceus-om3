@@ -337,6 +337,51 @@ function toneCurve(tone: Tone): { svg: SVGSVGElement; draw: () => void; X: (v: n
 
 // ---------------------------------------------------------------- the camera's Picture Mode screen, as panels
 const SVG_NS = 'http://www.w3.org/2000/svg';
+/** A page of the camera's Picture Mode rows (colour menu, test 7, camera-tested 2026-11-15: five rows a page). */
+function pmPage(n: number, title: string, film?: string): HTMLElement {
+  return h('div', { class: 'pm-page' }, h('span', { class: 'pm-n' }, `Page ${n}`), h('span', {}, title), film ? h('span', { class: 'pm-film' }, `Film: ${film}`) : null);
+}
+/** The camera's row pictures (colour menu spec, test 7), small, for the headings. */
+const PIE = ['#f2c400', '#f39a00', '#ee6a1c', '#de2f2f', '#d23fa6', '#8650d6', '#3b5fe0', '#2f8fe6', '#22bfd3', '#1fb486', '#3aac45', '#a3c52a'];
+let pmIds = 0;
+function pmIcon(kind: 'mix' | 'rgb' | 'wheel' | 'tb' | 'bw' | 'glow' | 'halo'): SVGSVGElement {
+  const s = svgEl('svg', { viewBox: '0 0 24 24', width: 18, height: 18, class: 'pm-ic', 'aria-hidden': 'true' });
+  const add = <K extends keyof SVGElementTagNameMap>(t: K, a: Record<string, string | number>, to: Element = s) => { const e = svgEl(t, a); to.append(e); return e; };
+  const grad = (t: 'linearGradient' | 'radialGradient', stops: [number, string, number][]) => {
+    const id = `pmg${++pmIds}`, defs = add('defs', {}), g = add(t, { id }, defs);
+    for (const [o, c, a] of stops) add('stop', { offset: o, 'stop-color': c, 'stop-opacity': a }, g);
+    return `url(#${id})`;
+  };
+  if (kind === 'mix') {
+    add('circle', { cx: 12, cy: 12, r: 8.5, fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.45, 'stroke-width': 1.2 });
+    for (const [x, y, c, r] of [[12, 3.5, '#f0603a', 2.8], [19.4, 16.3, '#30a46c', 2.2], [4.6, 16.3, '#3e8ef7', 2.2]] as [number, number, string, number][]) {
+      add('line', { x1: 12, y1: 12, x2: x, y2: y, stroke: c, 'stroke-width': 1 }); add('circle', { cx: x, cy: y, r, fill: c });
+    }
+  } else if (kind === 'rgb') {
+    add('rect', { x: 3, y: 3, width: 18, height: 18, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.3 });
+    add('path', { d: 'M3 21Q7 7 21 3', fill: 'none', stroke: '#f0603a', 'stroke-width': 1.6 });
+    add('path', { d: 'M3 21L21 3', fill: 'none', stroke: '#30a46c', 'stroke-width': 1.6 });
+    add('path', { d: 'M3 21Q17 17 21 3', fill: 'none', stroke: '#3e8ef7', 'stroke-width': 1.6 });
+  } else if (kind === 'wheel') {         // the colour pie: the wheel's 12 colours, Yellow at 12 o'clock, clockwise
+    const pt = (a: number) => `${(12 + 10 * Math.cos((a * Math.PI) / 180)).toFixed(2)} ${(12 + 10 * Math.sin((a * Math.PI) / 180)).toFixed(2)}`;
+    PIE.forEach((c, k) => { const a0 = -105 + 30 * k; add('path', { d: `M12 12L${pt(a0)}A10 10 0 0 1 ${pt(a0 + 30)}Z`, fill: c }); });
+    add('circle', { cx: 12, cy: 12, r: 10, fill: 'none', stroke: '#fff', 'stroke-width': 0.8 });
+  } else if (kind === 'tb') {            // Split Tone Balance: a dark-to-light bar with a small triangle under its middle
+    add('rect', { x: 2, y: 5, width: 20, height: 8, fill: grad('linearGradient', [[0, '#111', 1], [1, '#eee', 1]]), stroke: 'currentColor', 'stroke-width': 1 });
+    add('path', { d: 'M12 15L9.5 20H14.5Z', fill: 'currentColor' });
+  } else if (kind === 'bw') {            // Blacks / Whites: a black and a white square
+    add('rect', { x: 2.5, y: 7, width: 8.5, height: 8.5, fill: '#111', stroke: '#aaa', 'stroke-width': 1 });
+    add('rect', { x: 13, y: 7, width: 8.5, height: 8.5, fill: '#fff', stroke: '#888', 'stroke-width': 1 });
+  } else if (kind === 'glow') {          // Glow Effect: a dot with a soft glow round it
+    add('circle', { cx: 12, cy: 12, r: 10.5, fill: grad('radialGradient', [[0, 'currentColor', 0.6], [1, 'currentColor', 0]]) });
+    add('circle', { cx: 12, cy: 12, r: 3.6, fill: 'currentColor' });
+  } else {                               // Halation Effect: a dot in a red-orange ring
+    add('circle', { cx: 12, cy: 12, r: 7.6, fill: 'none', stroke: '#f0603a', 'stroke-width': 2.6, 'stroke-opacity': 0.85 });
+    add('circle', { cx: 12, cy: 12, r: 3.6, fill: 'currentColor' });
+  }
+  return s;
+}
+
 function svgEl<K extends keyof SVGElementTagNameMap>(t: K, a: Record<string, string | number> = {}): SVGElementTagNameMap[K] {
   const e = document.createElementNS(SVG_NS, t);
   for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v));
@@ -466,7 +511,7 @@ function hslPanel(l: Look, changed: () => void): HTMLElement {
     : tab === 'hue' ? 'Turns a colour toward its clockwise neighbour (+: Yellow → Orange).'
       : tab === 'light' ? 'Darker or brighter, per colour.' : 'Saturation, per colour.';
   return h('div', { class: 'group cam' },
-    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'HSL'),
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, pmIcon('wheel'), 'Color wheel (HSL)'),
       h('button', { class: 'link', onclick: () => { if (split) { if (l.split) { const s = { ...l.split, [tab]: 0 } as Split; if (s.sh || s.hl) l.split = s; else delete l.split; } } else l[tab as 'sat'].fill(0); renderEditor(); changed(); } }, 'Reset page')),
     h('div', { class: 'tabs cam-tabs', role: 'tablist' }, ...(['sat', 'hue', 'light', 'sh', 'hl'] as Tab[]).map((t) => h('button', {
       role: 'tab', 'aria-selected': String(t === tab), class: t === tab ? 'on' : '',
@@ -643,7 +688,7 @@ function rgbPanel(l: Look, changed: () => void): HTMLElement {
   }
   buildRows(); draw();
   return h('div', { class: 'group cam' },
-    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'RGB curves'),
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, pmIcon('rgb'), 'RGB curves'),
       hasCurves(l) ? h('button', { class: 'link', onclick: () => { delete l.rgb; renderEditor(); changed(); } }, 'Reset') : null),
     chips,
     h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
@@ -716,7 +761,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
   }
   buildRows(); draw();
   return h('div', { class: 'group cam' },
-    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'Color Mix'),
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, pmIcon('mix'), 'Color Mix'),
       hasMix(l) ? h('button', { class: 'link', onclick: () => { delete l.mix; renderEditor(); changed(); } }, 'Reset') : null),
     chips,
     h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
@@ -782,7 +827,7 @@ function bwPanel(l: Look, changed: () => void): HTMLElement {
   draw();
   const big = Math.abs(l.tone.blacks) > 5 || Math.abs(l.tone.whites) > 5;
   return h('div', { class: 'group cam' },
-    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'Blacks / Whites'), read,
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, pmIcon('bw'), 'Blacks / Whites'), read,
       h('button', { class: 'link', onclick: () => { set(0, 0); checkpoint(); } }, 'Reset')),
     svg,
     big ? needs28('Blacks / Whites past ±5') : null,
@@ -843,7 +888,7 @@ function wbPanel(l: Look, changed: () => void): HTMLElement {
   });
   draw();
   return h('div', { class: 'group cam' },
-    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'WB'), read,
+    h('div', { class: 'cam-head' }, h('span', { class: 'lbl' }, 'WB Compensation'), read,
       h('button', { class: 'link', onclick: () => { set(0, 0); checkpoint(); } }, 'Reset')),
     wbModeRow(l, changed),
     svg,
@@ -1338,6 +1383,9 @@ function renderOm3Editor(l: Look) {
           },
         }, 'Reset look'),
         h('button', { class: 'share-btn', onclick: () => om3ShareProfile(l), title: 'Share this look as a link' }, 'Share'))),
+    pmPage(1, 'The film and its colour', film?.name),
+    mixPanel(l, changed),
+    rgbPanel(l, changed),
     hslPanel(l, changed),
     h('div', { class: 'group cam' },
       ...(() => {
@@ -1345,38 +1393,39 @@ function renderOm3Editor(l: Look) {
         const show = () => {
           const v = l.tone_balance ?? 0;
           note.hidden = !v || (om3Fw28() && !!l.split);
-          if (!om3Fw28()) { note.className = 'warn'; note.replaceChildren(h('b', {}, 'Needs firmware v0.28: '), 'the export is set to an older firmware, so Tone Balance is not previewed or saved. Choose "v0.28 or later" under Export › Firmware on the camera.'); }
-          else { note.className = 'help'; note.textContent = 'Tone Balance moves where the Shadows and Highlights tints meet: this film has no split tone yet (HSL › Shadows / Highlights).'; }
+          if (!om3Fw28()) { note.className = 'warn'; note.replaceChildren(h('b', {}, 'Needs firmware v0.28: '), 'the export is set to an older firmware, so Split Tone Balance is not previewed or saved. Choose "v0.28 or later" under Export › Firmware on the camera.'); }
+          else { note.className = 'help'; note.textContent = 'Split Tone Balance moves where the Shadows and Highlights tints meet: this film has no split tone yet (HSL › Shadows / Highlights).'; }
         };
-        const { inp, out } = slider(-5, 5, l.tone_balance ?? 0, (x) => { if (x) l.tone_balance = x; else delete l.tone_balance; show(); changed(); }, undefined, 'Tone Balance');
+        const { inp, out } = slider(-5, 5, l.tone_balance ?? 0, (x) => { if (x) l.tone_balance = x; else delete l.tone_balance; show(); changed(); }, undefined, 'Split Tone Balance');
         show();
-        return [h('div', { class: 'crow', title: 'Where the Shadows and Highlights tints meet: − the shadow colour reaches further up, + the highlight colour further down' }, h('span', { class: 'cname' }, 'Tone Balance'), steps(inp), out), note];
+        return [h('div', { class: 'crow', title: 'Where the Shadows and Highlights tints meet: − the shadow colour reaches further up, + the highlight colour further down' }, h('span', { class: 'cname' }, pmIcon('tb'), 'Split Tone Balance'), steps(inp), out), note];
       })()),
-    h('div', { class: 'group cam' }, crow('Contrast', OM3.contrast, () => l.advice.contrast ?? 0, (x) => { l.advice.contrast = x; }, 'The camera\'s Contrast for this look')),
-    tonePanel(l, changed),
-    mixPanel(l, changed),
-    rgbPanel(l, changed),
-    bwPanel(l, changed),
+    pmPage(2, 'White balance and tone'),
     wbPanel(l, changed),
+    tonePanel(l, changed),
+    bwPanel(l, changed),
     h('div', { class: 'group cam rows' },
+      crow('Contrast', OM3.contrast, () => l.advice.contrast ?? 0, (x) => { l.advice.contrast = x; }, 'The camera\'s Contrast for this look'),
       (() => {
         const { inp, out } = slider(SHARP.lo, SHARP.hi, l.advice.sharpness ?? 0, (x) => { l.advice.sharpness = x; changed(); }, sharpLabel, 'Sharpness');
         return h('div', { class: 'crow', title: 'The camera\'s sharpening: 0 its normal, + crisper, − softer, −5 Off' }, h('span', { class: 'cname' }, 'Sharpness'), steps(inp), out);
-      })(),
+      })()),
+    pmPage(3, 'Lens and effects'),
+    h('div', { class: 'group cam rows' },
       cseg('Noise Filter', [['off', 'Menu'], ['film', 'Off'], ['fine', 'Low'], ['standard', 'Std'], ['high', 'High']], l.grain,
         (x) => { l.grain = x as Look['grain']; renderEditor(); changed(); }, 'Noise reduction for photos with this look; Menu keeps the camera\'s menu setting'),
       cseg('Vignette Correction', [['off', 'Off'], ['on', 'On']], l.lens_correction ? 'on' : 'off', (x) => {
         if (x === 'on') l.lens_correction = true; else delete l.lens_correction;
         renderEditor(); changed();
       }, 'Off = the lens\'s natural corners; On = the camera\'s correction (not in the preview)'),
-      crow('Shading', OM3.shading, () => l.vignette, (x) => { l.vignette = x; }, 'The camera\'s Shading: − darker corners, + lighter'),
+      crow('Shading Effect', OM3.shading, () => l.vignette, (x) => { l.vignette = x; }, 'The camera\'s Shading: − darker corners, + lighter'),
       (() => {
         const e = l.effect, v = !e ? 0 : e.type === 'clarity' ? -e.strength : e.strength;
         const { inp, out } = slider(-OM3.fx, OM3.fx, v, (x) => {
           l.effect = x === 0 ? null : x > 0 ? { type: 'bloom', strength: x } : { type: 'clarity', strength: -x };
           fxChanged();
-        }, (x) => (x === 0 ? '0' : x > 0 ? `+${x}` : String(x)), 'Glow');
-        return h('div', { class: 'crow', title: '+ Glow (a soft glow), − Clarity (local contrast)' }, h('span', { class: 'cname' }, 'Glow'), steps(inp), out);
+        }, (x) => (x === 0 ? '0' : x > 0 ? `+${x}` : String(x)), 'Glow Effect');
+        return h('div', { class: 'crow', title: '+ Glow (a soft glow), − Clarity (local contrast)' }, h('span', { class: 'cname' }, pmIcon('glow'), 'Glow Effect'), steps(inp), out);
       })(),
       ...(() => {
         const note = h('p', {});
@@ -1388,16 +1437,18 @@ function renderOm3Editor(l: Look) {
           else { note.className = 'help'; note.replaceChildren(h('b', {}, 'Not on this photo: '), 'it has no bright lights for the glow to form around.'); }
         };
         afterPreview = show;
-        const { inp, out } = slider(0, OM3.halation, l.halation ?? 0, (x) => { if (x) l.halation = x; else delete l.halation; changed(); }, (x) => (x ? `+${x}` : '0'), 'Halation');
+        const { inp, out } = slider(0, OM3.halation, l.halation ?? 0, (x) => { if (x) l.halation = x; else delete l.halation; changed(); }, (x) => (x ? `+${x}` : '0'), 'Halation Effect');
         show();
-        return [h('div', { class: 'crow', title: 'A red-orange glow around bright lights in darker scenes, as on cinema film (it fades out in bright scenes, as on the camera); works with or without Glow' }, h('span', { class: 'cname' }, 'Halation'), steps(inp), out), note];
+        return [h('div', { class: 'crow', title: 'A red-orange glow around bright lights in darker scenes, as on cinema film (it fades out in bright scenes, as on the camera); works with or without Glow' }, h('span', { class: 'cname' }, pmIcon('halo'), 'Halation Effect'), steps(inp), out), note];
       })(),
-      cseg('Film Grain', [['0', 'Off'], ['1', 'Low'], ['2', 'Med'], ['3', 'High']], String(l.film_grain ?? 0), (x) => {
+      h('p', { class: 'help' }, 'Glow Effect: + Glow, − Clarity. Halation Effect needs firmware v0.28; saving a photo with it takes a little longer. Hover a row for what it does.')),
+    pmPage(4, 'Grain'),
+    h('div', { class: 'group cam rows' },
+      cseg('Film Grain Effect', [['0', 'Off'], ['1', 'Low'], ['2', 'Med'], ['3', 'High']], String(l.film_grain ?? 0), (x) => {
         if (x === '0') delete l.film_grain; else l.film_grain = Number(x);
         renderEditor(); changed();
       }, 'Colour film grain, made by the camera as the photo develops'),
-      grainWarn,
-      h('p', { class: 'help' }, 'In the camera\'s Picture Mode order. Glow: + Glow, − Clarity. Halation needs firmware v0.28; saving a photo with it takes a little longer. Hover a row for what it does.')),
+      grainWarn),
     h('label', { class: 'field' }, h('span', { class: 'lbl' }, 'Notes'),
       h('textarea', {
         rows: 3, maxlength: 400, placeholder: 'What the look is for…', onchange: checkpoint,

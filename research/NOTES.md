@@ -4425,4 +4425,14 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   rough guide for strength, little for lean. So only the mix was fitted (tone and casts in such photos follow their scans
   and edits), lean weighted lightly. Kodachrome 64: mix G Hue +1, Sat -1; colour strength off 10.2 -> 9.1 %. CineStill
   800T: R Hue +1, Sat -1; G Sat -2; B Sat +1; 13.4 -> 7.5 % (its photos are mostly night scenes under lamps).
+- **In LookLab (owner: "these look great ... updating the looklab with these new sims and the new camera profile tools
+  ... use the new menu order and design"; 2026-11-15, private test page only):** `scripts/films.py` `CURVES_MIX` carries
+  the 20 films' curves and mix into `om3films.json` (`rgb`, `mix`), and `filmLook` into the look, so the camera's 20
+  preview with their new grades (not in `LOOKS.BIN`: on the camera they need the test firmware's RGB / Mix rows, and to
+  ship, the firmware's built-in films must carry them). Saved banks keep their old values until Reset look. The OM-3
+  editor follows colour menu test 7 (camera-tested): page 1 Color Mix, RGB curves, Color wheel (HSL), Split Tone
+  Balance; page 2 WB Compensation, Highlight & Shadow, Blacks / Whites, Contrast, Sharpness; page 3 Noise Filter,
+  Vignette Correction, Shading Effect, Glow Effect, Halation Effect; page 4 Film Grain Effect; small versions of the
+  camera's new row pictures in the headings (Mix ring, RGB curve box, colour pie, tone bar, black / white squares, glow
+  dot, halation ring); the camera's new titles.
 
