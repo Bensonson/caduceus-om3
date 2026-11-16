@@ -4742,6 +4742,160 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 - **Camera (2026-11-15), test 7 with the headers (E1479999.BIN `cfd4992752c2…df85d`, commit 3ba1355):** owner: "that looks
   so good. like properly good." Camera-tested; the current line for RGB curves + colour mix + the colour menu.
 
+## Films at start-up from the camera's memory: bp1 probe and L1 (2026-11-14; branch feature/early-load)
+- Goal (crombach): the films and our Picture Mode rows ready without a half-press, and the shooting screen showing
+  "FILM N" from its first frame. Until now it read "COLOR k*" until the first half-press. This goes against the
+  owner's start-up rule in CLAUDE.md and needs the owner's OK before it ships.
+- om-emu cannot time this. Its GUI does nothing until the script sends a key, and its GUI gets an event about every
+  200 ms while idle, but the camera's GUI gets none until a key (k3).
+- **bp1 probe** (camera-tested): until the first shutter event, the hooks that already run at start-up record the
+  facade's SetValue calls (`sl_set`), the shooting screen's label picture asks (`fl_lvp`) and the GUI's state changes
+  (`gx_map`), with the task. CADLOG.TXT writes the list at the end. Two camera logs, a plain start and Picture Mode
+  opened first, give the same order:
+  1. Task 167 (the camera's settings task) writes 15258, 15319 twice, 15313, 897 = 901 (the Creative Dial) and 2188.
+  2. Task 170 (the GUI) changes state once (8, from 0x0201).
+  3. The GUI asks for the label (15711 = "COLOR 2*" with COLOR 2 on FILM 10).
+  4. Task 167 writes 897 twice more, before any key. This is still start-up.
+- **L1:** at the GUI's first state change (`gx_map`, GUI task), `el_go` runs `sd_load` when every section is copied
+  and the block in M is valid. Card access is blocked while it runs (`el_nc` in our `fopen`), so the built-in
+  GUIDES / LABELS / TONES are used. `dm_ok` and `gx_map`'s first look (`cm_init`) wait for the first shutter event
+  (`el_hold`), because the 897 writes of step 4 would otherwise run `dm_turn`, which caused b1's lag. No valid block:
+  the first half-press loads as before. Code in ext12, the release call in `lg_pr`.
+- **Emulator (L1):** with a block saved by an earlier session (`NV_FILE`), FILM 1 chosen, then a power-off: the
+  shooting screen shows "FILM1" with no half-press (c11 / bp1: "COLOR 1*"), and Picture Mode opens with the films in.
+- **Camera (crombach, L1 on c11 = #45 + #46, E1479999.BIN 39359b78…, GUIDES.BIN 2acd4eb2…): works.** "FILM 10"
+  shows as soon as the shooting screen draws, and Picture Mode's profile settings are loaded before any half-press.
+  Not reported yet: ten restarts for lag, the dial moved while off, shooting right after switch-on, no card.
+- Known limit of L1: with a valid block in M it never reads a new `LOOKS.BIN` or `NAMES.BIN` from the card. `el_card`
+  (below) fixes this.
+- **Timing (camera, crombach, 2026-11-14):** builds T0 (EL_ON 0: films at the first half-press, as c11) and T1 (EL_ON
+  1: L1) with microsecond stamps from the firmware's clock (0x60023c0d: 0x7fffffff minus the down-counter at
+  0x98900284). Three plain starts each, times from power-on:
+
+  | Run | GUI state 8 | Early load | First label | Label after state 8 |
+  |---|---|---|---|---|
+  | T0-1 | 1.111 s | none | 1.210 s | 99 ms |
+  | T0-2 | 1.172 s | none | 1.251 s | 79 ms |
+  | T0-3 | 1.159 s | none | 1.241 s | 82 ms |
+  | T1-1 | 1.139 s | 46 ms | 1.230 s | 91 ms |
+  | T1-2 | 1.156 s | 80 ms | 1.323 s | 166 ms |
+  | T1-3 | 1.109 s | 96 ms | 1.287 s | 178 ms |
+
+  The early load takes 46..96 ms on the GUI task and moves the first label by 0..100 ms (1.23..1.32 s against
+  1.21..1.25 s). The camera's own writes before state 8 are the same in both. Task 167 keeps writing 897 during and
+  after the load (T1-2: at 1.170 s and 1.263 s), which `el_hold` keeps from `dm_turn`. No lag felt (crombach).
+- **What points into our film blocks** (emulator, RAM dumps in Picture Mode, after it and in the menu, with
+  P = 0x62859f80; analysis of the hits):
+
+  | Holder | Points at | Lasts |
+  |---|---|---|
+  | The camera's GUI (0x62c69b84, 0x62c69e44, 0x62c6a104) | The slot words at the start of the list block (P+TTAB) | The whole power-on. Stock code writes them (0x610fb505, 0x610fb526, 0x610da4d9, 0x610db093). |
+  | Picture Mode's screen data (from 0x6268efa8) | The list cells' descriptors | Only while Picture Mode is open |
+  | A heap record at 0x62421000, {0x660, LPTR, 1, 0x660, ...} | The films buffer (P+LPTR) | Not known |
+  | 0x62421114 / 158 / 20c, 0x6285b984 | P+LVB, P+TORG | Not known; maybe the allocator's own records |
+
+  So the list block must never be freed or moved. The list cells show only "FILM" and a number, so new films never
+  need new cells. The films buffer stays until power-off after a swap, because of the record at 0x62421000.
+- **el_card** (ext12, from `lg_pr` after `ub_try`): after an early load, once at the first half-press with a card
+  mounted (`hl_ok`: ub_try's gate). `NAMES.BIN` goes into a scratch 1024-byte P through `nm_load` (it also writes
+  P+TBUF, which holds the titles by then). Then its entries (NENT) and its four group pointers (NPTR) go into P, in
+  that order. `LOOKS.BIN` is read through `ub_rd` and checked through `ub_kn`, both taken out of `ub_pfl`. Films the
+  camera never had go into a new buffer, P+LPTR switches to it with one store, and `ub_put` writes the block. The
+  camera's selection (P+LIDX) and edits stay as they are, as at a normal half-press with new films. The old buffer
+  (3 KB) is kept.
+- **Emulator (el_card, build EL2):** a first boot with films A writes the block. With films B on the card (one name
+  changed, CRC fixed) the next boot shows films A from M before the half-press and films B after it, with "Films
+  from: the card (films the camera never had)" and one block write. The boot after that loads films B from M.
+  `NAMES.BIN` (a test file with bar pictures): P+NPTR is 0 before the half-press, and after it all four groups and
+  the entries match the file. The shooting screen before the half-press is the same as L1's, pixel for pixel.
+  L1 with the same steps keeps films A and loads no `NAMES.BIN`. Not camera-tested yet.
+- The probe and EL_ON are gone (the timing tests are done).
+
+### Early load on v0.29.5: each mode's own films at start-up (2026-11-15; emulator only)
+- Rebased onto v0.29.5. Per-mode settings enter the group now at the first look (`rc_go`: `ss_pre`, `cm_go`,
+  `ss_post`), after the first shutter event (`el_hold`). The films block holds the group of the last look, so with
+  the dial turned while the camera was off the early load showed the last mode's films until the half-press (code).
+- For a trusted set (the P group, or a custom mode with films of its own), entering it changes only RAM: the set's
+  film changes (`ss_ed`), each COLOR's look and slot (`cm_load` -> `ss_lib`, no settings-manager call) and the set's
+  rows (`ss_get`). The camera has already recalled the set's own 18 COLOR values. The first look's settings writes
+  (901, `dm_rec`) and record writes stay at the first shutter event (code).
+- **EL6:** `el_ok` (reads only: `cm_ld`, `ss_ld`, `cm_gnow`, the photo / movie / S&Q switch byte while `rc_in` is 0)
+  picks the case. Photo in a trusted set: `sd_load`, then `el_pre` does the RAM half of that entry and sets `ss_cur`,
+  so the first look finds the films and rows in place and keeps an edit made before it. Otherwise the block loads as it
+  is when it already shows what the first look keeps (same group, or a group with no films of its own), and else not
+  at all (video in another group with films of its own).
+- Emulator (photo switch set with a scratch `pset` token, Assign through Shooting menu 1 > Custom Mode): P FILM 1,
+  Assign C1, P FILM 6 (COLOR 2). Off in C1, dial to P, on: v0.29.5 "COLOR 2*" until the half-press, EL6 "FILM 6" at
+  once. Off in P, dial to C1, on: v0.29.5 "COLOR 1*", EL6 "FILM 1" at once. After the half-press every screen matches
+  v0.29.5 pixel for pixel. EL6's first look switched no films and set no picture mode (v0.29.5: 2 and 1). Film swap
+  and `NAMES.BIN` tests as before. Not tested in the emulator: a row edit before the half-press.
+- **EL6 camera (crombach, 2026-11-15, E1479999.BIN 1014a7de…):** start-up and the films tests worked. Two faults:
+  (1) after a power-on in C1, a turn to P while off and a power-on showed a COLOR profile until the half-press, which
+  then set "FILM 10*" (log: picture mode 54 before it, "picture modes set: 1" at the first look); (2) a film picked
+  before the first half-press switched at the half-press to another film with a "*".
+- (1): on the camera, P's picture mode is not back at that power-on (om-emu keeps it). Only the first look's
+  SetValue(901) brings P's choice back, so before the half-press the label shows the camera's picture mode
+  (camera log; om-emu does not show it).
+- (2), EL8: the first look re-entered the group with its kept films and choice (`cm_load`), over the pick, while the
+  camera already held the picked film's values. `dm_rec` also ignored the pick (`dm_pos` unknown until `dm_turn`, held
+  by `el_hold`), so the next 897 write would have put the dial's old choice back. EL8: `el_go` notes the GUI task
+  (`el_tid`) and the dial position (`dm_know`, reads only, taken out of `cm_load`); before the first shutter event
+  `dm_rec` acts only for the GUI task and sets `el_pick`; with `el_pick` the first look keeps what is shown. Emulator:
+  FILM 1 saved, FILM 6 picked before the half-press: EL6 "FILM 1*" after it, EL8 "FILM 6" (also after a restart). The
+  custom-mode, film-swap and video runs match EL6, and every screen after the half-press matches v0.29.5.
+- **EL8 camera (crombach, 2026-11-15, E1479999.BIN 65b88a59…):** start-up, the films tests (with new test files:
+  the camera takes a film set only once, and EL6 had taken both old ones) and the dial tests with one picture mode
+  worked. Fault: in P pick FILM 6 (COLOR 2) with no half-press after it, off, (C1 on and off,) on in P: FILM 6 until
+  the half-press, then "FILM 1*" (log: picture mode 55 at the first event, "picture modes set: 1").
+- Cause: a group keeps its films and choice only at a shutter event (`cm_hp` from `lg_pr`), so a pick with no
+  shutter event after it is lost at power-off. v0.29.5 does the same (emulator: half-press, pick FILM 6, off, on in
+  P, half-press: "FILM 1*"). The early load made it easy to hit (a pick before any half-press).
+- **EL9:** every SetValue(901) sets `el_pk`. At the next GUI event (`gx_map`), after the first look and with no
+  `rc_pend`, `cm_hp` runs as at a shutter event (its own checks: the last look was this group, not while `rc_go`
+  runs, `cm_save` writes only on a change). A menu pick after the early load (`el_pick`) also ends `el_hold`, so the
+  first look runs at the next GUI event instead of waiting for a shutter event. Emulator: the pick with no half-press
+  (also with the half-press before it, and with C1 on and off between) gives "FILM 6" after the restart's half-press;
+  C1 keeps its own film. The custom-mode and film-swap runs match EL8 pixel for pixel; more record writes (one per
+  picture-mode change).
+- **EL10** (25b2a12): `gx_map` checks `STATE` before the `el_go` call, and `dm_rec` ends `el_hold` where it notes a
+  pick (not `gx_map` at each update). Emulator: every run matches EL9 pixel for pixel, logs included.
+- **EL9 / EL10 camera (crombach, 2026-11-15; EL10 E1479999.BIN 56746c4f…):** EL9 passed the EL8 fault's steps. EL10
+  passed the whole list: the pick with no half-press after it (FILM 7, and FILM 2 after a half-press), start-up, both
+  dial turns while off (P and C1 on COLOR 1 films), a row edit in C1 before the half-press, picks of a film and of
+  COLOR 4 before the first half-press, ten restarts, no card, video after video, photos and menus. A pick made in a
+  custom mode on Reset is dropped at the next power-on, as in v0.29.5 (camera Custom Mode setting).
+- **EL10 camera, dial turn while on:** boot in M, turn to C1 before any half-press: "FILM 4*" (P's early-loaded film on
+  C1's COLOR 1) until the half-press, then C1's FILM 3 (log: films switched 2, picture modes set 1 at the first
+  look). `el_hold` kept the 1440 step's `rc_go` back (`dm_ok`). v0.29.5 shows "COLOR 1*" there (no films yet).
+- **EL11:** sx_set's 1440 ends `el_hold`. bp1 shows the camera writes no 1440 before the first shutter event, so a
+  1440 then is a dial turn. Emulator (P FILM 1, Assign C1, P FILM 6; boot in M, dial to C1): EL10 "FILM 5*" before the
+  half-press, EL11 "FILM 1" (C1's). Every other run matches EL10 pixel for pixel.
+- **EL12 (code review):** `dm_rec` wrote the task id and d1 at (12) and (16) of its 28-byte frame, over the caller's
+  saved registers (locals only in 4..11); frame now 36 at both calls. `gx_map` keeps a1 over `el_go`, as over `rc_go`
+  and `cm_hp`. `el_card` clears `ub_cv` before `ub_rd`. `el_go` drops the `STATE` check `gx_map` now makes.
+  Emulator: every run matches EL11 pixel for pixel, logs included. Open (analysis): `el_go` (GUI task) and the
+  half-press load (HLS task) test and set `STATE` without a lock, so a half-press inside the early load's 46..96 ms
+  could run `sd_load` twice. The GUI task's stack size is not known; `sd_load` has run on it in every camera boot.
+- **Video freeze (camera, also v0.29.5 and EL8; issue #53):** photo session, off, boot in video, half-press: the live
+  image freezes on one frame while the overlay updates. Switching to photo and back brings it back. Not caused by
+  the early load. Cause not known yet.
+  - Update: the trigger is a half-press within about a second of a video boot, after any session. A later half-press
+    does not freeze (camera, v0.29.5 and EL13).
+- **EL12 camera (crombach, 2026-11-15; E1479999.BIN 194dba88…):** the dial before the first half-press (M to C1, C1
+  to P) and the picks (a film with no half-press after it, a COLOR profile) passed.
+- **Dial turn while on (issue #54, also v0.29.5):** a live turn between M and C1 runs the switch at the in-between code
+  (0xC0 plus the raw dial, such as `C7`), before the real mode code. Afterwards M's COLOR 1..4 and C1's COLOR 1 show
+  "*" with changed values. Not caused by the early load.
+- **EL13 (3f869bc, code review):** `st_claim` sets `STATE` from 0 to 0xffff under LOCK, and both `pr_go` and `el_go`
+  load through it. `el_card` zeroes the `NENT` scratch before `nm_load`. Emulator: every run matches EL12. Camera:
+  restarts passed. A half-press in the first second can win the claim, and the label then shows "COLOR k*" until the
+  films load, as in v0.29.5.
+- **EL14 (edc2c3b):** EL13 with the video freeze fix merged in (VF2, below). Emulator: every run matches EL13, except
+  that a video boot's CADLOG shows no first look and no record write. **Camera (crombach, 2026-11-15, E1479999.BIN
+  7c125da1…):** no freeze in 3 video boots with an early half-press at P, 3 at C1, and a late half-press (films put
+  back 0, camera settings written 0). Photo after video at P and at C1, five restarts with dial turns while off, and
+  a half-press at once after switch-on all show the mode's film at once, with no lag or freeze.
+
 ## Video freeze at the first half-press in video (#53, 2026-11-15; camera-tested)
 - **Fault (v0.29.5):** in video, a half-press soon after turn-on freezes the live image while the overlay updates.
   The logs that froze show films put back at that half-press (3 films and 6 camera settings in the #53 report). A
