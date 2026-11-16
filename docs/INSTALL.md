@@ -100,8 +100,11 @@ OM3MOD/LOOKS.BIN
    **Don't switch off, open the battery door or take the card out.**
 4. When the light starts **blinking**, it's finished. Switch the camera off.
 
-If the light blinks straight away, without a steady phase, the camera didn't accept the file and nothing changed. Make
-the files again (step 2), copy them again (step 3) and try once more.
+If the light blinks straight away, without a steady phase, the camera didn't accept the file and nothing changed. The
+copy on the card is most likely incomplete or damaged (making the files again won't help: if the launcher said
+**Done**, the file it made is already checked). Copy the `DCOLYMP` folder to the card again (step 3), eject the card
+properly, check the battery is fully charged and try once more. If you know how, you can compare the SHA-256 of
+`DCOLYMP/E1479999.BIN` on the card with the one in the release's `SHA256SUMS`.
 
 <!-- picture: the camera's light during and after the update -->
 
