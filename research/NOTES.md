@@ -5048,3 +5048,8 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   is gone and the tour names no contributor (the Ready at switch-on, stars and Delete button captions included); credits
   stay in CHANGELOG and the release notes.
 - Owner: "separate them by pages instead of what they do": the row list's group labels read Page 1 to Page 4.
+- Owner: "callout the more robust debuglog that is coming in the .30 update. maybe include a prettified example": a
+  "A fuller debug log" card in New in v0.30, and in the Help section (anchor #debuglog) what the dl9 log covers
+  (feature/debug-log, camera-tested) with a styled, shortened example built from the emulator sample (the film names
+  changed to today's standard 20; drive / AF / quality shown as the camera's codes, as the log does). The tour's Help
+  steps still say OM3MOD/CADLOG.TXT (dl9 keeps the name). This assumes cad merges feature/debug-log into v0.30.

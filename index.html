@@ -202,6 +202,33 @@ footer { border-top: 1px solid var(--line); padding: 36px 0 56px; color: var(--f
 footer .in { display: grid; gap: 8px; }
 footer a { color: var(--muted); }
 
+/* the debug log example (v0.30) */
+.log-wrap { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 36px; align-items: start; margin-top: 36px; scroll-margin-top: 70px; }
+.log-text h3 { font-size: 24px; font-weight: 800; margin: 8px 0 10px; }
+.log-text p { color: #c9ced8; }
+.log-parts { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 8px; }
+.log-parts li { color: #c9ced8; }
+.log-parts b { color: var(--ink); }
+.logfile { margin: 0; background: #0a0b0d; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font: 13px/1.5 var(--mono); box-shadow: 0 18px 50px rgba(0,0,0,.45); }
+.logfile figcaption { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 16px; background: #15181d; color: var(--muted); }
+.logfile figcaption b { color: var(--ink); font-weight: 600; }
+.log-sec { padding: 12px 16px; border-top: 1px solid var(--line); }
+.log-sec h4 { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.log-sec dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 14px; margin: 0; }
+.log-sec dt { color: var(--faint); }
+.log-sec dd { margin: 0; color: var(--ink); }
+.log-sec .ok { color: #7fd6a2; }
+.log-sec .ok::before { content: "✓ "; }
+.log-sec ul { list-style: none; padding: 0; margin: 0; }
+.log-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 14px; }
+.log-scroll { overflow-x: auto; }
+.log-sec table { border-collapse: collapse; white-space: nowrap; font-size: 12.5px; }
+.log-sec th { text-align: left; color: var(--faint); font-weight: 500; padding: 1px 12px 3px 0; }
+.log-sec td { padding: 1px 12px 1px 0; color: var(--ink); }
+.log-sec td.y { color: var(--accent); }
+.log-sec .more-rows { color: var(--faint); margin-top: 4px; }
+@media (max-width: 980px) { .log-wrap { grid-template-columns: 1fr; } }
+
 /* responsive */
 @media (max-width: 980px) {
   .hero .in, .viewer, .hal { grid-template-columns: 1fr; }
@@ -291,10 +318,15 @@ footer a { color: var(--muted); }
         <p class="cap"><b>A new Picture Mode.</b> The film and its colour first, then white balance and tone, then lens and effects, five rows a page, each with its own picture.</p>
       </div>
     </div>
-    <div class="cards" style="margin-top:22px;grid-template-columns:1fr">
+    <div class="cards" style="margin-top:22px">
       <div class="card">
         <h3>Ready at switch-on</h3>
         <p>The right film and your changes are there as soon as you switch on, in every mode, before the first half-press.</p>
+      </div>
+      <div class="card">
+        <h3>A fuller debug log</h3>
+        <p>When something goes wrong, the log now reports everything: what the camera loaded, the film on each COLOR, its own settings, each custom mode and the last 32 shutter presses.</p>
+        <a class="more" href="#debuglog">See an example →</a>
       </div>
     </div>
     <p style="margin-top:14px"><a class="more" href="#editor">See every row and what it does to a photo →</a></p>
@@ -575,6 +607,54 @@ footer a { color: var(--muted); }
     <div class="help-notes">
       <p><b>When you’re done,</b> delete <code>DEBUG.TXT</code> from the card, so the camera stops writing the log.</p>
       <p><b>No <code>CADLOG.TXT</code> after switching on and half-pressing?</b> Then the camera isn’t running Caduceus: the update didn’t install. See <a href="pages/install/#step-4-update-the-camera">Install, step 4</a>.</p>
+    </div>
+    <div class="log-wrap" id="debuglog">
+      <div class="log-text">
+        <span class="new" style="margin-left:0">new in v0.30</span>
+        <h3>A debug log that tells the whole story.</h3>
+        <p>The log is rewritten at every half-press, so it always shows the moment things went wrong. From v0.30 it covers everything the camera is doing, in plain words you can read yourself:</p>
+        <ul class="log-parts">
+          <li><b>Summary:</b> the mode, exposure and film right now, and anything that looks wrong.</li>
+          <li><b>Start-up:</b> what loaded when the camera switched on, and whether each card file matches the firmware.</li>
+          <li><b>Now:</b> the picture mode, the film on each COLOR, and which films you changed.</li>
+          <li><b>Camera:</b> its own settings: exposure as set and as metered, white balance, drive, AF, quality.</li>
+          <li><b>Saves and custom modes:</b> what was saved, and each custom mode’s films and Save Settings.</li>
+          <li><b>Buttons and dials:</b> what each button, dial and the Fn lever do.</li>
+          <li><b>The last 32 shutter presses:</b> one line each.</li>
+        </ul>
+        <p class="note">It only reads the camera’s settings, never changes them, and holds no photos and nothing personal. The example is shortened, from the emulator.</p>
+      </div>
+      <figure class="logfile" aria-label="An example debug log, shortened">
+        <figcaption><b>OM3MOD/CADLOG.TXT</b><span>written at shutter press 43</span></figcaption>
+        <div class="log-sec"><h4>Summary</h4><dl>
+          <dt>Now</dt><dd>P · 1/13 f/2.8 · ISO Auto · ±0.0 · WB Auto · FILM 15</dd>
+          <dt>Films</dt><dd>from the camera’s memory · card files match</dd>
+          <dt>This power-on</dt><dd>4 saves · 6 mode changes · C1 has its own films</dd>
+          <dt>Look at</dt><dd class="ok">nothing unusual</dd></dl></div>
+        <div class="log-sec"><h4>Start-up</h4><ul>
+          <li class="ok">Settings block found; films from the camera’s memory (valid)</li>
+          <li class="ok">Films, film changes and tones loaded</li>
+          <li class="ok">GUIDES.BIN, LABELS.BIN, TONES.BIN match this firmware</li></ul></div>
+        <div class="log-sec"><h4>Now</h4><dl>
+          <dt>Picture mode</dt><dd>COLOR 3 · FILM 15 NHG II 800 · Creative Dial on COLOR</dd></dl>
+          <div class="log-cols" style="margin-top:4px"><span>COLOR 1 · FILM 4 Gold 200</span><span>COLOR 2 · FILM 10 Velvia 50</span><span>COLOR 3 · FILM 15 NHG II 800</span><span>COLOR 4 · FILM 19 Fujifilm 400</span></div>
+          <dl style="margin-top:4px"><dt>Changed (*)</dt><dd>films 4, 5, 10, 15, 19</dd></dl></div>
+        <div class="log-sec"><h4>Camera</h4><dl>
+          <dt>Exposure</dt><dd>metered 1/13 f/2.8 · set 1/250 f/5.6</dd>
+          <dt>WB</dt><dd>Auto · Custom WB 5400 K</dd>
+          <dt>Drive / AF</dt><dd>drive [0] · AF mode [0] · quality [11] (the camera’s codes)</dd></dl></div>
+        <div class="log-sec"><h4>Custom modes</h4><div class="log-scroll"><table>
+          <tr><th>Mode</th><th>Save Settings</th><th>Films on COLOR 1–4</th><th>Picture</th></tr>
+          <tr><td>P/A/S/M/B</td><td>–</td><td>4 10 15 19</td><td>FILM 15</td></tr>
+          <tr><td>C1</td><td>Reset</td><td>4 10 15 19</td><td>FILM 15</td></tr>
+          <tr><td>C2–C5</td><td>Reset</td><td>not assigned</td><td>–</td></tr></table></div></div>
+        <div class="log-sec"><h4>Last shutter presses</h4><div class="log-scroll"><table>
+          <tr><th>#</th><th>Mode</th><th>Shutter</th><th>Aper.</th><th>ISO</th><th>WB</th><th>Picture</th><th>Edits</th><th>Saved</th></tr>
+          <tr><td>43</td><td>P</td><td>1/13</td><td>f/2.8</td><td>Auto</td><td>Auto</td><td>FILM 15</td><td>no</td><td>yes</td></tr>
+          <tr><td>14</td><td>P</td><td>1/13</td><td>f/2.8</td><td>Auto</td><td>Auto</td><td>FILM 15</td><td class="y">waiting</td><td>yes</td></tr>
+          <tr><td>13</td><td>C1</td><td>1/13</td><td>f/2.8</td><td>Auto</td><td>Auto</td><td>FILM 15</td><td>no</td><td>yes</td></tr></table></div>
+          <p class="more-rows">… 32 presses in all</p></div>
+      </figure>
     </div>
     <div class="help-ctas">
       <a class="btn" href="https://github.com/androidfanman/caduceus-om3/issues">See open issues</a>
