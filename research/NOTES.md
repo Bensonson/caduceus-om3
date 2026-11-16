@@ -4917,6 +4917,12 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   P and C1's film at C1. A video boot at P, a dial turn to C1, then photo and a half-press shows C1's film (FILM 3).
 
 ## v0.30 test 8: issue #54 fixed on the merged build (2026-11-15; emulator only)
+- **Test 8a camera-tested (owner, 2026-11-15):** 6fd2988 (colour menu test 7 + PR #55 + PR #56's early load + PR #57)
+  with only a build-name commit (`try/v0.30-8a`, "v0.30-dev (test 8a: early load)", E1479999.BIN 8ace7752…4245).
+  Owner: "This looks good and works well." CADLOG clean (10 shutter events, saves 1, card files match; copy kept
+  privately). So #56's early load with #55, #57 and the RGB curves / colour mix / colour menu is camera-tested. PRs #56
+  and #57 were merged on GitHub as written (heads fcfdb7e and e543f12, the same commits as here). Test 8 below adds only
+  the #54 fix, the suite adapted to this build, and notes.
 - **Build:** `try/v0.30` = colour menu test 7 (da8abbc) + main (PR #55, #53's video fix) + PR #56 (early load) + PR #57
   (tests) + the #54 fix (770f40d) + the tests adapted (d9e797b). Build name "v0.30-dev (test 8: #54 fix, early load)".
 - **#54, cause (analysis from crombach's CADLOG + emulator simulation):** the camera writes 1440 only at mode-dial turns
