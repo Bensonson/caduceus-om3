@@ -104,6 +104,10 @@ The debug log is written only at a half-press. The runner removes each boot's lo
 it, so a boot with no half-press has no log and cannot pass on an earlier boot's lines. Give such a boot no `expect`
 or `reject`.
 
+A `Boot` can also put files on the card before it boots: `card={'CURVES.BIN': 'CURVES_A'}` puts the `FIXTURES` entry
+of that name into `OM3MOD/`, `None` removes the file (v0.30 test 9). Fixtures are made at run time in `--out/fixtures/`
+from the newest release's `LOOKS.BIN` (`card/mkcurves.py`).
+
 `session_ed1.mjs` takes `PSET0` and `MODE0` in its environment, the photo/video switch and mode dial positions
 before boot, and the tokens `pset:N` and `mode:N` to move them during a run. A `Boot` sets them with `photo_switch`
 and `mode_dial`. `photo_switch=None` leaves `PSET0` unset. om-emu 0819080 (2026-11-14) reads an unset switch as

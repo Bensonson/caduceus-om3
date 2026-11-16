@@ -4957,3 +4957,38 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   the #54 round trips (M <-> C1 while on) included. The CADLOG kept (copy kept privately) covers only a later power-on
   (2 shutter events, no dial turns, the #54 counter 0, saves 1, card files match), so the round trips are the owner's
   word, not the log. Test 8 is the v0.30 candidate.
+
+## v0.30 test 9: CURVES.BIN, each film's built-in curves and mix (2026-11-15; emulator only)
+- **Owner's choice "New card file"** (how people updating to v0.30 get LookLab's 20 films regraded with curves + mix,
+  `webapp/scripts/films.py` CURVES_MIX): LOOKS.BIN has no room and the camera takes only a film set it never had, so a
+  file of its own. Format: `docs/FORMATS.md` "CURVES.BIN v1" (432 B, 'OM3K'); `card/mkcurves.py` writes it; sent to the
+  LookLab session for its export. Each entry carries the CRC-32 of the LOOKS record it was made for (as EDITS records).
+- **Firmware (`firmware/src/curvesfile.inc`, ext11; 63,872 / 65,536, ext12 261,488 / 262,144):**
+  - At the films' load (the early load or the first half-press), `ck_load` reads M only: the file's copy at M + 0x3BE20
+    (between 'OM3R', which ends at +0x3BE14, and +0x3C000, which film-rolls / screen-info use), when valid, gives
+    `ck_bi` (each film's 18 curve values and 6 mix values; zero when the entry's check does not match the film's
+    record). The check is about 1.7 KB of CRC-32, inside #56's early load.
+  - `ck_card` from lg_pr, at the first shutter event with the films in and a card, after el_card (new films first):
+    C:\OM3MOD\CURVES.BIN, taken when valid and not the copy in M. The write to M works as ub_wr: under LOCK, only
+    while the camera is not saving M, then the changed byte; else pending, retried at the next shutter event.
+  - A slot's byte 24 (the 'OM3R' slot's kept byte 6) holds flags: bit 0 the curves follow the film's built-in, bit 1
+    the mix, bit 7 set. Slots from test 8 or older have 0, and their all-zero parts follow. `ck_fix` fills following
+    parts whenever a slot becomes COLOR k's: cv_rec -> `ck_rec` (an EDITS record r < 20 = film r, a LOOKS record = the
+    film as built), cv_sget, the load, a new file.
+  - An edit on the RGB / Mix page (cv_ev, mx_ev -> `ck_own`) makes that part the user's. The rows' reset (cv_zk /
+    mx_zk -> `ck_zp`) makes it follow again.
+  - The '*'s compare with the built-in (cv_kset / cv_jset -> `ck_kset` / `ck_jset`, cv_star / mx_star -> `ck_star`).
+  - With no valid file in M (`ck_have` 0) none of it runs. 16 Picture Mode rows on the old om-emu settings file:
+    identical to test 8 pixel for pixel.
+  - A calling-convention slip found in om-emu: `ck_bik` first had frame 0 and called `ck_p`, whose return address
+    overwrote its own (an endless loop at the first half-press). Frame 4 since (research/NOTES.md "Picture-mode
+    sliders": a call writes its return address at (0,sp)).
+- **Emulator:**
+  - FILM 2 with fixture values: Mix "Sat +2 / Hue +1", RGB "Level +1", no '*' on the film or the rows.
+  - Reset on the RGB row: back to Level +1. One dial turn: '*' on the row and the film, kept over the half-press.
+  - Suite tests `curves-file-kept-in-camera`, `-new-values-follow-edits-stay`, `-none-or-not-valid` pass; on test 8
+    (`--without`) caught.
+  - `static:changed-bytes`: the same sites as test 8 (0x6061a468, a pointer into ext12, and the cm_rst word), their
+    targets moved; hooks.json updated after that review.
+- **Sample for test 9:** LookLab's camera 20 (om3films.json rgb + mix, recipes otherwise unchanged from main) against
+  releases/v0.29.5/LOOKS.BIN: sha256 4c009f9c…2291 (20 matched in om-emu).
