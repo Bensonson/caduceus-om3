@@ -5237,3 +5237,12 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - **Camera-tested (owner, 2026-11-16): "this looks good and works as it should."** Debug log (test 13, 62 shutter
   events, 98 photos, 23 shooting-mode changes, custom modes C1-C5 with films): "nothing unusual", no film with changes,
   no reboot. Test 13 (`d3ab5d4f…04f1`) is the v0.30 candidate: test 11 + PR #59 (#54) + the Noise Filter row fix.
+
+### PR #59 merged into main (owner, 2026-11-16: "can we merge and close pr #59")
+- #59's head had moved to 2a21c56 since test 12 (1039565): the firmware differs only by a named constant (`UI_DIAL`
+  for 0xa32d9d0c, the same instruction); emu_test.py was tidied (`build_symbols`). main had moved too (#60 om-emu pin,
+  #62 commit identity, #63). Merged locally onto main (d7336d0), one conflict in emu_test.py (both import lists;
+  #59's MODE_DIAL_B / UI_MODE_DIAL beside main's PHOTO_SWITCH_VIDEO = 1), built (E1479999.BIN `f4eed931…`), suite 17
+  of 17 pass, pushed. GitHub marked #59 merged; its "Fix #54" closed issue #54. No release.
+- This branch (`try/v0.30-dl9`) still has #59 as 1039565 and lacks #60 / #62 / #63: merge main into it before the
+  v0.30 release.
