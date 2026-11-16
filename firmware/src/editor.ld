@@ -54,6 +54,7 @@ SECTIONS {
   .ext9         0x619a9670 : { *(.ext9) }
   .ext11        0x60f49800 : { *(.ext11) }
   .ext12        0x60f59800 : { *(.ext12) }
+  .ext13        0x60fac000 : { *(.ext13) }   /* v0.30 test 10: the debug log, after the RGB work area */
 }
 color_builder = 0x60518381;
 pm_back       = 0x611bd90f;

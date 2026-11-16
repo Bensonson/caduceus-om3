@@ -108,11 +108,17 @@ def small_label(t, fill, cap=17, maxw=30):
 def name_label(t, fill, cap=20):
     """colour menu (test 7, spec section 4): the colour in its colour in the header's middle slot (the camera's "Mid"
     label place, a 50 px box), ink inside 2..47. v0.30 (owner: "lets make it just say R, G, B in the same colors but
-    slightly bigger text"): the letter at cap 20 (the words "Red" / "Green" / "Blue" were cap 16, squeezed)"""
-    a = letters([(t, fill)], 50, 30, cap, 26, maxw=42)
+    slightly bigger text"): the letter at cap 20 (the words "Red" / "Green" / "Blue" were cap 16, squeezed).
+    Test 11 (owner: "center the r,g,b ... its off center"): the box (the layout record's, the same on the camera) sits
+    at x 655..704 and the page's middle (the panel 542..845, the midpoint of the two values too) at 693.5 (om-emu), so
+    the letter is centred at the box's column MID_CX, not its middle (it was 14 px left); ink inside the box's 50."""
+    a = letters([(t, fill)], round(2 * MID_CX) + 1, 30, cap, 26, maxw=42)[:, :50]   # + 1: its centring floors
     cols = np.nonzero(a.any(axis=0))[0]
-    assert cols.min() >= 2 and cols.max() <= 47, (t, cols.min(), cols.max())
+    assert cols.min() >= 2 and cols.max() <= 49, (t, cols.min(), cols.max())
     return a
+
+
+MID_CX = 38.5                 # test 11: the header's middle (x 693.5) less the middle label box's left edge (x 655)
 
 
 def mixcell():

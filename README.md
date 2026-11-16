@@ -1,5 +1,5 @@
-> **Branch `feature/tour-v030` (work in progress, not released):** the v0.30 candidate (`try/v0.30`: RGB curves, colour
-> mix and the colour menu, CURVES.BIN (test 9), early load #56, #54 / #55 fixes, tests #57) with LookLab's
+> **Branch `feature/tour-v030` (work in progress, not released):** the v0.30 candidate (`try/v0.30-dl9`, test 11: RGB curves,
+> colour mix and the colour menu, CURVES.BIN, the debug log dl9, early load #56, #54 / #55 fixes, tests #57) with LookLab's
 > curves / mix editors and new menu order (`feature/looklab-rgb-curves`) and the tour updated for v0.29.4 to v0.30.
 > Details: `research/NOTES.md`, "Colour menu", "LookLab: RGB curves and colour mix" and "The tour for v0.30".
 

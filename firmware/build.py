@@ -120,6 +120,7 @@ EXT10 = (0x61aa4300, 0x61aa47f0)
 EXT8 = (0x617e45f0, 0x617e47f0)            # section-8 tail (FF from 0x617e45e0, end 0x617e4800)
 EXT11 = (0x60f49800, 0x60f59800)           # v0.23: section 6 extended by 64 KiB (loader end word 0x60045e9c raised; camera-proven GX2)
 EXT12 = (0x60f59800, 0x60f99800)           # v0.27: section 6 extended by 256 KiB more (camera-proven GX3, 2026-11-10)
+EXT13 = (0x60fac000, 0x60fbc000)           # v0.30 test 10: the debug log, after the RGB work area (GX4-proven reserve to 0x6103f000)
 EXT3 = (0x6081fe10, 0x6081fffc)            # section-3 tail (FF from 0x6081fe00, end 0x60820000)
 EXT5 = (0x60adb5b0, 0x60adb7f0)            # section-5 tail (FF from 0x60adb5a0, end 0x60adb800)
 EXT6 = (0x60f49590, 0x60f497f0)            # section-6 tail (FF from 0x60f49580, end 0x60f49800)          # section-10 tail (FF from 0x61aa42f0, end 0x61aa4800)          # section-4 tail (FF from 0x60a8f088, end 0x60a8f800)
@@ -264,7 +265,7 @@ def build(defaults, testfile, out):
     subprocess.run([P.AS, '-I', out, '-I', HERE / 'src', '-o', out / 'p.o', HERE / 'src' / 'editor.s'], check=True)
     subprocess.run([P.LD, '-T', HERE / 'src' / 'editor.ld', '-o', out / 'p.elf', out / 'p.o'], check=True)
     blobs = {}
-    for s in list(HOOKS) + ['.ext1', '.ext4', '.ext10', '.ext6', '.ext5', '.ext3', '.ext8', '.ext9', '.ext2', '.ext7', '.ext11', '.ext12']:
+    for s in list(HOOKS) + ['.ext1', '.ext4', '.ext10', '.ext6', '.ext5', '.ext3', '.ext8', '.ext9', '.ext2', '.ext7', '.ext11', '.ext12', '.ext13']:
         subprocess.run([P.OBJCOPY, '-O', 'binary', '-j', s, out / 'p.elf', out / (s[1:] + '.bin')], check=True)
         blobs[s] = (out / (s[1:] + '.bin')).read_bytes()
     raw = Path(P.STOCK).read_bytes()
@@ -360,6 +361,10 @@ def build(defaults, testfile, out):
     struct.pack_into('<I', m, o(0x60045e9c), EXT12[1])   # v0.27: to the end of ext12 (GX3: 0x60f99800 loads)
     m[o(EXT11[0]):o(EXT11[0]) + len(blobs['.ext11'])] = blobs['.ext11']
     m[o(EXT12[0]):o(EXT12[0]) + len(blobs['.ext12'])] = blobs['.ext12']
+    b13 = blobs['.ext13']                                # v0.30 test 10: the debug log (GX4-proven reserve to 0x6103f000)
+    print('SIZE .ext13', len(b13), EXT13[1] - EXT13[0], file=sys.stderr)
+    assert EXT13[0] + len(b13) <= EXT13[1] and set(m[o(EXT13[0]):o(EXT13[1])]) <= {0xff}, len(b13)
+    m[o(EXT13[0]):o(EXT13[0]) + len(b13)] = b13
     # v0.23 new Picture Mode choice rows (Noise Filter, Shading Comp.): the item table (17 x 40 B at 0x6154c2a8) -> it_tab
     # (the stock 17, then our 4), at both lookups (mov table,a0 ... cmp 17,d1); the rows join the column's 9 row switches
     IT = 0x6154c2a8
@@ -785,6 +790,9 @@ def build(defaults, testfile, out):
     assert vf_end <= 0x60fa3000 and sy['CV_WRK'] == 0xa0fa3000, (hex(vf_end), hex(sy['CV_WRK']))
     assert set(m[o(at):o(0x60fa3000 + 0x9000)]) <= {0xff}, 'the work area is not free in the firmware image'
     vf_end = 0x60fa3000 + 0x9000
+    # v0.30 test 10: the debug log (.ext13, written with ext11 / ext12) right after the work area, loaded too
+    assert EXT13[0] == vf_end
+    vf_end = (EXT13[0] + len(blobs['.ext13']) + 0xfff) & ~0xfff
     assert vf_end <= 0x6103f000, hex(vf_end)
     struct.pack_into('<I', m, o(0x60045e9c), vf_end)
     print('BUILT IN: GUIDES, LABELS, TONES at 0x%x..0x%x, loader end word 0x%x' % (EXT12[1], at, vf_end))

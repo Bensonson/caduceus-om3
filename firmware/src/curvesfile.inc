@@ -645,74 +645,11 @@ ck_wr:
  movbu d0,(ck_pend)
  ret [d2,d3,a2,a3],20
 
-/* ck_txt: `call ck_txt,[d2,d3,a2,a3],24` from cm_txt: the CADLOG line. */
-ck_txt:
- LGS ck_s1
- movbu (ck_have),d0
- LGY
- LGS ck_s2
- movbu (ck_st),d0
- mov ck_sn,a0
- asl2 d0
- add d0,a0
- mov (a0),a0
- call lg_s,[],0
- LGS ck_s3
- mov (ck_nm),d0
- LGD
- LGS ck_s4
- clr d3                           /* bit k: COLOR k+1 shows its film's built-in; bit k + 4: it has curves or mix */
- clr d2
-1:
- mov d2,d0
- call ck_bik,[],4
- mov a0,a3
- mov d2,d0
- call cv_lk,[],0
- mov a0,a2
- mov a3,a1
- mov CK_BSZ,d1
- call ck_cmp,[d2],8
- cmp 0,d0
- bne 2f
- mov 1,d0
- asl d2,d0
- or d0,d3
-2:
- mov a2,a0
- mov CK_BSZ,d1
- call ck_nz,[],0
- cmp 0,d0
- beq 3f
- mov 16,d0
- asl d2,d0
- or d0,d3
-3:
- inc d2
- cmp 4,d2
- bcs 1b
- mov d3,d0
- and 15,d0
- LGD
- LGS ck_s7
- mov d3,d0
- lsr 4,d0
- LGD
- LGS ck_s5
- mov (ck_nw),d0
- LGD
- LGS ck_s6
- movbu (ck_pend),d0
- LGY
- ret [d2,d3,a2,a3],24
-
  .balign 4
 ck_nm:                            /* films the file matches */
  .long 0
 ck_nw:                            /* writes to M this power-on */
  .long 0
-ck_sn:
- .long ck_t0, ck_t1, ck_t2, ck_t3
 ck_bi:                            /* each film's built-in: 18 curve values (as a slot), 6 mix */
  .space 20 * CK_BSZ
 ck_zero:
@@ -731,26 +668,4 @@ ck_map:                           /* curve value n (5 channel + point) -> its by
  .byte 0, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17
 ck_path:
  .asciz "C:\\OM3MOD\\CURVES.BIN"
-ck_s1:
- .asciz "\r\nCURVES.BIN (each film's built-in curves and mix): in camera memory: "
-ck_s2:
- .asciz "; this power-on's card: "
-ck_s3:
- .asciz "; films it matches: "
-ck_s4:
- .asciz "; COLOR k on its film's built-in (bit k-1): "
-ck_s7:
- .asciz "; COLOR k with curves or mix (bit k-1): "
-ck_s5:
- .asciz "; written to camera memory: "
-ck_s6:
- .asciz "; a write waiting: "
-ck_t0:
- .asciz "none"
-ck_t1:
- .asciz "taken"
-ck_t2:
- .asciz "the same"
-ck_t3:
- .asciz "not valid"
  .balign 4

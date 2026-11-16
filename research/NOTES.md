@@ -4996,6 +4996,137 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   (Save to the SD card, the card zip, and a button of its own, for firmware "v0.28 or later"); for the standard 20 its
   bytes equal the sample (4c009f9c…2291). Branch feature/looklab-rgb-curves 0cfcfc7 (local).
 
+## Debug log dl8: the report redone (2026-11-15; emulator only, camera test pending)
+Branch `feature/debug-log` (from main v0.29.5, c209b69), VERSION "v0.29.6-dev (debug log, dl8)". Owner (via cad): a
+clearer, complete `CADLOG.TXT` (lines had been added piecemeal, some as hex words and internal codes).
+- **Layout:** one writer, `lg_write` -> `lg_top` (build, START-UP, card files), `lg_now` (NOW), `lg_svt` (SAVES),
+  `cm_txt` (CUSTOM MODES, rewritten), `lg_evt` (the last 32 events, **newest first**); `ub_txt` / `ss_txt` and their
+  strings are gone. Still a fixed 5120 B (same fopen / fwrite / fclose, same bytes on the card). Newest first, so a full
+  report loses the oldest events; the fullest emulator case (all custom modes filled, 8 mode changes) is 4827 B with all
+  32 events.
+- **New facts, all read only:** the shooting mode now and per event (`lg_mode`: the code at rc_in + 24, the mode dial's
+  position 0xa32d9d0c, the photo / movie / S&Q switch 0xa32d9d0d; not cm_gnow, which writes cm_code); a custom mode's
+  Save Settings (sget 1880 + n); the film on each COLOR with its name (LOOKS +1312 + 16 j); the films with changes; each
+  group's films, choice and own copy (OM3C / OM3S); saves at shutter events (`lg_ns`); cm_pend, ss_dirty, rc_pend;
+  rc_tr and ss_ml decoded. Ring entry +12 is now u16 family, +14 the code, +15 dial position | switch << 4. Nothing of
+  the old report dropped (picture mode numbers 54 / 55 / 56 / 64 now read as COLOR 1..4).
+- **Mode codes (om-emu):** P 1, A 2, S 3, M 4, **B 62** (cm_gnow then goes by the dial position: P group, as intended),
+  C1..C5 53..57, video and S&Q 10. Camera logs so far showed P, A, C1..C5 and a 62 (k4); S / M / B emulator only.
+- **Films with changes:** the same answer as fl_fch (the camera's '*'), but fl_live (a film on its COLOR: the camera's
+  18 values through sget) costs up to ~16k instructions when nothing differs. `lg_chg` asks one COLOR per write
+  (lg_w & 3) and keeps the others' last answer for the same film (at most 3 events old; a film newly on a COLOR is asked
+  at once); a film not on its COLOR uses `lg_fc` (fl_fch's saved-record test, by words).
+- **Cost** (om-emu instructions from lg_write to its ret, same scripts, v0.29.5 -> dl8): P with an edit, Assign C1 and
+  dial turns, 43 events: average 210,800 -> 194,700, longest 223,711 -> 204,184; video / S&Q, 11 events: 194,159 ->
+  189,218, longest 199,322 -> 204,845 (one write +7.7k: the live check with nothing changed); power-on in C1: 191,774 ->
+  185,569; no films: 190,543 -> 180,834. First write of a power-on (with the card-file check): ~568.9k -> ~566k. The
+  card part (fopen, fwrite of 5120 B, fclose, ~92.5k) is unchanged. lg_d by divu, the padding by words.
+- **Settings manager calls** over the whole P run: 153, identical in ids, values and order on v0.29.5 and dl8: no
+  settings writes, nothing different before the first half-press.
+- **Bug found on the way** (a throwaway 1 KB-buffer build): past the buffer's end the first lg_s still wrote one
+  character per call, so a long enough report crept over lg_pon / lg_plog and the next fopen failed (no log). lg_s now
+  writes nothing once at lg_bend; the pad after it is 256 B (the longest string is 117 B). That variant writes 1024 B
+  ending in CR LF at every event. (v0.29.5's lg_s checked every character: no such bug there.)
+- Stack: lg_now -> lg_chg -> fl_live -> fl_isdef -> sget runs ~96 B deeper in the HLS_EVENT task than v0.29.5's
+  deepest log path. Only the camera can say if that matters (no sign in om-emu).
+- Emulator cases (scripts: video-sharp's s41v.mjs): P, a power-on in C1, video / S&Q, no films (stock NV, no
+  LOOKS.BIN), settings block missing (STATE poked 0xFFFF), every custom mode filled (cm_ram / ss_ram poked, emulator
+  only). All read right; the "missing" case prints the card files with "not checked" and skips NOW's film lines.
+
+### Debug log dl9: the camera's own state too (2026-11-15; camera-tested)
+Owner (via cad): "I want it to cover everything the camera does!" Read only (sget), never a settings write; no slower
+half-press, nothing at start-up. VERSION "v0.29.6-dev (debug log, dl9)"; report 8192 B (was 5120).
+- **Setting ids found (om-emu, E147):** the quick panel (OK in shooting) writes the highlighted item's own setting id
+  into **261** as its cursor moves, so walking it maps every cell: mode **24** (P 3, A 4, S 5), shutter **1699** and
+  aperture **1697** as set (APEX x 256), ISO **6** (0 Auto, else Sv x 256, ISO 100 = 1280), AF target **85**, exp comp
+  **2** (EV x 256), item **1714** (the "±0.0" with the curve icon; meaning not checked), picture mode **111**, WB **9**,
+  item 1414 (the cog), AF mode **289**, face / eye **1712**, flash **16**, flash comp **17**, drive **3265**, metering
+  **1**, aspect **269**, stabiliser **157**, image quality **861**, video quality **2236**. The exposure the AE worked
+  out: **4000** shutter, **4001** aperture (APEX x 256; 0 before the first metering), 4002 = their sum. WB mode
+  **1578** / movie **1579** and Custom WB **107** as in "Film WB". The debugger's getter call times out for 134 ids
+  (111, 901, 1578, 9, 289, 16, 3265, 1, 157, 861, 2236 among them) but the firmware's own sget reads them all.
+  Getter cost (firmware): ~300..900 instructions, but 111 ~2.5k, 289 ~2.2k, 861 ~1.9k, 107 ~1.3k.
+- **Screen:** the GUI state is the u16 at **0x62ce5864** (child << 8 | parent; the firmware loads that address as a
+  constant at 0x610fcf81 and keeps it in 0x603713a4, so it is the camera's too): parents 1 COMMON (child 8 = the
+  shooting screen), 2 REC (direct setting), 3 / 11 menus, 4 MENU_LV (3 / 4 the quick panel, 0x16 quality, 0x17 WB,
+  0x18 Picture Mode), 5..7 playback, 12 edit.
+- **Buttons / dials** (research/BUTTONS.md): photo Fn 47, REC 48, |o| 1292, CP 49, AF-ON 1964, ✥ mode 158, up 50,
+  left 52, right 53, down 51, Delete 570, L-Fn 56; video 1272, 1273, 1278, 1274, 1965, 1279, 1280, 1282, 1283, 1281,
+  1276, 1291; our Creative Dial rows 571 / 54 / 55 / 1966; dials P / A / S / M at Fn lever position 1 and 2 (70..77,
+  1302..1309); the Fn lever's state 534 (om-emu 4; 8 = position 2). As dial function codes 1697 = shutter and 1699 =
+  aperture (the opposite of the setting ids), 86 Ps, 2 exp comp, 17 flash comp, 1701 WB, 1578 ISO.
+- **Not found / not read:** battery level, card free space and shots left (the panel's "803" is not a setting id), the
+  Fn lever's function setting (Off / mode 1 / mode 2), names for drive / AF mode / quality / metering / flash /
+  stabiliser codes (shown as numbers), photo counts in om-emu (it takes no photo: `s2` and `hold:s2` change nothing).
+  Menu visits: only the screen at each event; a full menu history would need a counter in gx_map (not done).
+- **Photos:** `lg_np`, one increment in ex_fill (our EXIF hook, once per photo's EXIF; our RAM only). Not testable in
+  om-emu; whether RAW-only photos reach ex_fill is not known.
+- **Cost kept down:** per event 5 reads (4000, 4001, 6, 2, 1578 / 1579; 107 only for Custom WB) and one of drive / AF
+  mode / quality in turn (lg_fv); 4 of 63 other settings per event in turn (lg_cid -> lg_cv, -1 = "-" until read,
+  each at most 16 events old; BUTTONS AND DIALS shown after the first full round); each event's line made once
+  (lg_line -> lg_lines in ext11, LSLOT 100 B) and copied by words; START-UP, CUSTOM MODES and BUTTONS AND DIALS kept
+  as text and copied while their inputs (a key of words) are the same; the padding only over the last report's text.
+- **Cost** (om-emu instructions per write, v0.29.5 -> dl9): P run (edit, Assign, dial turns, 43 events) average
+  210,800 -> 194,100, longest 223,711 -> 203,663 (7 early writes up to +6.8k, when the custom-mode text changes);
+  video / S&Q (11 events) 194,159 -> 195,409, longest 199,322 -> 204,150; power-on in C1 (7) 191,774 -> 193,689;
+  no films (7) 190,543 -> 188,801; first write 568.9k -> ~588k. fopen ~48k and the write (~92.5k, the same for 8192 B
+  as for 5120 B in om-emu) unchanged. Settings manager calls over the P run: 153, identical to v0.29.5.
+- Space: ext12 259,280 of 262,144 (2.8 KB left), ext11 62,240 of 65,536 (3.2 KB left: the 32 lines, the kept texts
+  and keys).
+- Cases (om-emu): P, a power-on in C1, video / S&Q, no films, settings block missing, every custom mode filled (8,106 B
+  with all 32 events), a 1 KB-buffer variant (1024 B with CR LF at every event).
+- **Camera test (owner, 2026-11-15): passed.** Owner: half-presses "felt normal" (as quick as v0.29.5, no freeze).
+  The report (69 events, one power-on, A and S) read right against what was done: 20 photos counted = 20 RAW + JPG
+  pairs on the card (so ex_fill runs once per photo with RAW + JPG; RAW-only still not checked); aperture f/1.8 ->
+  f/22, S at 1/100, exp comp -1.3, WB Auto -> Cloudy -> Auto, FILM 1 -> FILM 4, screens menu / camera (settings) /
+  panel, the arrow pad's Direct Function, C2 assigned; "Look at: nothing unusual"; card files all match. Drive read
+  32 -> 30 (codes not named). Not in that power-on's report: P, M, a custom mode, video.
+- **Second camera run (owner, same day): passed.** One power-on, 26 events: P (f/2.0 -> f/1.8, the "set" screen), M
+  (1/2 f/11 as set), C1 (code 53; the camera's own C1 drive 0 and quality 15 read), a fast dial turn M -> S -> A, then
+  A video (code 10, the switch at 1), one clip recorded. Photos 3 = the 3 RAW + JPG pairs of that power-on on the card.
+  Drive at #18 (A) still showed C1's 0: the rotating read (lg_fv) is up to 2 events old, as designed; right at #19.
+  "Look at: nothing unusual". The camera's clock runs about an hour ahead of the Mac's (file times), not ours.
+
+## v0.30 test 10: test 9 + debug log dl9 (2026-11-15; emulator only, camera test pending)
+Owner: "merge dl9 in for one more test". Branch `try/v0.30-dl9` = try/v0.30 (test 9, 26a65d3) + `feature/debug-log`
+(dl9, camera-tested twice on v0.29.5). VERSION "v0.30-dev (test 10: test 9 + debug log dl9)".
+- **Merge:** conflicts in VERSION, README, NOTES and editor.s (test 9's lines in the old cm_txt). dl9's report taken;
+  `rc_nmid` (#54) kept with its counting in rc_turn. The old cm_txt's extra lines now sit in dl9's report: the #54
+  count in CUSTOM MODES ("dial-turn closes at code 0 left alone (#54)", also in the section's key); ss_txt's per-mode
+  lines were already there. test 9's `ck_txt` (CURVES.BIN) is replaced and removed from curvesfile.inc: START-UP has
+  its file line (in camera memory, this power-on's card, films it matches; ck_have / ck_st / ck_nm in START-UP's key),
+  SAVES its writes and held-back write (ck_nw / ck_pend), NOW one word per COLOR from the same comparisons as ck_txt
+  (ck_bik, cv_lk, ck_cmp, ck_nz: "none", "none (its film has some)", "its film's", "changed") and the picture mode's
+  COLOR's 15 curve values (R, G, B x 5 points, the slot bytes of ck_map), 6 mix values and its follow flags (lg_ckn).
+- **Space:** test 9 had ext11 63,872 / 65,536 and ext12 261,488 / 262,144; with dl9 both overflowed (by ~6.5 KB and
+  ~13.4 KB). The whole debug log (code, data, the 32 stored lines, the kept texts, the report buffer) is now `.ext13`
+  at 0x60fac000, right after the RGB work area (0x60fa3000 + 0x9000), in the GX4-proven reserve (to 0x6103f000):
+  editor.ld `.ext13`, build.py EXT13 (0x60fac000..0x60fbc000; written with ext11 / ext12, checked free, the loader's end
+  word raised to its end rounded to 4 KiB: **0x60fac000 -> 0x60fb5000**, so the camera's own boot copy takes 36 KB
+  more). Sizes: ext11 63,312, ext12 249,568, ext13 36,080. The report is **9216 B** (dl9 8192: the CURVES.BIN, curves
+  and #54 lines made the fullest case drop 4 events; 8,494 B with all 32 now).
+- **Tests (PR #57's suite, om-emu-new):** its log patterns follow dl9's wording now (emu_test.py: FILM_2_LINE,
+  C1_* / P_FILM_LINE, GROUP_C1_LINE, VIDEO_BOOT_LINES, boot-smoke, films-from-camera-memory; ck_line gives the START-UP
+  line and NOW's words from the same masks). `hooks.json`: one patch site's run moved (0x6061a469:2 -> 0x6061a468:3,
+  the ▼ / ▶ validator list pointer build.py writes: its target in ext12 moved when the log left).
+- **Write cost** (om-emu instructions per write, the P run: edit, Assign C1, dial turns; test 9 -> test 10): average
+  214,582 -> 199,431, longest 226,291 -> 219,705; 7 early writes higher (the most +18.9k, the live film check after the
+  menu Assign, as in dl9); first write 573.6k -> 597.0k (+4%).
+- **Plus the Mix / RGB page headers** (R, G, B; try/v0.30 7a92cd3, merged as 1f705bf; ext12 248,944). Package
+  `test-builds/2026-11-15-v030-test10`: E1479999.BIN **6c8e8b25…598e**, CURVES.BIN 4c009f9c…2291 (test 9's), go-back
+  v0.29.5 01ea3d14…bd59. Suite (om-emu-new) on that build: **16 of 16 pass** (static checks with hooks.json as it is).
+
+## v0.30 test 11: the header's R / G / B centred (2026-11-15; emulator only)
+- Owner after test 10 (camera, 6c8e8b25…, log clean): "can we please please please!!!! center the r,g,b on the
+  curves and color mix. its off center".
+- om-emu: the middle label's box (the "Mid" layout record, 0x61466580) is x 655..704 on the Mix and RGB pages; the
+  page's middle is x 693.5 (the panel 542..845; also the midpoint of the left and right values). The letter was
+  centred in its box, at x 679.5: 14 px left (the words "Red" / "Green" / "Blue" of test 7 hid it). The box is the
+  layout record's, the same code on the camera.
+- rgbpics `name_label`: the letter centred at the box's column 38.5 (MID_CX), ink inside the box (cols 29..48 of 50).
+  om-emu: R / G / B at x 693..693.5 on both pages; the 16 Picture Mode rows otherwise identical to test 10.
+- Test 11 = test 10 + this (333523c): E1479999.BIN 0f690519…4951, `test-builds/2026-11-15-v030-test11/`; suite 16 / 16.
+
 
 ## LookLab: RGB curves and colour mix (2026-11-15; feature/looklab-rgb-curves; browser-checked, not live)
 - Owner: RGB curves are camera-tested (feature/rgb-curves test 4), colour mix is coming: update LookLab, as a private
