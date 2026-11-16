@@ -710,7 +710,7 @@ footer a { color: var(--muted); }
       title: 'Highlights (split toning)', text: 'Tints the bright parts toward one colour, 0 to 10. Here Orange at 10: warm light on the clouds and rocks. Use Shadows and Highlights together for a classic split tone.' },
   ];
   const ROWS = [
-    { id: 'film', name: 'Film', screen: 'film-01', before: 'pages/showcase/img/films/meadow-00.jpg', after: 'pages/showcase/img/films/meadow-01.jpg', labs: ['Original', 'FILM 1: Portra 400'], note: '<b>LookLab preview</b> of the film as the camera makes it', group: 'The film and its colour', pic: 'The film’s number, FILM 1 here.',
+    { id: 'film', name: 'Film', screen: 'film-01', before: 'pages/showcase/img/films/meadow-00.jpg', after: 'pages/showcase/img/films/meadow-01.jpg', labs: ['Original', 'FILM 1: Portra 400'], note: '<b>LookLab preview</b> of the film as the camera makes it', group: 'Page 1', pic: 'The film’s number, FILM 1 here.',
       text: 'Which look: COLOR 1–4, then FILM 1–20. Turn the dial to change film; its name shows under the list. The rows below belong to this film.' },
     { id: 'mix', pic: 'A ring with a red, a green and a blue dot.', name: 'Color Mix', tag: 'v0.30', labs: ['Original', 'Red: Sat +3, Hue +4'],
       text: 'The first thing the camera does to a film’s colour: it mixes red, green and blue into each other, −7 to +7 each: Sat makes a colour stronger or weaker, Hue turns it toward the next one (red toward yellow, green toward cyan, blue toward purple). Greys stay grey. The page is a ring with each colour as a dot; INFO picks the colour. Here red turns toward orange and gets stronger.' },
@@ -719,7 +719,7 @@ footer a { color: var(--muted); }
     { id: 'hsl', pic: 'A colour pie: the wheel’s 12 colours.', name: 'Color wheel (HSL)', pages: HSL_PAGES },
     { id: 'tone-balance', pic: 'A dark-to-light bar with a small triangle.', name: 'Split Tone Balance', tag: 'v0.28', labs: ['Split Tone Balance −5', 'Split Tone Balance +5'],
       text: 'Where the split toning’s two colours meet, −5 to +5: minus lets the shadow colour reach further up, plus the highlight colour further down. Here with cyan shadows and orange highlights.' },
-    { id: 'wb', group: 'White balance and tone', pic: 'The camera’s own WB± picture.', name: 'WB Compensation', labs: ['B 7 (blue)', 'A 7 (amber)'],
+    { id: 'wb', group: 'Page 2', pic: 'The camera’s own WB± picture.', name: 'WB Compensation', labs: ['B 7 (blue)', 'A 7 (amber)'],
       text: 'Shifts the colour balance from blue to amber (and green to magenta), −7 to +7, in every white balance mode. Each film also remembers the white balance you last used with it.' },
     { id: 'curve', pic: 'The camera’s own tone-curve picture.', name: 'Highlight & Shadow', labs: ['Original', 'Shadows +7, Highlights −7'],
       text: 'The camera’s own tone curve: brighter or darker shadows, midtones and highlights, −7 to +7. Here the shadows open up and the bright clouds come down.' },
@@ -728,7 +728,7 @@ footer a { color: var(--muted); }
     { id: 'contrast', pic: 'The camera’s own contrast picture.', name: 'Contrast', labs: ['Contrast −2', 'Contrast +2'], text: 'The camera’s own contrast, kept with each film.' },
     { id: 'sharpness', pic: 'The camera’s own sharpness picture.', name: 'Sharpness', labs: ['Off (−5)', '+2'], note: CROP,
       text: '−5 is off, −4 to −1 softer, 0 the camera’s normal, +1 and +2 crisper.' },
-    { id: 'noise', group: 'Lens and effects', pic: 'Its setting in words.', name: 'Noise Filter', labs: ['Off', 'High'], note: ILL, text: 'Off, Low, Std or High, set per film: from all the grit of a high ISO to smooth.' },
+    { id: 'noise', group: 'Page 3', pic: 'Its setting in words.', name: 'Noise Filter', labs: ['Off', 'High'], note: ILL, text: 'Off, Low, Std or High, set per film: from all the grit of a high ISO to smooth.' },
     { id: 'vignette', pic: 'Its setting in words.', name: 'Vignette Correction', labs: ['Off', 'On'], note: ILL,
       text: 'Off keeps the lens’s natural darker corners; On lets the camera correct them.' },
     { id: 'shading', pic: 'The camera’s own shading picture.', name: 'Shading Effect', labs: ['Original', 'Shading −5'], text: 'Darker or lighter corners, as an effect, −5 to +5.' },
@@ -736,7 +736,7 @@ footer a { color: var(--muted); }
       text: '+1 to +5 adds a soft glow around the light; −1 to −5 adds Clarity (crisper local contrast) instead.' },
     { id: 'halation', pic: 'A white dot in a red-orange ring.', name: 'Halation Effect', tag: 'v0.28', labs: ['Halation 0', 'Halation 5'], before: 'pages/showcase/img/halation/neon-0.jpg', after: 'pages/showcase/img/halation/neon-5.jpg',
       text: 'A red-orange glow around bright lights, as on cinema film, 0 to 5. Works with or without Glow.' },
-    { id: 'grain', group: 'Grain', pic: 'The camera’s own grain picture.', name: 'Film Grain Effect', labs: ['Off', 'High'], note: CROP, text: 'Off, Low, Med or High. Added in colour, with no extra wait after the photo.' },
+    { id: 'grain', group: 'Page 4', pic: 'The camera’s own grain picture.', name: 'Film Grain Effect', labs: ['Off', 'High'], note: CROP, text: 'Off, Low, Med or High. Added in colour, with no extra wait after the photo.' },
   ];
   const rowsBox = $('rows'), pagesBox = $('hslPages');
   let curRow = 0, curPage = 0;

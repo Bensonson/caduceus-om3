@@ -5047,3 +5047,4 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
 - Owner: "removes the fixes block, and remove combachs name. I don't want it blasted on the front page": the Fixes card
   is gone and the tour names no contributor (the Ready at switch-on, stars and Delete button captions included); credits
   stay in CHANGELOG and the release notes.
+- Owner: "separate them by pages instead of what they do": the row list's group labels read Page 1 to Page 4.
