@@ -277,7 +277,10 @@ is still found only on the camera.
 ### Emulator tests
 
 `tools/test/emu_test.py` runs the boots with `session_ed1.mjs`, because it can set the photo/video switch and print
-the editor's fields. It runs `session.mjs` once for the patch audit. Moving the boots to `session.mjs` would add its
+the editor's fields. It runs `session.mjs` once for the patch audit. `halation-matches-the-model` (2026-11-16, the
+faster halation h7) boots no camera: `research/halation/emu_check.py` calls the halation pass (`hl_run`) directly on
+ten small test frames and checks every byte against `research/halation/model.py`, the callee-saved registers and sp,
+and a guard after the frame. Moving the boots to `session.mjs` would add its
 `expect:` checks and frame hashes, once it can set the photo/video switch.
 
 Store only state in the repo: screen state names, memory values, debug log lines, and frame hashes. The repo rule on
@@ -315,7 +318,9 @@ more work than the tests above.
   films at switch-on). The `tasks` audit catches a task started at power-on. It cannot measure lag. It
   also misses start-up work a hook does in an existing task. EL13's early film load on `feature/early-load` passes it.
 - **Stills.** om-emu has no sensor or capture pipeline, so grain, glow, halation, RAW+JPEG, and Pin Hole regressions
-  need the camera.
+  need the camera. The halation pass's bytes are the exception (`halation-matches-the-model`, a direct call on test
+  frames in plain DRAM); its timing, the bus window path it takes on the camera, and the capture route stay
+  camera-only.
 - **Video.** om-emu does not model movie recording. A camera video boot puts films back, and an om-emu one does not.
   The v0.29.5 live view freeze (#53) itself is camera-only. `video-boot-after-photo-boot` checks the code path its
   fix removes.

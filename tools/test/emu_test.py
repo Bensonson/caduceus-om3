@@ -24,6 +24,11 @@ DRIVER = REPO / 'tools/emulator/session_ed1.mjs'
 DEBUG_TXT = REPO / 'debug-log/DEBUG.TXT'
 MODEL = 'E147'
 AUDIT = 'patch-audit'
+# h7 (faster halation, 2026-11-16): the halation pass called directly on test frames must give every byte of
+# research/halation/model.py (research/halation/emu_check.py). Small frames, about 10 s.
+HALATION = 'halation-matches-the-model'
+HALATION_CASES = ['fade3', 'odd2', 'small5', 'min5', 'w68', 'odd131', 'clamp5', 'random3', 'day5', 'dark5']
+HALATION_CHECK = REPO / 'research/halation/emu_check.py'
 STATIC_PREFIX = 'static:'
 STATIC = [STATIC_PREFIX + n for n in static_check.CHECKS]
 BOOT_TIMEOUT_S = 300
@@ -458,6 +463,19 @@ def run_audit(emu, build, out):
     return AUDIT, [f'{k}: {json.dumps(audit[k])}' for k in ('unloaded', 'tasks') if audit[k]]
 
 
+def run_halation(emu, build, out, card):
+    """hl_run on HALATION_CASES in om-emu: bit-exact with the model, registers and sp back, nothing past the frame."""
+    d = out / HALATION
+    r = subprocess.run([sys.executable, HALATION_CHECK, build, '--out', d, '--jobs', '1', '--card', card,
+                        '--only', *HALATION_CASES], capture_output=True, text=True, timeout=BOOT_TIMEOUT_S,
+                       env={**os.environ, 'OM3_EMU': emu})
+    d.mkdir(parents=True, exist_ok=True)
+    (d / 'check.log').write_text(r.stdout + r.stderr)
+    if r.returncode == 0:
+        return HALATION, []
+    return HALATION, [l for l in r.stdout.splitlines() if l.startswith('DIFF')] or [f'emu_check.py exit {r.returncode} (check.log)']
+
+
 def newest_looks():
     def key(d):
         n, _, pre = d.name.lstrip('v').partition('-')
@@ -469,7 +487,7 @@ def newest_looks():
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('build', type=pathlib.Path)
-    ap.add_argument('--only', nargs='+', choices=sorted([*TESTS, AUDIT, *STATIC]))
+    ap.add_argument('--only', nargs='+', choices=sorted([*TESTS, AUDIT, HALATION, *STATIC]))
     ap.add_argument('--jobs', type=lambda v: max(1, int(v)), default=DEFAULT_JOBS)
     ap.add_argument('--out', type=pathlib.Path)
     ap.add_argument('--looks', type=pathlib.Path)
@@ -492,7 +510,7 @@ def main():
     looks = (a.looks or newest_looks()).resolve()
     make_card(emu, build, looks, card0)
     fixtures = make_fixtures(out, looks)
-    names = a.only or sorted([*TESTS, AUDIT, *STATIC])
+    names = a.only or sorted([*TESTS, AUDIT, HALATION, *STATIC])
     stock = static_check.find_stock(a.stock) if any(n in STATIC for n in names) else None
     runs = [(n, k) for n in names for k in range(1, a.repeat + 1)]
     print(f'{len(names)} tests{f" x {a.repeat}" if a.repeat > 1 else ""} on {build}, results in {out}')
@@ -513,6 +531,8 @@ def main():
                 return n, static_check.CHECKS[n[len(STATIC_PREFIX):]](build, stock)
             if n == AUDIT:
                 return run_audit(emu, build, d)
+            if n == HALATION:
+                return run_halation(emu, build, d, card0)
             first = shared.get((k, boot_key(TESTS[n][0])))
             return run_test(n, TESTS[n], emu, build, card0, d, first and first.result(), fixtures)
         except static_check.Skip as e:
