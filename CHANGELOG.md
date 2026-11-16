@@ -8,6 +8,7 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 | Version | Released | What's new |
 |---|---|---|
+| [v0.30.2](#v0302) | 2026-11-17 | Fix: with Image Review on, Glow / Clarity / Halation photos no longer give a black review or freeze live view at the switch to a standard picture mode |
 | [v0.30.1](#v0301) | 2026-11-17 | Fix: no more one-frame flash when leaving the B/W or WB Compensation row in Picture Mode |
 | [v0.30](#v030) | 2026-11-16 | Color Mix and RGB curves on the camera; the 20 films regraded with them (CURVES.BIN); a new Picture Mode order; films ready at switch-on; fixes for live dial turns, a video freeze and Noise Filter's "*" |
 | [v0.29.5](#v0295) | 2026-11-15 | Custom modes keep their own copy of everything: films, all their changes and the picture settings |
@@ -38,6 +39,18 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 Versions are named v0.N from v0.18 on. Earlier builds were called "test N" while they were tried on the camera; the
 same number is used here (test 17 = v0.17).
+
+## v0.30.2
+v0.30.1 plus one fix. Firmware camera-tested (2026-11-17, test 1; only its name was changed).
+
+- **Fix: black review picture, then a frozen live view** ([#65](https://github.com/androidfanman/caduceus-om3/issues/65),
+  probably [#27](https://github.com/androidfanman/caduceus-om3/issues/27)): with Image Review on, a photo with Glow,
+  Clarity or Halation showed a black review picture, and the Creative Dial to a standard picture mode then froze
+  live view. Our effect route no longer reaches a shot's small extra pictures (the review picture among them), as the
+  camera does for its own effects. The photo keeps its Glow / Clarity / Halation; the review and the playback screen
+  show the film without them. Trigger found by flrvr; the cause found first by Caduceus for the E-P7 (cakelesscoder,
+  its "Rec View fix").
+  Details: [release notes](releases/v0.30.2/NOTES.md).
 
 ## v0.30.1
 v0.30 plus one fix. Firmware camera-tested (2026-11-17, test 1; only its name was changed).

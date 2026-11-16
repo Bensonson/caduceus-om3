@@ -5522,3 +5522,7 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   0x120) that no longer get 0x80; the saved photo itself (0x1000) should keep the glow / halo (to check on the card).
   Possible refinement (analysis): one of the two small types may be the review picture and the other the embedded
   preview; keeping 0x80 on the preview's type only would need one camera test per type.
+- **v0.30.2 release (2026-11-17; owner: "Let's keep it as is", the option that released the fix with the playback note):**
+  `firmware/VERSION` "v0.30.2 (Image Review fix for #65, camera-tested t1)", 52 characters: main.bin differs from test 1
+  only in the name, the code-block tag (twice) and the built-in GUIDES CRC (51 bytes). E1479999.BIN 7fbd3957…445b;
+  `patch.py --release v0.30.2` makes it byte for byte, `--release v0.30.1` still c2b583fd…. Extras as v0.30.1.
