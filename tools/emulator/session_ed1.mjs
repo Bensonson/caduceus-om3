@@ -88,6 +88,17 @@ for (const t of SCRIPT.split(/\s+/).filter(Boolean)) {
     dd.write(D + 12, Uint8Array.from([buf.length & 255, buf.length >> 8 & 255, buf.length >> 16 & 255, 0, at & 255, at >> 8 & 255, at >> 16 & 255, at >>> 24]));
     console.log('DESCSWAP', D.toString(16), at.toString(16), buf.length);
   }
+  else if (t.startsWith('poke:')) {
+    // poke:ADDR=HEX writes the bytes at ADDR. poke:ADDR+OFF*=HEX writes them at the pointer stored at ADDR, plus OFF. All hex.
+    const [where, hex] = t.slice(5).split('='), m = /^([0-9a-f]+)(?:\+([0-9a-f]+)\*)?$/i.exec(where);
+    const at = m[2] === undefined ? parseInt(m[1], 16) : u32(parseInt(m[1], 16)) + parseInt(m[2], 16);
+    Debugger.attach(lab.sim, { lab }).write(at >>> 0, Uint8Array.from(Buffer.from(hex, 'hex')));
+  }
+  else if (t.startsWith('expect:mem:')) {
+    // expect:mem:ADDR=HEX ends the run with exit 1 unless the bytes at ADDR are HEX, as om-emu's session.mjs. All hex.
+    const [where, hex] = t.slice(11).split('='), got = Buffer.from(rd(parseInt(where, 16), hex.length / 2)).toString('hex');
+    if (got !== hex.toLowerCase()) { console.error(`expect:mem ${where}: ${got}, not ${hex}`); process.exit(1); }
+  }
   else if (t === 'strpoke') {
     const dd = Debugger.attach(lab.sim, { lab });
     for (const [a, txt] of JSON.parse(process.env.STRPOKE)) dd.write(parseInt(a, 16) >>> 0, Uint8Array.from(Buffer.from(txt, 'utf16le')));

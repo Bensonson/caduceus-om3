@@ -80,6 +80,10 @@ The gate and the digest have unit tests that need no firmware:
 | `film-kept-with-no-half-press-after-pick` | A film picked with no half-press after it is still picked after a power-off |
 | `custom-mode-film-over-dial-turn-while-off` | Each custom mode keeps its own film when the dial turns while the camera is off, and the first look has a valid record |
 | `dial-turn-before-first-half-press` | A dial turn before the first half-press lands in the right group, with the custom mode's film |
+| `live-dial-turn-waits-for-the-mode-code` | A live dial turn from M to C1 switches the films only at the camera's real mode code, not at the dial's in-between code (#54). om-emu reports the real code at once, so the test writes the in-between state into memory |
+| `live-dial-turn-back-keeps-the-mode-choice` | A live turn from M to C1 and back brings M back on its own film and picture mode |
+| `live-dial-turn-to-b-switches-the-films` | A live turn from C1 to B switches to the P / A / S / M / B films, though B has no mode code of its own (#54) |
+| `live-dial-turn-holds-the-label` | During a live turn's wait for the mode code, the shooting screen's label holds no picture, and the hold clears once the mode is real (#54) |
 | `video-boot-after-photo-boot` | A video boot after a photo boot does no film or custom-mode work (#53) |
 | `patch-audit` | om-emu's audit finds no patched byte the camera does not load, and no task started at power-on |
 | `static:release-rebuild` | `firmware/patch.py` rebuilds the newest release byte for byte, and `SHA256SUMS` matches |
@@ -107,6 +111,12 @@ or `reject`.
 before boot, and the tokens `pset:N` and `mode:N` to move them during a run. A `Boot` sets them with `photo_switch`
 and `mode_dial`. `photo_switch` is `PHOTO_SWITCH_PHOTO` or `PHOTO_SWITCH_VIDEO`.
 
+The token `poke:ADDR=HEX` writes bytes into memory between keys, and `poke:ADDR+OFF*=HEX` writes them at the pointer
+stored at ADDR, plus OFF. All numbers are hex. A token may name a build symbol in braces, such as `{rc_pend}`, and the
+runner fills in its address from the build's `p.elf`. Use a poke only for a state om-emu cannot reach, and say which
+camera state it stands for. The token `expect:mem:ADDR=HEX` ends the run with exit 1 unless the bytes at ADDR are
+HEX, and fails the test.
+
 The two custom-mode tests pass on v0.29.5, EL13, and C10 (an older early-load build), emulator only. They are weak:
 neither fails on any build tried. `video-boot-after-photo-boot` does catch its bug: it passes with the #53 fix
 (`2595c98`) and fails on v0.29.5, and `--without` reports it as `caught`.
@@ -117,6 +127,15 @@ neither fails on any build tried. `video-boot-after-photo-boot` does catch its b
   custom-mode work. v0.29.5 writes the record. The early load reads the mode code in video, so the line shows mode
   code 194 on either build. The test shows the code path the fix removes, not the freeze itself, which only the
   camera shows.
+- `live-dial-turn-waits-for-the-mode-code` passes with the #54 fix and fails on EL14 (`main` before it), where the
+  switch runs at code `C7` and the log reports 22 changed COLOR values in C1. The camera's in-between state is poked
+  in: mode code 0 with the dial on C1.
+- `live-dial-turn-back-keeps-the-mode-choice` passes with and without the second #54 fix. During a live turn the camera
+  sets a picture mode of its own, and the fix keeps M from noting it as M's choice. om-emu's camera sets no picture
+  mode at a turn, so the test checks only that the turn back lands on M's choice.
+- `live-dial-turn-holds-the-label` checks the hold byte `lv_hold` with `expect:mem` during each wait and after each
+  turn. om-emu's camera draws no label at a turn, so the byte stands for the picture. `--without` on DS2 prints
+  `caught` only because DS2 has no `lv_hold`, so the flash itself is camera only.
 - The film numbers (`COLOR 1, FILM 1` for C1, `COLOR 2, FILM 6` for P) break when `BOOT1_ASSIGN_C1` or the newest
   `LOOKS.BIN` changes. `BOOT1_ASSIGN_C1` is a constant in `tools/test/emu_test.py`.
 
@@ -300,6 +319,10 @@ emulator test as proposed here would have failed. "Maybe" means it depends on a 
 | Where | Symptom | Catchable | Test that would catch it |
 |---|---|---|---|
 | v0.29.5, #53 | Video live view freezes at the first half-press after a photo session | Yes, the code path | `video-boot-after-photo-boot` |
+| v0.29.5, #54 | A live dial turn between M and a custom mode gives COLOR profiles "*" | Yes, with the in-between state poked in | `live-dial-turn-waits-for-the-mode-code` |
+| DS1, #54 | After a live turn to C1 and back, M shows COLOR 1 instead of its own picture mode | No | None, the camera's own picture-mode write at a turn |
+| DS2, #54 | A live turn from C1 back to M briefly shows "COLOR1*" before M's film | No | None, the camera's own picture-mode write at a turn. `live-dial-turn-holds-the-label` checks the hold |
+| DS3, #54 | The same flash: at the turn the camera reads as video and makes no 901 write, so no hold is set | No | None, the emulator draws no label while the mode code is in between |
 | e9b954f | Start-up path overwrote its caller's saved registers | Yes | Boot smoke, register watch |
 | 331691c | Custom mode showed the previous mode's films until a half-press | Yes | Custom modes |
 | 6438628, ea8b97c | A film picked with no half-press was lost at power-off | Yes | Film picked before the first half-press |
