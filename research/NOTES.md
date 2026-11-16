@@ -5609,3 +5609,8 @@ Owner: "lets tackle that faster halation and the debug log". `try/v0.30.3` = mai
   not logged): pass; `--without` v0.30.2: caught. The burst rule needs photos: camera-only.
 - Build "v0.30.3-dev (test 1: faster halation, debug log fix)" (52 characters), E1479999.BIN `3f5440bc…75b7`, rebuilt
   byte for byte; suite 24 of 24 (incl. `halation-matches-the-model`). Package `test-builds/2026-11-17-v0303-test1`.
+- **Camera (owner, 2026-11-17, v0.30.3 test 1 `3f5440bc…`): "that is much quicker"** (Halation photos save faster).
+  But "the halation at 5 kinda just ends. I want a smoother taper": the halo's outer edge stops too abruptly at
+  strength 5 (the same pixels as v0.30.2, h7 being bit-exact, so the look predates h7; h4's broad layer softened it
+  once, "the fade looks good now" on 2026-11-12). Handed to the faster-halation session (it has the model and the
+  code). The debug log part of test 1: not reported yet.
