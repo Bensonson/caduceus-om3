@@ -5387,3 +5387,14 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - try/v0.30-dl9 merged in (test 11, 333523c: the debug log dl9 and the Mix / RGB headers' R / G / B centred) and make.sh
   re-run on that build (E1479999.BIN 0f690519…, the same as the test 11 package): only row-mix, row-rgb and kept-star
   changed (the centred letter).
+
+## v0.30 release (2026-11-16; owner: "lets launch v0.30 ... post v.30 on github, and push the lablook and tour updates")
+- `try/v0.30-dl9` = test 13 + main (PR #59 as merged, #60 pin via #63, #62) + `feature/tour-v030` (LookLab curves / mix
+  and the tour). The merge of main doubled #59's lv_* block (both sides added it from the same base); editor.s was put
+  back to test 13's source plus #59's later `UI_DIAL` name (9d186e5).
+- `firmware/VERSION` "v0.30 (colour mix and RGB curves, camera-tested t13)", 52 characters as test 13's: main.bin differs
+  from test 13 only in that string, the code-block tag (twice) and the built-in GUIDES CRC (53 bytes). E1479999.BIN
+  481f3678…7a54; `patch.py --release v0.30` makes it byte for byte, `--release v0.29.5` still 01ea3d14….
+- `releases/v0.30`: patch.json, CURVES.BIN (4c009f9c…, test 9's sample, all 20 entries match v0.29.5's LOOKS.BIN
+  records), LOOKS.BIN / DEBUG.TXT / photo code kit as v0.29.5, SHA256SUMS, NOTES.md. The release workflow now attaches
+  CURVES.BIN. LookLab rebuilt into looklab/ (tsc clean, 68 tests pass; samples and fonts unchanged).

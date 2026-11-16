@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  Latest: <b>v0.29.5</b> (2026-11-15)
+  Latest: <b>v0.30</b> (2026-11-16)
 </p>
 
 ## What it does
@@ -24,8 +24,8 @@
 **[Take the tour](https://androidfanman.github.io/caduceus-om3/)**: the films and every setting on the camera's own screens, with before / after photos.
 
 - **Your films in Picture Mode:** FILM 1–20 appear after COLOR 1–4, each with its own name. 20 film sims come with it.
-- **A colour editor on the camera:** hue, saturation and brightness for 12 colours, split toning, Blacks and Whites,
-  WB shift, Sharpness, Noise Filter, Shading, Glow / Clarity and Color Grain.
+- **A colour editor on the camera:** Color Mix, RGB curves, hue, saturation and brightness for 12 colours, split
+  toning, Blacks and Whites, WB shift, Sharpness, Noise Filter, Shading, Glow / Clarity, Halation and Color Grain.
 - **Make films on your computer** in the [LookLab](https://androidfanman.github.io/caduceus-om3/looklab/), with a preview, then copy one file (`LOOKS.BIN`) to the card: the camera takes films it never had.
 - **Your films live in the camera:** the films, your changes to them and the Extras settings are kept in the camera's
   own memory (from v0.29), so any SD card works, even a blank one, or none at all (v0.29.1).
