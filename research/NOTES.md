@@ -5011,3 +5011,21 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   camera's order.
 - The Mix header and slider say "Sat", as the camera's page does (om-emu on the v0.30 build: "Sat ±0  Red  Hue ±0").
 
+
+## The tour for v0.30 (2026-11-15; feature/tour-v030; emulator screens + LookLab preview, browser-checked, not live)
+- Owner: "update the tour with all the new screens, info, ect." Branch `feature/tour-v030` from `try/v0.30` (0c1a80e)
+  with `feature/looklab-rgb-curves` merged (owner: v0.30 includes the new LookLab).
+- `research/showcase/make.sh` on that build (IMG = its main.bin; E1479999.BIN 5768c9e1…), in v0.30's Picture Mode order
+  (keys in make.sh and the showcase README): every Picture Mode screen re-shot (the new row pictures); new screens
+  `row-mix` (Red Sat +3, Hue +4) and `row-rgb` (Blue point 2 +5, point 4 −4) and their before / after photos (demos.ts:
+  taxi, meadow); the star shot now on page 1 (FILM 1*, Mix*, Split Tone Balance*); the Creative Dial shot one row lower
+  (v0.29.3's Delete row had moved it: the old picture predated that row). om-emu keys found on the way: on Mix, `main` =
+  Sat, `sub-1` = Hue +1; on RGB, `sub-1` = the next point, `main` = its level (one token = one step); INFO's colour is
+  shared and starts on Red. The film photos and the earlier demos are byte-identical to before: `mklooks.ts` leaves out
+  LookLab's curves + mix regrade, which the camera's built-in films don't carry.
+- `index.html`: a "New in v0.30" section (Color Mix, RGB curves and the new Picture Mode with their screens; ready at
+  switch-on, #56 by crombach; fixes #53 / #55 and #54), its nav link, "15 settings per film", the editor's rows in
+  v0.30's order with the camera's titles (the wheel's page buttons now find its row), v0.29.5's custom modes and v0.29.4's
+  stars under "Your changes stay with each film", LookLab's Mix / RGB curves in its card. Private preview for the owner:
+  a claude.ai artifact (links to LookLab / install don't work there).
+- Left for the release: USING.md / CHANGELOG etc. (cad).
