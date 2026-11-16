@@ -394,6 +394,22 @@ Stock: OLY_E_147_1100_0000_0000_3.BIN sha 8c133084…696d, main 5e8d376e…7d59.
 - The looks are only as good as the preview model (`src/preview.ts`) is of the camera; check a film on the camera
   before trusting it for anything critical.
 
+## v0.30.3 release (try/v0.30.3 = main v0.30.2 + feature/faster-halation h7 / h8 + PR #69 + the debug log change; test 3, camera-tested 2026-11-17)
+
+- Halation h7 (`hl_run`, bit-exact with v0.30.2 in om-emu, 54-64 % fewer instructions on night frames; ideas from Caduceus
+  for the E-P7's h6) and h8 (a wide layer, the broad one blurred HL_BLUR3 more times, added at HL_WIDE / 256: a longer,
+  even tail; the bright-frame count unchanged). `research/halation/model.py` and LookLab's preview follow h8;
+  `halation-matches-the-model` checks the camera code against the model.
+- PR #69 (crombach): `cv_ev` / `mx_ev` take the event's whole click count (clamped); `cv_draw` scans each row's column
+  range per curve; `st_all` computes the split toning / curve basis once per table entry; `sd_crc` a nibble at a time
+  (`sd_nib`). No hook. Tests `look-tables-match-the-model`, `rgb-page-counts-every-click`.
+- Debug log: `lg_pr` notes the shutter handler's event byte (18,sp) (0x0100 half-press, 0x0101 release); `lg_due` writes
+  the report only at a release and not at a burst's release (2+ photos since the half-press). Test
+  `debug-log-written-at-releases-only`.
+- `firmware/VERSION` "v0.30.3 (faster halation + PR #69, camera-tested t3)", 52 characters as test 3's: main.bin differs
+  only in that string, the code-block tag and the built-in GUIDES CRC (53 bytes). E1479999.BIN 60b6d954…f546; `patch.py`
+  makes it by default; `--release v0.30.2` still makes 7fbd3957…. Extras as v0.30.2 (CURVES.BIN by hand).
+
 ## v0.30.2 release (feature/fix-65-review on main 91ca69d; test 1, camera-tested 2026-11-17)
 
 v0.30.1 plus the #65 fix: `xb_rv` (xblock), called by `xb_cap` before it stores the COLOR job's flags, asks the camera's

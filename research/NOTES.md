@@ -5696,3 +5696,8 @@ rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2
   "nothing unusual", films block valid at power-on (generation 370), saved; COLOR 1 (FILM 1 Portra 400) kept its
   changed mix (7 7 -1 -1 -1 0, "following its film's built-in: mix no") and curve over the power-off (#69's save and
   reload). New photos PB162931..934 (Velvia 50, CineStill 800T, Portra 400). Test 3 is the v0.30.3 candidate.
+- **v0.30.3 release (2026-11-17; owner: "yes. merge the pr and release 30.3"):** `firmware/VERSION` "v0.30.3 (faster
+  halation + PR #69, camera-tested t3)", 52 characters: main.bin differs from test 3 only in the name, the code-block
+  tag (twice) and the built-in GUIDES CRC (53 bytes). E1479999.BIN 60b6d954…f546; `patch.py --release v0.30.3` makes it
+  byte for byte, `--release v0.30.2` still 7fbd3957…. Extras as v0.30.2. LookLab rebuilt (h8's preview). PR #69 lands
+  on main with this merge (its head 7b0cc80 is in the history).
