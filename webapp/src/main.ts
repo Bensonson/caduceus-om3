@@ -731,7 +731,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
     g.addEventListener('click', () => { S.rgb = c; buildRows(); draw(); });
     return { g, ring, pip };
   });
-  const top = h('div', { class: 'tc-top' });
+  const top = h('div', { class: 'tc-top mx-top' });   // the letter centred over the ring, as the camera's header (test 11)
   const chips = h('div', { class: 'seg rgb-ch', role: 'radiogroup', 'aria-label': 'Mix colour' });
   const rowsBox = h('div', {});
   const syncs: (() => void)[] = [];

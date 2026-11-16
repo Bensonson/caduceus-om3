@@ -5194,6 +5194,8 @@ Owner: "merge dl9 in for one more test". Branch `try/v0.30-dl9` = try/v0.30 (tes
   (firmware reads it from test 9).
 - The camera's Mix / RGB headers show R / G / B in the middle (try/v0.30 7a92cd3, owner): LookLab's Mix and RGB
   readouts do the same (the letter in its colour, a little bigger).
+- Test 11 (try/v0.30-dl9 333523c, owner: "please center the r,g,b"): the Mix readout's letter centred over the ring
+  (a three-column header; measured in the browser: within 1 px of the ring's centre).
 
 
 ## The tour for v0.30 (2026-11-15; feature/tour-v030; emulator screens + LookLab preview, browser-checked, not live)
