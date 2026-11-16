@@ -9837,9 +9837,6 @@ cm_txt:
  LGS cm_se
  mov (cm_pms),d0
  LGD
- LGS cm_s54                       /* v0.30 #54: mode-dial turns' in-between closes left alone (rc_turn) */
- mov (rc_nmid),d0
- LGD
  LGS ss_s6
  mov (ss_ntr),d0
  LGD
@@ -11204,7 +11201,7 @@ lg_kcmb:
  mov d0,(40,a1)
  mov (ss_ml),d0
  mov d0,(44,a1)
- mov (rc_nmid),d0                 /* v0.30 #54 */
+ clr d0                           /* v0.30 test 12: was our first #54 fix's count (rc_turn), replaced by PR #59 */
  mov d0,(48,a1)
  add 52,a1
  mov rc_tr,a0
@@ -12433,8 +12430,6 @@ lg_qst:
  .ascii "none\000taken\000the same\000not valid\000"
 lg_qo:                            /* the slot's bytes of the 15 curve values (curvesfile.inc ck_map), then the 6 mix */
  .byte 0, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23
-cm_s54:
- .asciz ", dial-turn closes at code 0 left alone (#54) "
 lg_hld:
  .asciz "Hold"
 lg_y0:
@@ -12716,10 +12711,9 @@ sx_set:                           /* from sl_set (entered as the manager: d0 id,
  call dm_ok,[],0                  /* films loaded? (d1; d0, a0, a1 kept) */
  cmp 0,d1
  beq 01f
- call rc_turn,[d2,d3,a2,a3],24    /* k4: rc_go now, in the camera's own mode-change step (task 165, where dm_turn
-                                   * already switches films at 897), not at a later GUI event: on the camera the GUI
-                                   * got no event until a half-press (k3: "it switches after a half-press"). #54: not
-                                   * at the turn's in-between close (rc_turn) */
+ call rc_go,[d2,d3,a2,a3],24      /* k4: now, in the camera's own mode-change step (task 165, where dm_turn already
+                                   * switches films at 897), not at a later GUI event: on the camera the GUI got no
+                                   * event until a half-press (k3: "it switches after a half-press") */
 01:
  mov 1440,d0
  mov d2,d1
@@ -16598,29 +16592,6 @@ rc_go:                            /* `call rc_go,[d2,d3,a2,a3],24` from sx_set's
  movbu d0,(rc_busy)
  ret [d2,d3,a2,a3],24
 
-/* rc_turn (#54): `call rc_turn,[d2,d3,a2,a3],24` from sx_set's 1440 (a mode-dial turn, the films in) -> rc_go, unless
- * the mode's code reads 0. On the camera a live turn closes twice: first with code 0 at the new dial position (an
- * in-between state, before the camera has put the new mode's own settings in), then with the mode's code (crombach's
- * CADLOG, issue #54: C7 then 53, C9 then 4). rc_go at the first close switched the films and wrote the picture mode
- * into the mode being left, so COLOR profiles never edited changed and showed "*". The second close does the work.
- * (The first look after a power-on reads code 0 too, but it is not a 1440 close: the camera writes no 1440 before the
- * first shutter event, bp1; gx_map's first look keeps the dial-position fallback.) om-emu closes once, with the code.
- * Counts rc_nmid (CADLOG). */
-rc_turn:
- mov (rc_in),a0
- cmp 0,a0
- beq 1f
- movbu (24,a0),d0
- cmp 0,d0
- bne 1f
- mov (rc_nmid),d0
- inc d0
- mov d0,(rc_nmid)
- ret [d2,d3,a2,a3],24
-1:
- call rc_go,[d2,d3,a2,a3],24
- ret [d2,d3,a2,a3],24
-
 rc_put:                           /* `call rc_put,[d2,d3,a2,a3],40`, a2 = P, d2 = k, d3 = look 1..5: COLOR k's 18
                                    * camera settings (pf_ids) <- that film (its saved changes when valid, else as built:
                                    * fl_sw's choice), each only when the camera's value differs (a P <-> A turn writes
@@ -17376,8 +17347,6 @@ rc_tr:                            /* k4: the last 8 cm_go runs {shutter events &
  .space 32
  .balign 4
 cm_pms:
- .long 0
-rc_nmid:                          /* #54: mode-dial turns' in-between closes left alone (rc_turn) */
  .long 0
 
 cm_hp:                            /* k4..k6: `call cm_hp,[d2,d3,a2,a3],24` from lg_pr (every shutter event with the
