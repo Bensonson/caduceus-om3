@@ -5400,3 +5400,17 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   CURVES.BIN by hand: the push that also listed it in `.github/workflows/releases.yml` was refused (gh's token has no
   `workflow` scope), so the workflow is unchanged. CURVES.BIN needs `git add -f` (`.gitignore` *.bin). LookLab rebuilt
   into looklab/ (tsc clean, 68 tests pass; samples and fonts unchanged).
+
+## Issue #65: live view freezes after a Halation photo when the Creative Dial goes to the standard picture modes (2026-11-17; analysis only)
+- Report (flrvr, v0.30 `481f3678…`, also v0.29.5 and v0.28): FILM 9 CineStill 800T with **Halation 5**, take a photo,
+  turn the Creative Dial to its middle position (Vivid): live view freezes. Turning back to a film position recovers
+  it; a shutter press while frozen saves the photo, then the camera hangs (battery out). Halation 0 on the same film:
+  fine. RAW+JPEG, custom mode C1 (Save Settings: Hold), drive [11]. Their CADLOG after the hang: shutter events still
+  logged (lg_pr runs), no photos; NOW reads mode code 0 at C1, setting 111 = 0, sid 897 = 898 (the standard modes).
+- Same family as #27 (v0.26.2, closed, not reproduced here): Creative Dial away from COLOR froze live view, "mostly
+  with Glow and / or grain", CineStill 800T. Glow and Halation share the Soft Focus route for photos (`xb_cap`: job flag
+  0x80; `xb_wt`: weight 1024 with Glow 0; `xb_gs` runs `HL_RUN` after SF_ENT, through `hl_open`'s bus window under
+  LOCK). Guess: something the Soft Focus route (or the halation pass) leaves after a COLOR still stalls the next
+  non-COLOR live view. Not found by reading; not reproduced on the owner's camera yet.
+- Log nit: for the standard modes the event table's Picture column prints "898 (not a dial position)", which pushes
+  Ed / Sv / Photos out of their columns.
