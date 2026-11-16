@@ -8,6 +8,7 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 | Version | Released | What's new |
 |---|---|---|
+| [v0.30.1](#v0301) | 2026-11-17 | Fix: no more one-frame flash when leaving the B/W or WB Compensation row in Picture Mode |
 | [v0.30](#v030) | 2026-11-16 | Color Mix and RGB curves on the camera; the 20 films regraded with them (CURVES.BIN); a new Picture Mode order; films ready at switch-on; fixes for live dial turns, a video freeze and Noise Filter's "*" |
 | [v0.29.5](#v0295) | 2026-11-15 | Custom modes keep their own copy of everything: films, all their changes and the picture settings |
 | [v0.29.4](#v0294) | 2026-11-15 | Fixes: Picture Mode stars and saving on leaving it; a film's Custom WB Kelvin kept in the WB screen |
@@ -37,6 +38,15 @@ What changed in each version of Caduceus for OM-3, newest first. To install or u
 
 Versions are named v0.N from v0.18 on. Earlier builds were called "test N" while they were tried on the camera; the
 same number is used here (test 17 = v0.17).
+
+## v0.30.1
+v0.30 plus one fix. Firmware camera-tested (2026-11-17, test 1; only its name was changed).
+
+- **Fix: the menu flash in Picture Mode** ([#66](https://github.com/androidfanman/caduceus-om3/issues/66),
+  [#67](https://github.com/androidfanman/caduceus-om3/pull/67), by [crombach](https://github.com/crombach)): leaving
+  the B/W row or the WB Compensation row showed the old row's title and a box with its icon for one frame. The bottom
+  bar now comes back only after the next row's values are on screen.
+  Details: [release notes](releases/v0.30.1/NOTES.md).
 
 ## v0.30
 v0.29.5 plus two new colour tools, the 20 films regraded with them, and four pull requests by

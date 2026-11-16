@@ -5447,3 +5447,21 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   the same file, in order), `expect:mem` with pointer chains.
 - **Camera (2026-11-16, build ec583c0, E1479999.BIN 973006ba…):** "no more flicker in the new firmware". The flash is
   gone on both moves.
+
+## v0.30.1 test 1: v0.30 + PR #67, the menu flash fix (2026-11-17; emulator only, camera test pending)
+- PR #67 (crombach, #66) merged into main on GitHub as written (89b3520; one NOTES conflict, both kept). cad's read:
+  `.hook_pe` at 0x611d059c replays the stock `mov (12,sp),d0; cmp 0,d0; bne 0x611d05b2` (pe_back / pe_ret); `gr_end`
+  keeps its own call slot, uses only d0 / a0 and calls that save d2 / d3 / a2 / a3; after it the stock code reloads d0 /
+  d1 before its call and returns with `ret` (MDR unused). Runs only at the Picture Mode update's end; no start-up or
+  video path. Suite on a build of the merge: 22 of 22 pass.
+- `try/v0.30.1` = main 89b3520 + firmware/VERSION "v0.30.1-dev (test 1: PR #67, menu flash fix for #66)" (52 characters,
+  as v0.30's): main.bin differs from the tested merge build only in the name, the code-block tag (twice) and the
+  built-in GUIDES CRC (51 bytes). E1479999.BIN `d1194729…11b7`, rebuilt byte for byte. Package
+  `test-builds/2026-11-17-v0301-test1` (private), CURVES.BIN as v0.30, go-back v0.30 (481f3678…).
+- **Camera-tested (owner, 2026-11-17): "looks good".** Test 1 (`d1194729…11b7`) on the owner's OM-3: the B/W and WB
+  Compensation rows leave without the flash. Test 1 is the v0.30.1 candidate.
+- **v0.30.1 release (2026-11-17; owner: "Yes, release v0.30.1"):** `firmware/VERSION` "v0.30.1 (menu flash fix, crombach,
+  camera-tested t1)", 52 characters: main.bin differs from test 1 only in the name, the code-block tag (twice) and the
+  built-in GUIDES CRC (53 bytes). E1479999.BIN c2b583fd…4bc5; `patch.py --release v0.30.1` makes it byte for byte,
+  `--release v0.30` still 481f3678…. `releases/v0.30.1`: patch.json, CURVES.BIN / LOOKS.BIN / DEBUG.TXT / photo code
+  kit as v0.30, SHA256SUMS, NOTES.md; CURVES.BIN goes on the GitHub release by hand (the workflow doesn't list it).
