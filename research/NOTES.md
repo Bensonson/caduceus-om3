@@ -5692,3 +5692,7 @@ HALATION, ENGINE and DIAL), NOTES (both kept). cad's read of #69: no hook; `sd_c
 burst and video passed on crombach's camera). Build "v0.30.3-dev (test 3: test 2 + PR #69, faster looks.)" (52
 characters), E1479999.BIN `53cd002b…459a`, rebuilt byte for byte; suite 26 of 26 (incl. look-tables-match-the-model,
 rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2026-11-17-v0303-test3`.
+- **Camera-tested (owner, 2026-11-17): test 3 "it all works well"** (`53cd002b…`). CADLOG after a power cycle (2 events):
+  "nothing unusual", films block valid at power-on (generation 370), saved; COLOR 1 (FILM 1 Portra 400) kept its
+  changed mix (7 7 -1 -1 -1 0, "following its film's built-in: mix no") and curve over the power-off (#69's save and
+  reload). New photos PB162931..934 (Velvia 50, CineStill 800T, Portra 400). Test 3 is the v0.30.3 candidate.
