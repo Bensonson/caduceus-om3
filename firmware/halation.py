@@ -24,13 +24,40 @@ def tables():
     return bytes(lo), bytes(hi)
 
 
+def chroma_tables():
+    """h7 (faster pass C): the chroma change by c = (g w) >> 8, as the firmware looks it up: CB[c] = -((c KCB) >> 8)
+    (what Cb loses, KCB <= 0), CR[c] = (c KCR) >> 8 (what Cr gains, KCR >= 0); floor shifts as the model's."""
+    return bytes(-((c * KCB) >> 8) for c in range(256)), bytes((c * KCR) >> 8 for c in range(256))
+
+
+def gy():
+    """h7: the smallest g that can change Y: below it ((255 - Y) g KY) >> 16 is 0 for every Y."""
+    return -(-65536 // (255 * KY))
+
+
+def check_fast_path():
+    """The conditions under which h7's shortcuts give the model's bytes exactly (editor.s hl_sp / hl_row):
+    one-sided chroma clamps, g <= 1 changes nothing, g, w and c stay below 256, no 32-bit overflow."""
+    gmax = max(GMAX.values())
+    assert KCB <= 0 <= KCR, 'Cb only falls and Cr only rises: one clamp each'
+    assert 255 * 1 * KY < 65536 and (1 * 255) >> 8 == 0, 'g = 1 must leave Y, Cb and Cr as they are'
+    assert (255 * gmax) >> 8 <= 255, 'g fits 8 bits'
+    assert 255 * 32 * ((255 * gmax) >> 8) * KY < 2 ** 31, '(255 - Y) 32 g KY fits a signed 32-bit product'
+    cb, cr = chroma_tables()
+    assert max(cb) < 256 and max(cr) < 256
+
+
 def inc():
     """hl_tab.inc for editor.s."""
+    check_fast_path()
     lo, hi = tables()
+    cb, cr = chroma_tables()
     rows = [f' .set HL_T, {T}', f' .set HL_BLUR, {BLUR}', f' .set HL_KY, {KY}', f' .set HL_KCB, {KCB}',
             f' .set HL_KCR, {KCR}', f' .set HL_WMUL, {WMUL}', f' .set HL_BLUR2, {BLUR2}', f' .set HL_MIX, {MIX}', f' .set HL_COVU, {COV_U}', f' .set HL_COVLO, {COV_LO}',
-            f' .set HL_COVHI, {COV_HI}', '.balign 4', 'hl_gmax:',
+            f' .set HL_COVHI, {COV_HI}', f' .set HL_GY32, {32 * gy()}', '.balign 4', 'hl_gmax:',
             ' .long ' + ', '.join(str(GMAX[i]) for i in range(1, 6)), 'hl_lo:']
     rows += [' .byte ' + ', '.join(str(b) for b in lo[i:i + 32]) for i in range(0, 256, 32)]
     rows += ['hl_hi:'] + [' .byte ' + ', '.join(str(b) for b in hi[i:i + 32]) for i in range(0, 256, 32)]
+    rows += ['hl_cb:'] + [' .byte ' + ', '.join(str(b) for b in cb[i:i + 32]) for i in range(0, 256, 32)]
+    rows += ['hl_cr:'] + [' .byte ' + ', '.join(str(b) for b in cr[i:i + 32]) for i in range(0, 256, 32)]
     return '\n'.join(rows) + '\n'

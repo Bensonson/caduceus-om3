@@ -5486,3 +5486,69 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - **Debug log cost (same comment):** with DEBUG.TXT on the card, the shutter fires late and sequential bursts go on
   after release. `lg_pr` runs `lg_write` at every shutter event (press and release) in the shutter task: ~63 setting
   reads, a 9216 B report built and written to the card, before `trig_resume`.
+
+## Faster halation h7: the same photo, about half the work (2026-11-16; emulator only, camera test pending; branch feature/faster-halation)
+- Asked for (main chat, after the owner saw Caduceus for the E-P7's h6, "they seem to have made it faster"): speed up
+  `hl_run` with the ideas of cakelesscoder/caduceus-ep7 `docs/HALATION_RED.md` §23 (read only, nothing copied;
+  credited in editor.s), applied to our pass (h2's chroma weight from the cell mean, h4's broad layer), without
+  changing one output byte.
+- **What changed** (editor.s, ext12; `hl_open` and `hl_div` as they were; frame of `hl_run` still 124, so xb_gs is
+  unchanged; GUIDES / LABELS / TONES unchanged):
+  - Pass A (`hl_pa`, `hl_x8`): eight Y0 ORed and compared with T once; only when the OR is above T are the eight
+    excesses summed (the OR bounds each value, so this is exact). A full cell's 32 pairs run in one go. A full cell's
+    B = 4 Q / 1024 = Q >> 8 (no division); `hl_div` only for the edge cells.
+  - Pass B: `hl_b1` blurs in place (keeps the old left value in a register); no temp copy.
+  - Pass C: a pair with g <= 1 never changes (Y: 255 x 1 x KY = 11220 < 2^16; chroma: c = (1 x w) >> 8 = 0 with
+    w <= 255), so: no pass when no g >= 2 anywhere; rows go in bands that share their cell rows (rows 0..31: row 0;
+    32 + 64 r0 .. + 63: rows r0, r0 + 1; the last rows: row GH - 1); per band `hl_bd` lists the segments (head, the
+    spans between cell centres, tail) whose end columns have g >= 2 in either cell row (a lerp stays between its ends);
+    per row `hl_row` lerps only those ends (`hl_lp`, the right end carried to the next segment), skips a segment with
+    g <= 1 at both ends, and `hl_sp` walks only from the first to the last pair with g >= 2 (g is monotonic along a
+    segment), 8 pairs a loop turn. Per pair: g and w in one accumulator ((32 w + 16) << 16 | (32 g + 16), both halves
+    stay in 0..8191, so one add steps both exactly); 32 g x KY once per pair and ((255 - Y) 32 g KY) >> 21 (= the
+    model's >> 16 of g KY); Y left out while g < GY = 6 (255 x 5 x 44 < 2^16); the chroma change by table on c
+    (`hl_cb` / `hl_cr`, 256 B each from firmware/halation.py, the model's floor shifts), one clamp each (KCB <= 0: Cb
+    only falls; KCR >= 0: Cr only rises). halation.py `check_fast_path()` asserts these conditions at every build.
+  - Several rows per lock and per FLUSH: as many as an estimate keeps under HL_LOCKN = 120 000 instructions (pass A:
+    10 a pair + 20 a cell + 40 a row, 4 sampled rows on a 20 MP frame; pass C: 44 a pair + 120 a segment + 100 a row,
+    from the band's list). A group across the window's edge is retried one row at a time; the one row across it is
+    left out, as before.
+- **Proof, om-emu 0819080 (the suite's pin):** `research/halation/emu_check.py` (new; driver `emu_hl.mjs`) calls
+  `hl_run` through a `call hl_run,[d2,d3,a2,a3],124` stub, single-stepped (steps = instructions, no interrupts), on
+  frames in plain DRAM (0xa8000000: hl_open uses the address directly, no bus window; FLUSH stubbed with
+  `ret [d2,d3],16` as for h1; om-emu's ~200 M instruction limit lifted for the run), and compares every byte of the
+  frame (padding included) with `model.halate`, plus d2 / d3 / a2 / a3 / sp back and a 4 KB guard after the frame.
+  21 frames: synthetic night scenes (padding, grain sd 20, Glow 1..5), a frame in the fade zone (15.6 % bright cells),
+  daylight (off), dark (none), widths 64 / 68 / 1000 / 1028 (part cells, GW 1..17), odd heights, chroma at both clamp
+  ends, random bytes (Y 0..206: glow everywhere at small g; Y 0..255: off), five CC0 / public-domain sample photos
+  darkened to night (two of them off), and two camera-sized ones (a 5184 x 3888 night scene; bluehour.jpg enlarged to
+  5120 x 3200). **v0.30.1's code: 21 of 21 bit-exact; h7: 21 of 21 bit-exact**, registers, sp and guard intact.
+- **Instructions (om-emu steps), v0.30.1 -> h7:**
+
+  | Frame | Size | Level | Result | v0.30.1 | h7 | fewer |
+  |---|---|---|---|---|---|---|
+  | big5 (night, 12 lights) | 5184x3888 | 5 | glow | 230.4 M | 84.1 M | 64 % |
+  | bigphoto5 (blue hour) | 5120x3200 | 5 | glow | 186.0 M | 85.3 M | 54 % |
+  | bluehour5 | 2048x1280 | 5 | glow | 47.0 M | 20.9 M | 56 % |
+  | taxi3 | 2048x963 | 3 | glow | 28.3 M | 10.3 M | 64 % |
+  | night5 / night1 | 1536x1152 | 5 / 1 | glow | 35.3 / 20.6 M | 16.8 / 8.6 M | 52 / 58 % |
+  | grain4 | 1536x1152 | 4 | glow | 36.6 M | 17.8 M | 51 % |
+  | sparse5 (4 small lights) | 1536x1152 | 5 | glow | 42.5 M | 16.6 M | 61 % |
+  | fade3 / odd2 / clamp5 | 0.8 / 0.7 / 0.4 MP | 3 / 2 / 5 | glow | 9.7 / 10.0 / 11.8 M | 4.8 / 2.9 / 4.9 M | 51 / 71 / 59 % |
+  | dark5 / neon5 | 1024x768 | 5 | none / off | 2.10 M | 1.10 M | 48 % |
+  | day5 | 1024x768 | 5 | off | 2.32 M | 1.79 M | 23 % |
+
+  Where big5's 84 M go: `hl_sp` (the pairs) 51 M, `hl_pa` (pass A) 25 M, `hl_row` + `hl_lp` 5.6 M, the blur 1.6 M
+  (v0.30.1: `hl_seg` 153 M, `hl_run` 61 M (mostly pass A), `hl_vl` 11.6 M, the blur 2.5 M, `hl_div` 1.7 M). Pass A
+  is now the floor of ~5 instructions a sampled pair (a load, OR, shift and add for the cell mean B, which our h2
+  needs and the E-P7's pass does not). A daylight frame still pays pass A (bright pixels take hl_x8) before it turns off.
+- **Locks / FLUSHes per photo:** big5 5647 -> 1310, bigphoto5 3463 -> 1384, night5 1734 -> 258. The most instructions
+  under one lock: up to 105 K on the test frames (v0.30.1: up to 133 K, on one row of the 16 MP frame); the cap is the
+  estimate's 120 K. On the camera each FLUSH costs real time (xb_grain gr4: 2 rows per FLUSH saved 0.3 s on a 20 MP
+  photo), which the emulator can't count; so the camera may gain more than the instruction count says. Analysis.
+- **Camera-only:** the bus window path (the buffer through the window's cached view, several rows per lock and per
+  FLUSH, the retry at the window's edge), the real time, the capture route. Code space: ext12 250 136 -> 252 376 of
+  262 144 B (+2 240).
+- **Test:** `tools/test/emu_test.py` gains `halation-matches-the-model` (emu_check.py on ten small frames, ~10 s): passes
+  on v0.30.1 and on h7 (the same bytes); a build with a deliberate bug (Y1's shift 21 -> 20) is caught on 3 of the 10
+  frames (`--without`: "caught").
