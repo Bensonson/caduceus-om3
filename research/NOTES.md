@@ -5420,3 +5420,10 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   one JPEG (PB162875): no freeze. CADLOG "nothing unusual". Differences from the reporter: custom mode C1 with Save
   Settings Hold (owner: A), drive [11] (owner [0]), AF mode [4] (owner [0]), face / eye [6] (owner [0]), NAMES.BIN and
   the old card files on their card.
+- **Owner's camera, v0.30, set up as the reporter (2026-11-17; camera-tested): not reproduced.** C1 assigned with
+  COLOR 1-4 = FILM 5 / 9 / 11 / 20 (their COLOR 4 was FILM 16) and FILM 9 CineStill 800T with Halation 5 (the photos'
+  om3.1 code), Save Settings Hold; 16 RAW+JPEG shots PB162879..894 with S-AF and C-AF, single with and without
+  anti-shock, Face / Eye detection tried; Creative Dial to the standard position after each pair: no freeze. CADLOG
+  "nothing unusual", 176 events, 18 photos. Code pairs seen (log code = EXIF): drive 0 = "Single Shot; Anti-shock",
+  30 = "Single Shot"; AF 0 = S-AF, 1 = C-AF; face / eye 5 with detection on (owner), 0 off. The reporter's drive 11,
+  AF 4, face / eye 6 and image quality 14 (owner 15) are settings not tried yet.
