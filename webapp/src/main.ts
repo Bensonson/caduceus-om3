@@ -668,7 +668,7 @@ function rgbPanel(l: Look, changed: () => void): HTMLElement {
       knobs[i].setAttribute('class', `tc-knob rc-k-${ch()}${v ? ' on' : ''}`);
       knobs[i].setAttribute('aria-valuenow', String(v));
     });
-    top.replaceChildren(h('span', { class: 'on' }, RGB_NAME[ch()]), ...RGB_PT.map((_, i) => h('span', { class: get(ch(), i) ? 'on' : '' }, get(ch(), i) ? signed(get(ch(), i)) : '±0')));
+    top.replaceChildren(h('span', { class: `on rgb-letter rc-${ch()}`, title: RGB_NAME[ch()] }, ch().toUpperCase()), ...RGB_PT.map((_, i) => h('span', { class: get(ch(), i) ? 'on' : '' }, get(ch(), i) ? signed(get(ch(), i)) : '±0')));
     chips.replaceChildren(...CHANNELS.map((c) => h('button', {
       role: 'radio', 'aria-checked': String(c === ch()), class: `rc-chip rc-${c}${c === ch() ? ' on' : ''}`, title: `${RGB_NAME[c]} curve${l.rgb && l.rgb[c].some((x) => x) ? ' (changed)' : ''}`,
       onclick: () => { S.rgb = c; buildRows(); draw(); },
@@ -747,7 +747,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
     svg.append(...dots.filter((_, i) => CHANNELS[i] !== ch()).map((d) => d.g), dots[j(ch())].g);
     const val = (v: number) => (v ? signed(v) : '±0');
     top.replaceChildren(h('span', { class: get(ch(), 1) ? 'on' : '' }, 'Sat ', val(get(ch(), 1))),
-      h('span', { class: 'on', style: `color:${BRIGHT[ch()]}` }, RGB_NAME[ch()]),
+      h('span', { class: 'on rgb-letter', style: `color:${BRIGHT[ch()]}`, title: RGB_NAME[ch()] }, ch().toUpperCase()),   // the camera's header: R / G / B (try/v0.30 7a92cd3)
       h('span', { class: get(ch(), 0) ? 'on' : '' }, 'Hue ', val(get(ch(), 0))));
     const changedC = (c: Channel) => !!(get(c, 0) || get(c, 1));
     chips.replaceChildren(...CHANNELS.map((c) => h('button', {

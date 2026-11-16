@@ -4451,4 +4451,6 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   20's LOOKS.BIN equals releases/v0.29.5/LOOKS.BIN and CURVES.BIN equals the reference build (card/mkcurves.py) byte for
   byte (sha256 4c009f9c…2291; Portra 400's entry 1c8fb44b 00f0000000001201 0000ffffff00 0000). Not camera-tested
   (firmware reads it from test 9).
+- The camera's Mix / RGB headers show R / G / B in the middle (try/v0.30 7a92cd3, owner): LookLab's Mix and RGB
+  readouts do the same (the letter in its colour, a little bigger).
 
