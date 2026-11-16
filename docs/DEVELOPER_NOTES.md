@@ -394,6 +394,24 @@ Stock: OLY_E_147_1100_0000_0000_3.BIN sha 8c133084…696d, main 5e8d376e…7d59.
 - The looks are only as good as the preview model (`src/preview.ts`) is of the camera; check a film on the camera
   before trusting it for anything critical.
 
+## v0.30 release (try/v0.30-dl9 with main and feature/tour-v030 merged; test 13, camera-tested 2026-11-16)
+
+v0.29.5 plus: RGB curves (`firmware/src/rgbcurves.inc`: the engine in st_run, record 'OM3R' at M+0x3B100, the RGB row
+and page) and Color Mix (the per-film 3 x 3 matrix `mx_go` at the camera's own colour-matrix call, the Mix row and its
+ring page), both photos only (`mx_photo`); the colour menu (pm_list order, cell pictures, titles, R / G / B headers);
+CURVES.BIN v1 (`docs/FORMATS.md`, `card/mkcurves.py`, `firmware/src/curvesfile.inc`: the file's copy at M+0x3BE20, read
+from the card at the first shutter event, each entry checked against its LOOKS record's CRC-32); the debug log dl9;
+PRs #55 (#53: no film work in video / S&Q), #56 (early load from M at the GUI's first state change, no card read), #57 /
+#58 / #63 (the emulator suite, om-emu pin) and #59 (#54: `rc_go` waits for the mode's code, B counts as a mode, the
+label held blank during the wait, data item 38 written back to redraw it); `vf_def` answers the Noise Filter rows' default
+with the camera's own Noise Filter. Details: `research/NOTES.md` ("RGB curves", "Colour mix", "Colour menu", "v0.30 test 8"
+to "v0.30 test 13", "Debug log dl8" / "dl9").
+- `firmware/VERSION` "v0.30 (colour mix and RGB curves, camera-tested t13)", the same length as test 13's: main.bin
+  differs only in that string, the code-block tag and the built-in GUIDES copy's CRC (53 bytes). E1479999.BIN
+  481f3678…7a54; `patch.py` makes it by default. Suite on the release build: all pass.
+- Release extras: `CURVES.BIN` 4c009f9c…2291 (test 9's sample: LookLab's 20 against v0.29.5's LOOKS.BIN, camera-tested
+  from test 9 on), attached by the release workflow from v0.30; `LOOKS.BIN`, `DEBUG.TXT` and the photo code kit as v0.29.5.
+
 ## v0.29.5 release (feature/per-mode-settings-2; builds p1 and p2, camera-tested 2026-11-15)
 
 v0.29.4 plus per-mode settings: record 'OM3S' at M+0x3D000 holds one set per C1..C5 and one for P / A / S / M / B (our

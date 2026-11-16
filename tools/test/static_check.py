@@ -214,16 +214,25 @@ def hook_list(build, stock):
     return fails
 
 
+def editor_source():
+    """editor.s and the files in firmware/src it includes (rgbcurves.inc, colourmix.inc hold hooks of their own)."""
+    text = EDITOR_S.read_text()
+    for name in re.findall(r'^\s*\.include\s+"([^"]+)"', text, re.M):
+        if (EDITOR_S.parent / name).is_file():
+            text += '\n' + (EDITOR_S.parent / name).read_text()
+    return text
+
+
 def hook_sections(build, stock):
-    in_s = set(re.findall(r'^\s*\.section\s+\.hook_(\w+)', EDITOR_S.read_text(), re.M))
+    in_s = set(re.findall(r'^\s*\.section\s+\.hook_(\w+)', editor_source(), re.M))
     placed = set()
     for node in ast.walk(ast.parse(BUILD_PY.read_text())):
         if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'HOOKS' for t in node.targets):
             placed = {k.value[len(HOOK_PREFIX):] for k in node.value.keys if isinstance(k, ast.Constant)}
     if not placed:
         raise Skip('build.py has no HOOKS dict literal')
-    return ([f'.section .hook_{n} in editor.s has no entry in build.py HOOKS' for n in sorted(in_s - placed)] +
-            [f'build.py HOOKS places .hook_{n}, but editor.s has no such section' for n in sorted(placed - in_s)])
+    return ([f'.section .hook_{n} in editor.s (or a file it includes) has no entry in build.py HOOKS' for n in sorted(in_s - placed)] +
+            [f'build.py HOOKS places .hook_{n}, but editor.s (and the files it includes) has no such section' for n in sorted(placed - in_s)])
 
 
 def changed_bytes(build, stock):

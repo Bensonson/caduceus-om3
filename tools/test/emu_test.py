@@ -17,6 +17,8 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / 'firmware'))
 import static_check  # noqa: E402
 from provenance import source_digest  # noqa: E402
+sys.path.insert(0, str(REPO / 'card'))
+import mkcurves  # noqa: E402
 
 DRIVER = REPO / 'tools/emulator/session_ed1.mjs'
 DEBUG_TXT = REPO / 'debug-log/DEBUG.TXT'
@@ -43,12 +45,14 @@ MODE_DIAL_C1 = 7
 MODE_DIAL_M = 9
 MODE_DIAL_B = 8
 UI_MODE_DIAL = 0xa32d9d0c    # the mode dial's position (cm_gnow)
+# The movie position, set explicitly: om-emu 0819080 (2026-11-14) reads an unset switch as photo, so a test that left it
+# unset ran in photo (v0.30 test 8, emulator).
 PHOTO_SWITCH_VIDEO = 1
 
 # From COLOR 1 on the shooting screen, picks FILM 2: the list runs COLOR 1-4, then the films.
 # Keep in sync with FILM_2_LINE.
 PICK_FILM_2 = 'ok wait ok wait right wait right wait right wait right wait right wait ok wait menu wait wait'
-FILM_2_LINE = r'^Picture mode setting: \d+ = COLOR \d+, FILM 2$'
+FILM_2_LINE = r'^Picture mode: COLOR \d+, FILM 2\b'   # debug log dl9 (v0.30 test 10): NOW's picture mode line
 
 # In P: picks a film, assigns it to C1 (menu), then picks another film in P.
 BOOT1_ASSIGN_C1 = ('s1 wait wait ok wait ok wait right wait right wait right wait right wait ok wait menu wait wait s1 wait wait menu wait right wait right wait right wait right wait right wait right wait right wait ok wait ok wait down wait ok wait ok wait menu wait menu wait menu wait wait ok wait ok wait right wait right wait right wait right wait right wait ok wait menu wait wait s1 wait wait poweroff')
@@ -56,10 +60,10 @@ C1_TURN_WHILE_OFF = 'wait wait wait s1 wait wait poweroff'
 C1_TURN_BEFORE_HALF_PRESS = 'wait wait wait mode:7 wait wait wait s1 wait wait poweroff'
 VIDEO_BOOT = 'wait wait wait s1 wait wait poweroff'
 # Picture mode 54 = COLOR 1 is C1's film (FILM 1), 55 = COLOR 2 is the film picked last in P (FILM 6).
-C1_FILM_LINE = r'^Picture mode setting: 54 = COLOR 1, FILM 1$'
-P_FILM_LINE = r'^Picture mode setting: 55 = COLOR 2, FILM 6$'
-C1_RECORD_LINE = r'^Custom modes: a valid record at the first look: yes'
-GROUP_C1_LINE = r'^Custom modes: group now .*: 0, mode code 53'
+C1_FILM_LINE = r'^Picture mode: COLOR 1, FILM 1\b.*\(setting 111 = 54\)'
+P_FILM_LINE = r'^Picture mode: COLOR 2, FILM 6\b.*\(setting 111 = 55\)'
+C1_RECORD_LINE = r'^CUSTOM MODES \(records valid at the first look: custom modes yes'
+GROUP_C1_LINE = r'^Now: group C1 \(last look: mode code 53\)'
 # A live dial turn from M to C1, as the camera makes it (#54): first the dial moves while the camera's mode code is not
 # yet a mode (the pokes: code 0, dial on C1, rc_go due at the next GUI event), then the real turn. Tokens name build
 # symbols in braces (run_test fills in their addresses). A switch run before the real code writes a record with the
@@ -82,15 +86,30 @@ LIVE_TURN_M_TO_C1_AND_BACK = f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1)} {live
 # clear once the mode is real (#54). om-emu's camera draws no label at a turn, so the byte stands for the picture.
 LIVE_TURN_HOLDS_THE_LABEL = (f'{LIVE_TURN_START} {live_turn(MODE_DIAL_C1, True)} {live_turn(MODE_DIAL_M, True)} '
                              'poweroff')
-SWITCH_AT_DIAL_CODE = r'^Custom modes, last switches .*\b[0-9A-F]{2}[0-7][0-9A-F]C[0-9A-F]{3}\b'
+# Debug log dl9 (v0.30): a switch at the dial's code prints "(dial position N)", a first look adds its note.
+SWITCH_AT_DIAL_CODE = r'after event \d+: [^(]*\(dial position \d+\) -> (?!.*, first look after the films loaded)'
 # Without the fix the switch writes C1's films into M's set, and C1 then differs from its own values ("*").
-RESET_MODE_UNCHANGED_LINE = r"^Per-mode settings: camera COLOR values that differed from a Reset custom mode's own: 0 "
+RESET_MODE_UNCHANGED_LINE = r"^Camera COLOR values that differed from a Reset custom mode's own: 0\b"
 # The photo boot before it leaves the video boot with nothing put back and the photo switch read as video.
-# rc_go does no film work in video (#53): no custom-mode record write. A build without the fix writes the record.
-# The early load reads the mode code in video, so the code itself shows nothing.
+# rc_go does no film work in video (#53): no film switched, no record write. A build without the fix writes the record.
 VIDEO_BOOT_LINES = [r'^Films put back after a shooting-mode change: 0 \(camera settings written: 0\)',
-                    r'photo check .*: 10$',
-                    r'^Custom modes: group now .*; .*record writes: 0,']
+                    r'photo check: (switch position 1|mode code 10)\)$',    # the movie switch, or the video mode's code 10
+                    r'^This power-on: Assigns \d+, films switched 0,',
+                    r'^Custom-mode record \(OM3C\): writes 0,']   # PR #56's early load reads
+                    # the dial position (el_ok -> cm_gnow) in video too, so group and code show it; no work follows
+
+# Noise Filter's row '*' (v0.30 test 13, owner 2026-11-16): a COLOR profile without a film, its Noise Filter on Camera
+# (slot +51 = 0), shows the camera's own Noise Filter, and its row has no '*', whatever that setting is. Before the fix
+# the row compared with Standard, so with the camera on Off the row was starred while the profile was not. The
+# camera's own is key 0x9719 (-2 Off, -1 Low, 0 Standard, +1 High), read by the stock getter 0x60063380 from one byte,
+# 0x6295942d in om-emu (traced 2026-11-16): the poke sets it to Off as the camera's menu would (a write through the
+# settings manager from the driver does not return). Rows are asked through ed_isdef (the stock "is at default"
+# calls); NRB + 1 = COLOR 2's row. Then Standard chosen on it (slot +51 = 1, P + 32 + 64 + 51) differs from the
+# camera's Off: the row is starred, as the profile is.
+NF_BYTE, NR_ROW_COLOR2, NR_SLOT_COLOR2 = 0x6295942d, 0x7e11, 32 + 64 + 51
+NR_ROW_STAR = lambda star: f'expect:isdef:{{ed_isdef}}:{NR_ROW_COLOR2:x}={0 if star else 1}'
+NOISE_FILTER_OFF_ROW = (f's1 wait wait {NR_ROW_STAR(False)} poke:{NF_BYTE:x}=fe wait {NR_ROW_STAR(False)} '
+                        f'pokep:{NR_SLOT_COLOR2}=01 wait {NR_ROW_STAR(True)} poweroff')
 
 
 @dataclass
@@ -99,25 +118,49 @@ class Boot:
     expect: list = field(default_factory=list)     # regexes, each must match a debug log line
     reject: list = field(default_factory=list)     # regexes no debug log line may match
     mode_dial: int = MODE_DIAL_P
-    photo_switch: int = PHOTO_SWITCH_PHOTO
+    photo_switch: int = PHOTO_SWITCH_PHOTO    # None leaves PSET0 unset: the movie switch
+    card: dict = field(default_factory=dict)   # OM3MOD file name -> a FIXTURES key put on the card before this boot,
+                                               # or None to remove the file
+
+# v0.30 test 9: CURVES.BIN (each film's built-in curves and mix, docs/FORMATS.md), made from the newest release's
+# LOOKS.BIN. Film 1 (COLOR 1, look 2: PICK_FILM_2) gets values; B changes them; BAD has a wrong CRC.
+FIXTURES = {
+    'CURVES_A': lambda looks, names: mkcurves.build(looks, {names[1]: {'r': [1, 0, 0, 0, -1], 'mix': [1, 2, 0, 0, 0, 0]}}),
+    'CURVES_B': lambda looks, names: mkcurves.build(looks, {names[1]: {'g': [0, 2, 0, 0, 0], 'mix': [0, 0, 0, 0, -1, 3]}}),
+    'CURVES_BAD': lambda looks, names: (lambda b: b[:40] + bytes([b[40] ^ 1]) + b[41:])(FIXTURES['CURVES_A'](looks, names)),
+}
+# From the shooting screen: the RGB row (the third in Picture Mode), the rear dial once on Red's first point, out.
+EDIT_RGB = 'ok wait ok wait down wait down wait main+1 wait menu wait wait'
+
+
+CK_WORDS = ['none', 'none (its film has some)', "its film's", 'changed']   # has values x 2 + differs from the built-in
+
+
+def ck_line(mem, card, matches, on_builtin, with_values):
+    """CADLOG's CURVES.BIN lines (debug log dl9, v0.30 test 10: START-UP's file line and NOW's line per COLOR):
+    on_builtin / with_values are bit masks, bit k-1 for COLOR k."""
+    words = [CK_WORDS[2 * (with_values >> k & 1) + (1 - (on_builtin >> k & 1))] for k in range(4)]
+    return [rf"^CURVES\.BIN \(each film's built-in curves and mix\): in camera memory: {mem}; this power-on's card: {card}; "
+            rf"films it matches: {matches}$",
+            '^Curves / mix on COLOR 1-4: ' + re.escape(', '.join(words)) + '$']
 
 
 TESTS = {
     'boot-smoke': [
         Boot('s1 wait wait poweroff', expect=[
             r'^Card files: all match this firmware$',
-            r'^LOOKS\.BIN looks loaded: yes$',
-            r'^GUIDES\.BIN code block loaded: yes$',
-            r'^Films from: the card',
-            r'^Block written this power-on: 1 times',
+            r'^Loaded: films \(LOOKS\) yes,',
+            r'^Loaded: GUIDES code block yes,',
+            r'^Films: from the card',
+            r'^Films block in camera memory: writes 1,',
         ]),
     ],
     'films-from-camera-memory': [
-        Boot('s1 wait wait poweroff', expect=[r'^Films from: the card']),
+        Boot('s1 wait wait poweroff', expect=[r'^Films: from the card']),
         Boot('s1 wait wait poweroff', expect=[
-            r'^Films in camera memory: a valid block at power-on: yes',
-            r'^Films from: the camera',
-        ], reject=[r'^Films from: the card']),
+            r'^Films: .*; films block in camera memory at power-on: valid',
+            r'^Films: from the camera',
+        ], reject=[r'^Films: from the card']),
     ],
     'film-kept-with-half-press-after-pick': [
         Boot('s1 wait wait poweroff'),
@@ -157,6 +200,33 @@ TESTS = {
         Boot(BOOT1_ASSIGN_C1),
         Boot(LIVE_TURN_HOLDS_THE_LABEL, expect=[P_FILM_LINE], mode_dial=MODE_DIAL_M),
     ],
+    'curves-file-kept-in-camera': [
+        Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[FILM_2_LINE, *ck_line('yes', 'taken', 20, 15, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': None},
+             expect=[FILM_2_LINE, *ck_line('yes', 'none', 20, 15, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[*ck_line('yes', 'the same', 20, 15, 1)]),
+    ],
+    'curves-file-new-values-follow-edits-stay': [
+        Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[*ck_line('yes', 'taken', 20, 15, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_B'},
+             expect=[*ck_line('yes', 'taken', 20, 15, 1)]),
+        Boot(f'wait wait s1 wait wait {EDIT_RGB} s1 wait wait poweroff',
+             expect=[*ck_line('yes', 'the same', 20, 14, 1)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_A'},
+             expect=[*ck_line('yes', 'taken', 20, 14, 1)]),
+    ],
+    'curves-file-none-or-not-valid': [
+        Boot(f's1 wait wait {PICK_FILM_2} s1 wait wait poweroff',
+             expect=[FILM_2_LINE, *ck_line('no', 'none', 0, 15, 0)]),
+        Boot('wait wait s1 wait wait poweroff', card={'CURVES.BIN': 'CURVES_BAD'},
+             expect=[*ck_line('no', 'not valid', 0, 15, 0)]),
+    ],
+    'noise-filter-row-follows-the-camera-setting': [
+        Boot(NOISE_FILTER_OFF_ROW),
+    ],
     'video-boot-after-photo-boot': [
         Boot('s1 wait wait poweroff'),
         Boot(VIDEO_BOOT, expect=VIDEO_BOOT_LINES, photo_switch=PHOTO_SWITCH_VIDEO),
@@ -164,7 +234,7 @@ TESTS = {
 }
 
 # Tests the current release fails, with the reason. They do not fail a run. Remove an entry once main passes it.
-KNOWN_FAILURES = {}
+KNOWN_FAILURES = {}   # v0.30 test 8: 'film-kept-with-no-half-press-after-pick' passes with PR #56 (early load)
 # Errors a test's runner turns into a failure of that test, not of the whole run.
 RUNNER_ERRORS = (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError)
 
@@ -245,6 +315,28 @@ def read_log(emu, card, dest):
     return [l.rstrip() for l in dest.read_bytes().decode('latin1').replace('\r', '').split('\n') if l.strip()]
 
 
+def put_card_files(emu, card, files, fixtures, dest):
+    """A copy of the card with each file put (from fixtures) or removed."""
+    shutil.copy(card, dest)
+    for fname, key in files.items():
+        node(f'{emu}/bin/card.mjs', 'rm', dest, f'OM3MOD/{fname}')      # absent is fine
+        if key is not None:
+            card_tool(emu, 'put', dest, fixtures[key], f'OM3MOD/{fname}')
+    return dest
+
+
+def make_fixtures(out, looks):
+    d = out / 'fixtures'
+    d.mkdir(parents=True, exist_ok=True)
+    data = looks.read_bytes()
+    names = [data[1312 + 16 * j:1328 + 16 * j].rstrip(b'\0').decode('latin1') for j in range(20)]
+    paths = {}
+    for k, make in FIXTURES.items():
+        paths[k] = d / f'{k}.BIN'
+        paths[k].write_bytes(make(data, names))
+    return paths
+
+
 def elf_symbols(path):
     """name -> address, from an ELF32 little-endian file's symbol tables."""
     b = path.read_bytes()
@@ -262,21 +354,21 @@ def elf_symbols(path):
     return syms
 
 
-@functools.cache
-def build_symbols(build):
-    """name -> hex address, from the build's p.elf, once per build."""
-    return {k: f'{v:x}' for k, v in elf_symbols(build / 'p.elf').items()}
-
-
 def boot_key(boot):
-    return boot.tokens, boot.mode_dial, boot.photo_switch
+    return boot.tokens, boot.mode_dial, boot.photo_switch, tuple(sorted(boot.card.items()))
 
 
-def run_boot(emu, build, d, i, boot, card):
+def run_boot(emu, build, d, i, boot, card, syms, fixtures=None):
     """Boot i in d, from card, with d/nv.bin as the camera's settings -> (next card, log lines or None, errors, a
-    fatal error or None). Tokens may name build symbols in braces."""
+    fatal error or None). syms caches the build's symbols for tokens that name them."""
     nxt = d / f'card{i}.omsd'
-    tokens = boot.tokens.format_map(build_symbols(build)) if '{' in boot.tokens else boot.tokens
+    if boot.card:
+        card = put_card_files(emu, card, boot.card, fixtures, d / f'card{i}-in.omsd')
+    tokens = boot.tokens
+    if '{' in tokens:
+        if not syms:
+            syms.update({k: f'{v:x}' for k, v in elf_symbols(build / 'p.elf').items()})
+        tokens = tokens.format_map(syms)
     env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), 'MODE0': str(boot.mode_dial),
            'PSET0': str(boot.photo_switch)}
     try:
@@ -302,30 +394,30 @@ def check_log(i, boot, lines):
             [f'boot {i}: unwanted line {l!r}' for p in boot.reject for l in lines if re.search(p, l)]), False
 
 
-def run_shared(emu, build, d, boot, card0):
+def run_shared(emu, build, d, boot, card0, fixtures=None):
     """A first boot that several tests share, run once in d -> run_boot's result, its errors naming d."""
     d.mkdir(parents=True, exist_ok=True)
     (d / 'nv.bin').unlink(missing_ok=True)
     try:
-        nxt, lines, errors, fatal = run_boot(emu, build, d, 1, boot, card0)
+        nxt, lines, errors, fatal = run_boot(emu, build, d, 1, boot, card0, {}, fixtures)
     except RUNNER_ERRORS as e:
         nxt, lines, errors, fatal = None, None, [], f'boot 1: runner error: {e}'
     return nxt, lines, [f'{e}, shared boot in {d}' for e in errors], fatal and f'{fatal}, shared boot in {d}'
 
 
-def run_test(name, boots, emu, build, card0, out, first=None):
+def run_test(name, boots, emu, build, card0, out, first=None, fixtures=None):
     """first: run_shared's result for boots[0], used in its place."""
     d = out / name
     d.mkdir(parents=True, exist_ok=True)
     (d / 'nv.bin').unlink(missing_ok=True)
-    card, errors = card0, []
+    card, errors, syms = card0, [], {}
     for i, boot in enumerate(boots, 1):
         if i == 1 and first:
             card, lines, errs, fatal = first
             if not fatal and (card.parent / 'nv.bin').exists():
                 shutil.copy(card.parent / 'nv.bin', d / 'nv.bin')
         else:
-            card, lines, errs, fatal = run_boot(emu, build, d, i, boot, card)
+            card, lines, errs, fatal = run_boot(emu, build, d, i, boot, card, syms, fixtures)
         if fatal:
             return name, [fatal]
         found, stop = check_log(i, boot, lines)
@@ -381,7 +473,9 @@ def main():
     out = (a.out or pathlib.Path(tempfile.mkdtemp(prefix='emu-test-'))).resolve()
     out.mkdir(parents=True, exist_ok=True)
     card0 = out / 'card0.omsd'
-    make_card(emu, build, (a.looks or newest_looks()).resolve(), card0)
+    looks = (a.looks or newest_looks()).resolve()
+    make_card(emu, build, looks, card0)
+    fixtures = make_fixtures(out, looks)
     names = a.only or sorted([*TESTS, AUDIT, *STATIC])
     stock = static_check.find_stock(a.stock) if any(n in STATIC for n in names) else None
     runs = [(n, k) for n in names for k in range(1, a.repeat + 1)]
@@ -404,7 +498,7 @@ def main():
             if n == AUDIT:
                 return run_audit(emu, build, d)
             first = shared.get((k, boot_key(TESTS[n][0])))
-            return run_test(n, TESTS[n], emu, build, card0, d, first and first.result())
+            return run_test(n, TESTS[n], emu, build, card0, d, first and first.result(), fixtures)
         except static_check.Skip as e:
             return n, [f'could not run: {e}']
         except RUNNER_ERRORS as e:
@@ -412,7 +506,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(a.jobs) as pool:
         # Shared boots go in first: the pool starts them before any test that waits on one.
         shared.update((key, pool.submit(run_shared, emu, build, run_dir(key[0]) / 'shared' / str(i),
-                                        TESTS[uses[key][0]][0], card0)) for i, key in enumerate(shared_keys))
+                                        TESTS[uses[key][0]][0], card0, fixtures)) for i, key in enumerate(shared_keys))
         done = list(pool.map(one, runs))
     results = {n: [] for n in names}
     for (n, k), (_, errors) in zip(runs, done):

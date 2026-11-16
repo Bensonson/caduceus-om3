@@ -38,6 +38,9 @@ SECTIONS {
   .hook_pme     0x6125becc : { *(.hook_pme) }
   .hook_sc      0x610cdf05 : { *(.hook_sc) }
   .hook_pu      0x611d04ec : { *(.hook_pu) }
+  .hook_inf     0x611c29c2 : { *(.hook_inf) }   /* rgb-curves: INFO goes to the row's panel for 5397 / 5398 / RG_IT */
+  .hook_rsi     0x611c296f : { *(.hook_rsi) }   /* rgb-curves: the held-OK reset the same */
+  .hook_mx      0x6051485a : { *(.hook_mx) }    /* colour mix: the matrix function's row-scaling call */
   .hook_bar     0x611d1035 : { *(.hook_bar) }
   .hook_rda     0x611d16b4 : { *(.hook_rda) }
   .hook_rdb     0x611d1725 : { *(.hook_rdb) }
@@ -51,6 +54,7 @@ SECTIONS {
   .ext9         0x619a9670 : { *(.ext9) }
   .ext11        0x60f49800 : { *(.ext11) }
   .ext12        0x60f59800 : { *(.ext12) }
+  .ext13        0x60fac000 : { *(.ext13) }   /* v0.30 test 10: the debug log, after the RGB work area */
 }
 color_builder = 0x60518381;
 pm_back       = 0x611bd90f;
@@ -64,6 +68,15 @@ chc_back      = 0x611c2705;
 chd_back      = 0x611c2867;
 chf_back      = 0x611c2d03;
 lch_back      = 0x611d0b72;
+HS_CASE       = 0x611d04e5;   /* rgb-curves: the column update's case for H&S (5398) */
+LC_PICK       = 0x611c7785;   /* rgb-curves: the left cell's pick from an option list (lch_back's call) */
+LC_DONE       = 0x611d0b90;
+STAR_END      = 0x611d1acb;
+INF_GO        = 0x611c29cf;   /* rgb-curves: the row event function (0x611c28xx): INFO to the row's panel */
+INF_NO        = 0x611c29fb;   /* ... not */
+RSI_GO        = 0x611c298e;   /* its held-OK reset to the row's panel */
+RSI_111       = 0x611c29ad;   /* ... item 111's own */
+RSI_NO        = 0x611c2a07;   /* ... nothing */   /* rgb-curves: the row-changed function's end (d2 1 -> 1, else 2) */   /* rgb-curves: lch_back after that call */
 nf_get        = 0x60063380;
 pg_back       = 0x611d07bd;
 pgm_back      = 0x611c3710;
@@ -158,6 +171,10 @@ GSTOCK_P      = 0xa49ebe40;
 GSTOCK_S      = 4022;
 stock_isdef   = 0x6129bad6;
 tone_next     = 0x60518fa4;
+MX_BACK       = 0x6051485f;   /* colour mix: after the matrix function's row-scaling call */
+MX_RET        = 0x605196fb;   /* colour mix: the matrix function's return in the development function (split toning's) */
+mx_mul        = 0x60514290;   /* colour mix: the camera's 3 x 3 multiply (a0 out = a1 x d0, s16, 256 = 1.0) */
+mx_row        = 0x605144ef;   /* colour mix: the camera's row scaling (a0 out <- a1, rows to 128) */
 LPTR          = 708;
 LIDX          = 712;
 BKUP          = 720;

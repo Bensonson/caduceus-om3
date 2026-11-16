@@ -1,4 +1,5 @@
 import { bendSplit } from './split';
+import { mixIsFlat, mixMatrix } from './curves';
 // Approximate look preview on 8-bit sRGB images (Canvas 2D, CPU). A rough port of the repo's desktop sim
 // (sim/pipeline.py ColorEngine + grain, sim/film.py WB / tone levels / mono, sim/library_preview.py bloom), applied to
 // already-rendered JPEGs instead of raw files, so it is an approximation of an approximation: good for direction
@@ -157,9 +158,15 @@ export function renderLook(src: ImageData, dst: ImageData, look: Look, opt: Prev
   const fwg = om3 ? filmWbGain(look.film_wb) : null;          // v0.28: the film's WB mode, as if shot in daylight
   const [gr, gg, gb] = (om3 ? [0, 1, 2].map((c) => 1 + OM3_CAL.wbAB[c] * ab + OM3_CAL.wbGM[c] * gm)
     : [1 + WB_STEP * ab, 1 + WB_STEP * gm, 1 - WB_STEP * ab]).map((v, c) => v * (fwg ? fwg[c] : 1));
+  const mx = om3 && !mono && !mixIsFlat(look.mix) ? mixMatrix(look.mix!) : null;   // OM-3 colour mix: in the camera's colour matrix, after WB
   for (let i = 0; i < n; i++) {
     const p = i * 4, q = i * 3;
-    if (ab || gm || fwg) {
+    if (mx) {
+      const r = DEC[s[p]] * gr, g = DEC[s[p + 1]] * gg, b = DEC[s[p + 2]] * gb;
+      img[q] = enc(mx[0][0] * r + mx[0][1] * g + mx[0][2] * b);
+      img[q + 1] = enc(mx[1][0] * r + mx[1][1] * g + mx[1][2] * b);
+      img[q + 2] = enc(mx[2][0] * r + mx[2][1] * g + mx[2][2] * b);
+    } else if (ab || gm || fwg) {
       img[q] = enc(DEC[s[p]] * gr); img[q + 1] = enc(DEC[s[p + 1]] * gg); img[q + 2] = enc(DEC[s[p + 2]] * gb);
     } else {
       img[q] = s[p] / 255; img[q + 1] = s[p + 1] / 255; img[q + 2] = s[p + 2] / 255;
@@ -199,7 +206,7 @@ export function renderLook(src: ImageData, dst: ImageData, look: Look, opt: Prev
     if (mono) R = G = B = mw[0] * R + mw[1] * G + mw[2] * B;
     img[q] = R; img[q + 1] = G; img[q + 2] = B;
   }
-  if (om3 && look.split) bendSplit(img, n, look.split, OM3_CAL.split, look.tone_balance ?? 0);   // OM-3 v0.26 split toning (the camera bends its gamma curves); v0.28 Tone Balance
+  if (om3 && (look.split || look.rgb)) bendSplit(img, n, look.split, OM3_CAL.split, look.tone_balance ?? 0, look.rgb);   // OM-3 v0.26 split toning (the camera bends its gamma curves); v0.28 Tone Balance; RGB curves
   // 5. bloom / halation (Soft Focus blend of a 160-px-wide blurred copy) or clarity (large-radius local contrast)
   const e = look.effect;                     // OM-3 v0.20: glow (no colour) and clarity too
   if (e && e.strength >= 1) {

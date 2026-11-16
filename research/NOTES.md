@@ -4387,6 +4387,361 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   built-in GUIDES CRC). `releases/v0.29.5`: patch.json (175 runs, 342,144 bytes), extras as v0.29.4. `patch.py` makes
   01ea3d14….
 
+## Per-film R / G / B tone curves: build (2026-11-15; feature/rgb-curves, emulator only)
+Owner: build mockup B (curves edited on the camera); no LookLab, no LOOKS.BIN / photo-code change until the camera build
+is finished. Branch `feature/rgb-curves` from v0.29.5. Code `firmware/src/rgbcurves.inc` (comments are the spec),
+pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
+- **Engine (emulator, bit-exact):** 3 x 6 points (input 0 / 10 / 25 / 50 / 75 / 100 % of the tables' 12-bit output),
+  offsets -7..+7 of 48 (1.2 %); D(t) monotone-preserving cubic (Hermite, harmonic-mean tangents), added in `st_run`'s
+  pass with split toning's delta, then its clamp and running max; per channel only when it has a point set. om-emu
+  ncall of st_run on a fake COLOR job: curves only, curves + split toning (red Shadows / cyan Highlights / Balance +2)
+  match the model on all 960 entries; split toning alone is byte-identical to v0.29.5; registers, MDR and sp kept.
+  Live view: same gates as split toning (key 11 / 12, `ST_STILL 0`). ~50k instructions a pass per two curved channels.
+- **Storage (emulator):** record 'OM3R' at M + 0x3B100 (docs/FORMATS.md), RAM image `cv_ram` (26-byte slots: 18 curve
+  values, then 8 bytes kept for a future per-film colour matrix, owner via the research lab 2026-11-15; in M packed two
+  values to a byte, 17-byte slots, 3,348 B, version 2, so it fits before +0x3C000: unpacked it would be 5,112 B). The curves follow the
+  slot: `cv_rec` at `pf_put1` / `ss_slot` (an EDITS record -> its saved curves, anything else -> flat), `cv_cap` after
+  fl_sw's `pf_capto`, `cv_sput` / `cv_sget` / `cv_sed` in ss_put / ss_get / ss_ed, `cv_zk` in e_rst. Written with the
+  films block (`ub_wr`, its new generation) and with the sets (`ss_wr`), in their locked sections. Read at the first
+  half-press (`ub_pfl`; nothing at start-up), only with the block it was written with. om-emu: film switch keeps each
+  film's curves; power-off / on keeps them (flat until the first half-press); after v0.29.5 saved the block they read
+  flat; a custom mode change carries them as it carries the slot's other rows.
+- **Page (emulator):** row RG_IT 5378 under H&S = the H&S row in the column's switches, except: update case `cv_case`
+  (marks the page on; `cv_hs` for H&S, `cv_pu` / `cv_gx` off), left cell `lc_rg` ("RGB"), the row's "changed?" `cv_star`
+  (its '*' and the Reset guide from the curves). While on: the page's own reads of 976 + 3k (Hi) / 977 (Mid) / 978 (Sh)
+  are ours by return address (`cv_get` / `cv_dflt`: Sh = the selected point's offset, Hi = the point 1..6, Mid 0;
+  2191 reads 886), writes of them and of 2191 keep the camera's values (`cv_sv`: the manager gets them back, which
+  redraws the page). Events (`cv_ev`): front dial 0x9031 = point, rear 0x9032 = offset, INFO 0x9014 = next colour, then
+  passed on as they came; the camera only gives INFO and the held-OK reset to the row's panel for items 5397 / 5398
+  (0x611c29c2 / 0x611c296f), so two hooks add RG_IT (`cv_inf`, `cv_rsi`); the reset's first write makes the curves flat
+  (`cv_rst`). Dead ends: passing a fake dial event (the camera reads the dial driver, ignored until a real turn) and
+  consuming the event (page stale, then Picture Mode closed). Pictures (`cv_ic`): halves 4147..4176 clear, middle
+  curves 4177..4206 our 300 x 300 type-11 picture drawn at run time (`cv_draw`, into a 36 KB work area after the
+  built-in files: loader end word 0x60fa3000 -> 0x60fac000, GX4-proven space, checked FF in the image), labels
+  4208 -> R / G / B, 4207 -> "Pt", 4331 clear, guides 16247 / 16248 -> "Color [INFO]". The film's '*' counts curves
+  (`fl_live`, `fl_fch`).
+- **Palettes (om-emu):** the curve layer (palette 0x614a5fe0, read when Picture Mode opens) is a 32-entry OSD plane
+  (indices >= 32 not drawn) with orange / green / white / greys only; entries 27..31 fill whole screens (a test
+  build with them magenta turned almost every screen magenta), so no palette change: red = orange 4 / 6, blue = white
+  14 / grey 15. The header labels use another palette (red 122, green 40, blue 105), the left column a third (105 shows
+  yellow-green there; 125 is blue).
+- **Regression (om-emu, pixel-identical to v0.29.5):** the H&S row (dials, INFO, held-OK reset), the HSL wheel (INFO
+  pages, an edit, held-OK reset), the Blacks / Whites and WB grid rows and the WB fine-tune screen.
+- **Test build 1 (1b):** VERSION "v0.30-dev (RGB curves, test 1b)", E1479999.BIN 819ce467…64a6 (rebuilds byte for
+  byte; replaces 00edb50f…, never flashed, which had 18-byte slots and a version-1 record). ext11 54,224 / 65,536,
+  ext12 260,112 / 262,144. Package (private) `test-builds/2026-11-15-rgb-curves-1`. om-emu on 1b: engine bit-exact,
+  storage (film switch, power cycle, the packed record read back), the page and the v0.29.5 pixel comparison as above.
+  Open for the owner: dial directions, step size, the page's colours.
+- **Test 1b camera (owner, 2026-11-15): "This is looking good"**; no freeze, debug log normal (cad). Notes: (1) "the B
+  in RGB isn't blue and the line isn't blue either"; (2) "it is cumbersome to use in a way ... there isn't clear guide
+  to using those dials".
+- **Test 2 (emulator only):** (1) om-emu stripe tests: in the row's cell, entries 105 and 125 do not show blue (125 is a
+  dark grey there, as the owner saw); 53 shows blue in the cell and the header -> the "B" is 53. The curve layer: each
+  of its fillers 27..31 made magenta alone in v0.29.5 over 29 screens: 31 is the whole-screen fill, 27..30 changed
+  nothing -> build.py makes 29 / 30 (and 157 / 158) blue in the palette at 0x614a5fe0 only, for the blue curve (bright /
+  dim). (2) A legend in the curve picture, top left: "Front dial: point" / "Rear dial: up / down" (rgbpics.legend, 2 bits
+  a pixel, 176 x 40, in the image at the work area's +0x8000, loaded with section 6; cv_draw draws it after the
+  points). om-emu: 17 screens (shooting screen info views, quick panel, menus, playback) and the camera's own rows
+  pixel-identical to v0.29.5; engine bit-exact; storage as 1b.
+- **Test 2 camera (owner, 2026-11-15): "This is lookign good again"**; no problems, debug log normal (cad). Notes: (1) "I
+  don't think we need the text on the grid"; (2) "the curves are kinda shallow. and they be a little more dynamic?"
+- **Test 3 (emulator only):** the legend removed (bitmap, its blit and its build step); step 48 -> 96 (2.3 % of full
+  scale a step, +7 = 672 / 4095 = 16 %, about 42 of 255 levels; model.py STEP 96, om-emu ncall bit-exact incl. the
+  -7 / +7 zig-zag); cv_draw keeps each drawn curve rising as st_run does (a lift at black now shows flat until the
+  curve rises again, as in the photo; the points stay where they are set). Blue (palette 29 / 30, "B" 53) as test 2.
+  om-emu: the 17 screens and the camera's own rows pixel-identical to v0.29.5; storage as before.
+- **Test 3 camera (owner, 2026-11-15): froze and rebooted.** "The changes made the camera freeze and reboot. so lets go
+  back to the other version. it worked well and I think the changes would be too much anyways." Test 2 (34ba622e) is
+  back on the camera and is the line; test 3's package renamed `WITHDRAWN-2026-11-15-rgb-curves-3`. Which step the
+  owner was on is not known; the card's CADLOG.TXT only has the power-on after the reboot (3 events; the rest of the
+  file is an older log's text, the camera's fopen does not truncate).
+- **Why (code + om-emu only; not proven on the camera):** test 3's own changes give no path to a freeze:
+  - step 48 -> 96: the maths stays in range (largest products ~3.6e8 in cv_prm, no divide by zero: a + b is never 0
+    for same-sign non-zero slopes), and om-emu ncall is bit-exact with the model at -7 / +7 zig-zags; the tables stay
+    0..4095 and rising. The shapes it makes (black raised to 672, white lowered to 3423, flat stretches) are inside
+    what the camera's own curves already have: of the 70 curve objects in the row table 0x606d3d3c, art-filter curves
+    start at up to 1347, end at down to 2866, with up to 233 flat steps.
+  - the running max in cv_draw and the legend's removal: our page picture only, bounded loops.
+  - CW_END 0x8000 -> 0x9000: the picture never gets there (om-emu, all three curves zig-zag -7 / +7: 10,660 B in test
+    3, 13,140 B in test 2, of 28 KB).
+  - **A risk shared by 1b, 2 and 3:** `cv_put` packs and checksums the curves record inside ub_wr's / ss_wr's locked
+    section, and LOCK (0x60075f73 with d0 = 0) sets the PSW interrupt mask to 0: om-emu counts **212,851 instructions
+    with interrupts off** at each films-block save (a change, then a half-press or leaving Picture Mode) and each
+    custom-mode record save, against 5,870 for one ub_cpy of the 3,912-B block there in v0.29.5 (two of them, and the
+    11,896-B OM3S copies, ~18k each). A time-critical interrupt missed in that window could freeze the camera; it would
+    be rare and timing-dependent, which fits test 2 passing twice and test 3 failing once. Test 2 can reach it the same
+    way (it does not depend on +-7 or on the doubled values).
+  - Fix, if the owner wants one: pack and checksum into a buffer before LOCK and copy only inside it (~1.7k
+    instructions), as ub_wr does with ub_stg. Not built (owner: test 2 is the line).
+- **Test 2b (owner: "Build the fix"; emulator only):** test 2's code (restored, e2b5961: rebuilds 34ba622e) plus the save
+  fix only. `cv_hdr` (before LOCK, interrupts on) packs the record, its header and CRC into a buffer of its own in the
+  work area (CW_SU 0x6000 for ub_wr, CW_SS 0x7000 for ss_wr, as ub_stg / ss_ram are the blocks' own; the page's
+  picture keeps 0x1000..0x6000, 20 KB, the largest seen ~13 KB); `cv_put` (inside LOCK) only copies it to M's two
+  aliases. om-emu: with interrupts off 10,062 instructions (test 2: 213,131; v0.29.5's own two block copies there:
+  11,740); cv_hdr 208,100 with interrupts on. The record after the same edits is byte-identical to test 2's; it reloads
+  after a power cycle; ss_wr's path (ncall) writes a valid record (CRC, both aliases). 14 screens incl. the RGB page
+  (edits in R / G / B, a reset) pixel-identical to test 2. No loader-word change; ext12 260,176 / 262,144.
+- **Test 2b camera (owner, 2026-11-15): "Looking good!"** No freeze or reboot (debug log: 37 shutter events, saves
+  fine). Camera-tested: the RGB page as test 2, with the curves record packed before the locked save.
+- **Test 4 (cad for the owner, 2026-11-15; emulator only), built on 2b (its save and step 48 kept).** Owner: "we dont
+  need the text on the grid anymore"; 5 even points 0 / 25 / 50 / 75 / 100 % (front dial 1..5).
+  - The dials' legend removed (its bitmap at 0x60fab000, the blit, build.py's step), as test 3 did.
+  - Engine: 4 even segments (cv_h 4 x 1024, cv_inv 4 x 16384; cv_d i = t >> 10, at most 3); cv_prm takes a curve's
+    values 0, 2, 3, 4, 5 as the 5 points (same block offsets). The record and slots keep their layout (6 values a
+    curve, OM3R v2, 3,348 B): value 1, tests 1..2b's 10 % point, is unused; cv_load clears it in every slot after
+    reading the record, so curves set with 2b keep points 1, 3, 4, 5, 6 as the new 1..5 and lose the 10 % one.
+    model.py updated (X, PTS); om-emu ncall bit-exact with it on 4 cases (incl. a value 1 alone: no change) and with
+    split toning; split toning alone still identical to v0.29.5.
+  - Page: front dial clamps to points 0..4; rear dial, Sh value and drawing map point -> value (0, 2, 3, 4, 5); points
+    drawn at columns 0 / 75 / 150 / 224 / 299 (ncall of cv_ev: every step lands on the right value, never value 1).
+  - Storage (om-emu): a 2b record with value 1 set in R / G / B -> test 4 at the first half-press has the other values,
+    value 1 zero, nothing before; test 4 saves and reloads after a power cycle; 2b reads test 4's record.
+  - Interrupts off per save 10,062 instructions (as 2b). 14 screens vs 2b: identical except the RGB page's curve
+    picture (no legend, 5 points).
+- **Test 4 camera (owner, 2026-11-15): "This looks good!"** No freeze (debug log: 51 shutter events, the films block
+  written 8 times, saves fine). Camera-tested: no text on the grid, 5 even points. Owner's note for the next round:
+  "it doesnt update the live view dynamially. I have to make adjustments, half press and then those adjustments show
+  up" (the live view takes the curves only at the next set-up of the picture; test 5 looks at that).
+
+### RGB curves: live view refresh while turning the dial (2026-11-15; analysis + om-emu, nothing built)
+- Owner (test 4): the live view takes a curve change only after a half-press. Asked (cad): how do our other rows get
+  the live view to refresh, and is there a camera-tested way to reuse.
+- **Our rows all use one path, and it has no refresh step:** sliders (ed_set / s_dirty), split toning (tn_set ->
+  s_dirty) and the RGB row (cv_sv) store our value, then hand the camera's setting manager (0x60bb528f) the camera's
+  own, unchanged value (sget), so the page redraws. Nothing else is sent after a change.
+- om-emu (WATCH on the manager, its writer tail 0x60aea1de and the change notifier 0x60063519, which the setting
+  writer reaches only on a real change): the camera's own tone-curve row, rear dial -> value changes -> 0x60063519 and
+  a tone-specific chain (0x603f03f0, 0x603f1a7c, 0x603f32a8, 0x60404f35, 0x60405752, 0x60b86e44, 0x60bb4a28) run. Our
+  RGB row, same dial -> the manager runs with the unchanged value, none of those. The editor's "poke" (k_cur +
+  SetValue 2197 + k with its own value, after a wheel page change / reset; sd2's sdl_poke did the same after the load)
+  -> manager and 0x60aea1de run, 0x60063519 does not (only the writes that really change 2199 reach it). The manager
+  sends the "picture mode" message (0x6041b019 with 111) for ids 111, 897..901 and 988 whatever the value; nothing of
+  ours sends it.
+- om-emu cannot show live view itself (no live view jobs: no hits at the builder 0x60518615 or st_run while idle,
+  nor at the half-press). sd2 (camera-tested 2026-11-09: live view followed the film after the automatic load) is the
+  only camera result for the poke; with the emulator showing no change notice from it, why it worked is not known.
+- So: no camera-tested way to refresh live view on a change of ours exists; split toning and the sliders most likely
+  show in live view only after the next half-press too (not checked on the camera). Every way to do it per dial step is
+  new (a real change of a camera setting and back, re-writing the picture mode / film setting so the manager sends its
+  picture-mode message, or calling the camera's set-up ourselves, as video-sharp v1 did). Waiting for the owner (cad).
+- **Owner's decision (2026-11-15, via cad): "Keep the half-press".** No test 5 and no live-refresh experiment. Test 4
+  (E1479999.BIN eab68387…, a5df321) is the line: the live view shows curve changes at the next half-press, as with our
+  other rows.
+
+### Colour mix per film: engine and probe m1 (2026-11-15; emulator only)
+- Owner (via cad): "lets work on the color mix now"; camera firmware only, on test 4. Research Lab's first look:
+  branch experiment/screen-info d21cff8, "Colour matrix per film ("colour mixing"): first look".
+- **om-emu, stock (ncall of 0x605147a2 on a synthetic request, base matrix rows summing to 256):** COLOR (key 11)
+  takes the default branch: with R+1587 and R+1923 0 no matrix is multiplied (the output is the base, rows scaled to
+  128); R+1923 1..3 multiplies the identity (same output); R+1587 1 / 2 multiplies 0x606ad348 (the mild change). Key
+  2000 and 12 as 11. The real values of R+1587 / R+1923 in a camera job are not known (om-emu runs no jobs); the hook
+  does not depend on them. **0x60514290(a0 out, a1 A, d0 B) = A x B** (a row swap in A swaps B's rows), so A acts
+  after B on a colour: our matrix goes in as A, the camera's so far as B.
+- **Two callers** of 0x605147a2: 0x605196f6 in the development function 0x605196b4 (the one whose stage list holds the
+  tone hook / st_run: photos and live view, camera-tested for split toning) and 0x6051a6fb (another job type, its own
+  record layout: key from (a0)+8.., filter +918, base +896; not identified). Ours acts only for the first.
+- **Hook `.hook_mx`** at 0x6051485a (stock `cd95fcf014` = call 0x605144ef,[d2,d3,a2,a3],20, the row scaling; build.py
+  checks it) -> `jmp mx_go` (ext12, 0x60f99014). mx_go, in the matrix function's frame: films read (cv_ok), return
+  address 0x605196fb, key 11 or 12 with R+1731 0 (as split toning), the effective COLOR k (getter 63153, as st_run),
+  COLOR k's six values (slot + 18; the m1 probe uses mx_pr for COLOR 3) not all 0 -> our 3 x 3 (diagonal = 256 - the
+  row's two values x 4) x the matrix so far by 0x60514290 into the function's free work matrix (F + 8, or F + 28
+  when the matrix so far is at F + 8); then the stock row scaling and back to 0x6051485f with d2 / d3 as they came.
+  ~540 instructions more per COLOR job.
+- **Probe m1 (MX_PROBE 1, MX_PK 2):** COLOR 3 gets R' = 1.6 R - 0.6 G, G' = 1.6 G - 0.6 B, B' = 1.6 B - 0.6 R (values
+  -38, 0, 0, -38, -38, 0; rows 1.0 so greys stay grey; noise gain ~1.7, the strongest kind of mix): very strong
+  colours, yellows toward lime, cyans toward blue, magentas toward red. Nothing stored; the other COLORs as test 4.
+- om-emu (the real call site 0x605196f6 run natively after the first half-press, session COLOR 3): key 11 and key 12
+  with no filter -> exactly the camera's own multiply then row scaling of probe x base (also with R+1587 1); key
+  2000, key 12 with a filter, the other caller, and everything before the first half-press -> identical to test 4.
+  A build with MX_PROBE 0: values poked into COLOR 3's slot -> the same as the probe; into COLOR 1's (not in use) or
+  none -> stock. 14 screens identical to test 4; save interrupts-off 10,062 (as 2b). ext12 260,448 / 262,144.
+- Not known (camera): live view (expected, as split toning in the same function), the look at ISO 6400 (colour noise),
+  video (the hook covers what split toning covers).
+- **m1 camera (owner, 2026-11-15): works.** Live view: "yes, color 3s live view shows the strong colors" (so live
+  view jobs go through the hooked caller, as for split toning). Photos at ISO 6400 under warm light, COLOR 1 vs COLOR 3
+  (owner's PB152712 / PB152713, not kept): the mix shows clearly (wood toward yellow-lime, a screen deep blue); the
+  warm room cast was pushed too (a silver laptop a bit yellow-green: the mix acts after white balance, so a cast left
+  in the picture is mixed like any colour). Dark crop: COLOR 3's chroma spread ~1.7x COLOR 1's (R/B ~8.7 -> ~15),
+  blotchy orange / green patches, as predicted for this strongest kind of mix. No freeze (39 events, saves fine).
+  Video not tested (owner): list it again next time. Camera-tested: the hook, its gates, live view.
+
+### Colour mix: the Mix row, mix test 1 (2026-11-15; emulator only)
+- Owner's page choice (after mockups A / B "very confusing", D by name, an explainer of C): **C, the circle**: hue and
+  strength of red, green and blue, as the camera's Color Creator (front dial hue, rear dial strength; INFO the colour).
+  Owner's question on HSL (answered, analysis from the code): the mix runs before the gamma stage, HSL (the COLOR
+  stage) after it, so HSL acts on the mixed colours; its values do not change.
+- **Engine (mx_go):** the six stored values are now h, s per colour (slot + 18: h R, s R, h G, s G, h B, s B; m1's
+  off-diagonal reading and the probe are gone). Column j: M[next][j] = 8 (h - s), M[prev][j] = 8 (-h - s), diagonals
+  256 - the row's others (research/colourmix/model.py). Hue + = toward the next colour (red -> yellow, green -> cyan,
+  blue -> purple), strength + = stronger. om-emu: the real call site with four settings = exactly the camera's
+  multiply + row scaling of model.py's matrix; no mix / before the first half-press / key 2000 / a filter / the other
+  caller = stock.
+- **Page:** row MX_IT 5377 under RGB (pm_list; it_tab 29; the 9 column switches as RG_IT: mx_case, lc_mx, mx_star,
+  else the H&S cases). The RGB page's code with cv_on = 2: cv_val -> mx_val (Hi = hue, Sh = strength), cv_ev -> mx_ev
+  (front + hue, rear - strength, -7..+7, as the RGB page's offset), cv_ic labels "Sat" / "Hue" in the chosen colour,
+  cv_dflt's Reset guide from the mix, resets through cv_zx (the Mix page clears only the mix, the RGB page only the
+  curves; the wheel's whole-profile reset e_rst both), cv_kset / cv_jset count the mix as a change of the film ('*').
+  The picture (cv_draw -> mx_pre / mx_line): a ring (r 90), its centre, marks where the colours start, spokes, the
+  dots at angle start + 5 deg x hue, radius 90 + 4 x strength; the chosen one r 13 in its bright colour on a white
+  r 16, the others r 8 dim. INFO's colour is shared with the RGB page.
+- Found in om-emu before packaging: the page's row routine was first named mx_row, the camera's row scaling's name
+  in editor.ld, and the label won silently, so mx_go called the drawing code (output zeros). Renamed mx_line; build.py
+  now asserts the four camera addresses mx_go uses.
+- om-emu: the page (labels, dots, '*', Reset guide), dials (ncall of cv_ev: hue / strength step, stop at +-7, INFO
+  cycles), hold OK on Mix (mix off, curves kept), on RGB (curves off, mix kept), on the wheel (both off); save + power
+  cycle keeps the mix, read at the first half-press. 14 screens vs test 4: the same except the new row in the list
+  (and the steps after it). Save interrupts-off 10,062. Pictures moved to ext11 (ext12 was nearly full): ext11
+  64,992 / 65,536, ext12 256,160 / 262,144. The camera's grid cross stays behind the circle (its own picture).
+- **Mix test 1 camera (owner, 2026-11-15): "ok it works well, but a some tweaks".** No freeze (48 events, 6 films-block
+  writes fine). Tweaks: (1) "the words sat and hue get cut off"; (2) "the dial symbols don't line up with what is
+  changing". One ISO 6400 photo with a mix and one video clip were taken (owner's PB152714 / PB152715.MOV, not kept);
+  no comment on them yet. Camera-tested: the Mix row, its page, the mix in photos and live view.
+- **Mix test 2 work (om-emu; not packaged yet):**
+  - "Cut off": the camera shows a header label in a 38 px box: test 1's "Sat" / "Hue" were squeezed into 38 px with
+    their dark edge cut at both sides; a 58 px picture is cut to the same 38 px box (om-emu screenshot). Now drawn
+    smaller (rgbpics.small_label: cap 17, ink inside columns 2..35), whole. The Mix page's pictures moved to ext12 with
+    its code (rgbpics2.inc).
+  - Dials (om-emu, WATCH on cv_ev and the manager): the emulator's "main" dial posts 0x9032 (EVT_ST_CHANGE_MAIN_DIAL),
+    "sub" 0x9031 (SUB); which physical dial each is, om-emu does not know. On the camera's own Highlight & Shadow page
+    main changes Sh (the left value, writes 978 + 3k) and sub Hi (the right one, 976 + 3k), "+" on sub lowering Hi.
+    Test 1's Mix page already paired them the same way (main -> strength on the left, sub -> hue on the right, same
+    directions), so the slots are unchanged; a swap (tried) would break that. The RGB page pairs the same way too
+    (sub -> point, right; main -> offset, left). What "doesn't line up" for the owner is asked (cad).
+  - **Video (owner, mix test 1's clip: "the video clip carried over the mix changes"; owner's choice "Photos only"):**
+    so video jobs go through the development function 0x605196b4 / the caller 0x605196f6 (camera result), which is
+    also where split toning and the RGB curves run (its stage list). mx_photo (ss_photo's test without its write:
+    the mode code 1..5 / 53..57, else the switch byte 0xa32d9d0d = 2) now gates mx_go and st_run's curves (cv_set ->
+    no curved channel); split toning is left as released (it very likely reaches video as well, since v0.26: not
+    checked on the camera; owner's call). om-emu (pset:1909:2 = photo, the default is movie): photo -> mix and curves
+    as model.py; movie -> mix stock, curves none, split toning alone identical to v0.29.5, split + curves = split only.
+  - **Dial highlight (owner: "the dial symbols wernt being highlighted when the values were being adjusted"):** om-emu,
+    the camera's own H&S page: the active values are white with their dial symbols above (Sh / Hi; the dial pictures
+    10915 bottom arc, 10914 top arc, 36 x 24), the inactive one grey without a symbol (Mid); INFO swaps to Mid (white,
+    the full dial picture above it), Sh / Hi grey. Nothing else lights up after a dial step (screens 5 ms .. 1.2 s
+    after: only the value and the row cell, which turns to its "editing" look, change). Our pages keep the Sh / Hi
+    mode (2191 read 886), so both symbols stay above Sat / Hue, white, and the row cell changes as the camera's. The
+    camera's lists hold the dial pictures with palette 7 and 0x4c (a second colour), so a lit state may exist, but
+    om-emu shows none on the camera's own page: not reproducible here. Not changed; a photo of the camera's own page
+    and of ours while turning a dial is asked (cad).
+- **Mix test 2 (package, emulator only):** Sat / Hue whole (smaller), the mix and RGB curves in photos only; dial
+  pairing and everything else as test 1. 14 screens vs test 1: the same except the smaller labels. Save 10,062.
+  ext11 60,528 / 65,536, ext12 260,480 / 262,144.
+- **Mix test 2 camera (owner, 2026-11-15):** "The words look good but this is what I'm talking about. The middle
+  number has a dial over it but that middle number never gets adjusted" (owner's photo, not kept: green chosen, so
+  INFO was pressed once; the header showed the full dial over the middle "±0", none over Sat / Hue, all values white).
+- **Why (om-emu, WATCH on cv_sv):** the camera's H&S panel keeps its own Sh / Hi <-> Mid mode and flips it at every
+  INFO, whatever happens to its 2191 write (our refused writes ask 887, 886, 887, ... in turn); it starts in Sh / Hi
+  when the row opens. om-emu always draws our header in the Sh / Hi mode (5 ms .. 1.2 s after INFO, from the H&S
+  row's Mid mode, entering from below), so the camera's Mid drawing after an odd number of INFO presses was not
+  reproducible here; the panel's flip is the difference that matches the photo.
+- **Mix test 3:** on our pages (RGB and Mix) cv_ev hands INFO to the panel twice (calls pm_ev, then the usual jmp):
+  it flips there and back, ends in the Sh / Hi mode with the dials over our two values; our colour steps once (as
+  two quick presses for the camera). om-emu: each INFO on Mix / RGB -> 2191 asks 887 then 886; the page redraws in
+  the new colour; the camera's own H&S row still flips once (Mid mode as stock); 14 screens identical to test 2.
+- **The middle "±0" stays** (grey, no dial, as the camera's own unused middle value in the Sh / Hi mode): it is the
+  camera's slot, drawn with the same "±" / digit pictures as Sat / Hue (picture 1131 "±" etc.; om-emu), so it cannot
+  be blanked by picture without blanking ours; its value must stay in -7..+7 (our picture rides on its object).
+- **Mix test 2 camera, the rest (owner, 2026-11-15):** words in full: good ("The words look good"). Video: "yes the
+  video looked normal": **photos only works on the camera** (no mix and no curves in video; mx_photo camera-tested).
+  The dial over the unused middle number: fixed in mix test 3 (above), not camera-tested yet.
+- **Mix test 3 camera (owner, 2026-11-15):** the header still showed the dial only over the middle value ("Sat" /
+  "Hue" red: likely no INFO pressed): "Ok now the dial icon is only over the middle value. It needs to be over the
+  left and right values (sat and hue) and the middle number and icon should be hidden." So on the camera our page
+  is drawn in the panel's Mid look even without INFO, which om-emu never shows; the double INFO did not help.
+  Mix test 4: our own header (cad's plan): the camera's header pictures blanked on our pages, ours drawn.
+- **Mix test 4 (emulator only): our own header on both pages.**
+  - Hidden while our page is on (cv_ic -> clear): the camera's header labels (4207 / 4208 / 4331), its numbers
+    (glyphs 1111..1119 and 1121..1129 digits, 1120 "-", 1131 "+-", 1132 "+", 10772 "0"; om-emu: the left column's
+    numbers are other pictures and stay) and its dial symbols 10912..10919. The double INFO of test 3 is out.
+  - Ours, in the top HD_BAND = 64 rows of our 300 x 300 picture (hd_pre / hd_row, ext11): over each of our values
+    the symbol of the dial that changes it (left: the main dial's, right: the sub dial's; our own drawings, rgbpics
+    hd_icon), under it the name in the chosen colour and the value (RGB "R +3" / "Pt 1"; Mix "Sat -2" / "Hue +5");
+    nothing in the middle. Glyphs (rgbpics.hd_glyphs, 2 bits a pixel, 3,180 B) written by build.py into the image at
+    the work area + 0x8000 (free since test 4 of the curves), sizes / offsets in hd_tab (hdtab.inc).
+  - Our picture is now opaque (the camera's box colour 19), so the camera's grid no longer shows through: the RGB
+    graph is drawn in rows 64..299 with our own quarter grid and diagonal (colour 20; HD_K 3761), the Mix ring smaller
+    (radius 70 + 3 x strength, centre 150, 182).
+  - om-emu: both pages show our header, values follow the dials (main +1 -> left +1, sub +1 -> right -1, as the
+    camera's own page), INFO changes the colour; screens outside our pages identical to test 3. ext11 61,552 / 65,536,
+    ext12 260,416 / 262,144.
+- **Mix test 4 camera (owner, 2026-11-15):** "that looks so much worse, and it affected how the RGB grid looks. Can you
+  not just have the old grid and turn the center dial and number black?" Our own header is dropped. Mix test 5: test
+  2's code again (the camera's header, the old grid and circle; no double INFO), with only the middle dial symbol and
+  the middle number hidden.
+- **Mix test 5 (emulator only):** test 2's code (`git checkout 86b567b -- firmware/`: the camera's header, the old RGB
+  grid and Mix circle, no double INFO) plus only this: on our pages the H&S header's middle (its dial symbol in the Mid
+  look, "Mid", the number) is cleared. The middle number shares its pictures with ours, but the header's draw passes
+  the spot's layout record: cv_ic, when its return is HS_HDRAW 0x610daa1f and a0 lies in HS_MID0 0x6146656c ..
+  0x61466680 (om-emu: the middle's records in both of the panel's looks, e.g. the Mid look's dial 10912 at
+  0x6146656c, "Mid" 0x61466580, its sign 0x61466594, its "0" 0x614665cc; the left value's records lie below, the
+  right's from 0x61466680), returns a clear 50 x 34 picture (a 2 x 2 one left parts of the old number, om-emu). The
+  other lookups (return 0x610eb160) are left alone. om-emu: the middle gone on the RGB and Mix pages, our values and
+  their dials kept; the camera's own H&S row unchanged; 14 screens vs test 2 differ only at that spot.
+- **Mix test 5 camera (owner, 2026-11-15; a 5 s video, not kept):** "Do you see how the dial changes but isn't
+  actually needed for the circle? Likewise the text by sat and hue are greyed out." On the camera the header still
+  flips with INFO between the panel's outer look (dials over Sat / Hue, values white, middle empty: what the owner
+  wants) and its middle look (one dial in the middle, still drawn: test 5's clearing misses it there; Sat / Hue
+  greyed). Wanted (test 6): always the outer look on our pages; INFO only changes our colour.
+- **Mix test 6 (emulator only): the panel kept in its outer look.** om-emu, the H&S panel (= (4, the column) in the
+  INFO path; 0x6247a800 in om-emu): its look is a two-entry selector at (124, panel) (count u16 at +92 = 2, current
+  entry u16 at +94: 0 outer = 886, 1 middle = 887). Its INFO handler (0x61226702) sends the selector "up" (0x9004) and
+  OK (0x900c), then writes the selector's value to (122, panel) (output only: never read; setting it did nothing) and
+  2191. So cv_inf, on our rows only and just before INF_GO, puts the selector on entry 1 (when its count is 2): INFO's
+  "up" always lands on entry 0, the outer look. om-emu: INFO on Mix / RGB asks 886 every time (before: 887 / 886 in
+  turn), the page redraws in the new colour; the camera's own H&S row still flips (887 / 886, its Mid look). Test 5's
+  middle clearing stays, plus the Mid look's full dial pictures 10912 / 10913 / 10919 cleared by id on our pages as a
+  backstop. 14 screens identical to test 5.
+- **Mix test 6 camera (owner, 2026-11-15): "thats perfect!!!!"** The header stays in the outer look on INFO (dials
+  over Sat / Hue, values white, middle empty). Camera-tested: the selector set in cv_inf, the middle clearing. **Test 6
+  (E1479999.BIN f85e7f86…, f4a053b) is the line for the RGB curves + colour mix.**
+
+### Colour menu: order, cell pictures, titles, headers (test 7, 2026-11-15; camera-tested)
+- Owner: "build the mockup that color menu design has done"; spec (owner-approved, private):
+  color-menu-design/SPEC.md. Built on test 6 (e1ede86). Its section 4 (new RGB / Mix headers) was skipped at first,
+  then built (owner: "i want the rewrite that I have approved in the menu redesign"): see "headers" below.
+- **Order (pm_list):** 111, MX_IT, RG_IT, 5397, TB_IT, AB_IT, 5398, BK_IT, 8, 7, NR_IT, VF_IT, 5399, GL_IT, HL_IT,
+  5400 (pages of five: the film and its colour in the camera's order, white balance and tone, detail / lens / light,
+  Film Grain Effect alone). The camera allocates the row list to its count, so no size limit.
+- **The left column's palette (om-emu, a 16 x 16 probe in a cell; the list shows the cell's x 9..90):** 0 clear, 7
+  black, 10 / 13 white, 11 (170) / 12 (85) greys, more greys 43..46, 49..51, 56..60, 93, 97..100, 121, 124; orange 16 /
+  34 (253,104,0), 17 / 35, 18 / 36, 55, 102; red 122; yellow 123; yellow-green 38 / 39; green 40 / 41 / 42 / 54; blue
+  53; many entries a lime filler (the selection border's colour). No cyan, magenta or purple.
+- **Cells (mkicons CUSTOM drawings, rgbpics):** Color wheel (82 x 62, "HSL"'s place) a 12-colour pie, yellow at 12
+  o'clock clockwise, the missing hues two palette colours alternated (yellow-orange 123 / 34, magenta 122 / 53, purple
+  and blue-cyan 2:1 of blue with red / green, cyan 53 / 40, green-cyan 41 / 53), white rim, dark edge; Split Tone
+  Balance a dark-to-light bar (greys) in a white outline with a white triangle under it; Glow a white dot in a grey
+  glow; Halation a white dot in an orange ring (34 / 55 / 17 / 18); B/W the plate's letters -> a black and an outlined
+  white square (bw_top and the 0 / 0 cell); Mix a grey ring (97) with spokes to an orange (34, larger), a green and a
+  blue dot; RGB the curve box (white) with an orange curve bowed up, a green straight one, a blue one bowed down.
+  ic_pay +256 B (16,640; the pie's alternating pixels cost tokens).
+- **Titles:** "Split Tone Balance", "WB Compensation", "Glow Effect", "Halation Effect". Film Grain Effect unchanged.
+- om-emu: the 16 rows in the new order on 4 pages, each row's cell and page title as specified, every page opens
+  (Mix / RGB / wheel / grids / sliders / choices); the screens outside Picture Mode identical to test 6. (The WB
+  fine-tune screen's INFO gives om-emu an "event storm" in test 6 too: not new.) ext11 60,720 / 65,536, ext12 260,288 /
+  262,144.
+- **Headers (spec section 4, 2026-11-15; emulator only).** Mix: left "Sat ±0" (rear dial), middle the colour's name in
+  its colour ("Red" / "Green" / "Blue"), right "Hue ±0" (front dial). RGB: left "Level ±0", middle the colour's name,
+  right "Pt 2" (no sign). Test 6's behaviour kept: INFO stays in the outer look (cv_inf), the dial symbols over the two
+  outer values, nothing greyed.
+  - "Saturation" does not fit: the left label box is 38 px (pictures wider are cut, test 2); "Saturation" is 102 px at
+    the labels' size, 67 px at the smallest readable one. "Sat" (34 px) is the closest that fits.
+  - Pictures (rgbpics): 7 "Sat", 8 "Hue", 9 "Level" (cap 14, squeezed to 30 px), white; 10..12 the names, 50 px wide
+    (the middle "Mid" label's box), cap 16 squeezed to 42 px; 15 a clear 14 x 30. The R / G / B letter labels (1..3)
+    are no longer used by the header.
+  - cv_ic: 4208 -> "Level" / "Sat", 4207 -> "Pt" / "Hue"; the middle's "Mid" record (0x61466580) and any other 4331
+    lookup -> the name; the middle's other records stay clear.
+  - **Two lookups per header picture (om-emu trace):** the header first looks a picture up with MDR HS_HDRAW
+    (0x610daa1f, a0 = the record), then at once again for the same id with MDR 0x610eb160 (a0 = a draw object, the
+    same for every record), and that second picture is the one drawn; the first one's size is the box it is drawn
+    in. So for RGB's right sign ("±" record 0x614666a8, "+" 0x614666b8; glyphs 1131 / 1132, both 13 x 30 from the
+    camera's table at (0x60379740) + 4 x id) the first lookup returns the clear 14 x 30 and sets cv_sgn, and the
+    second lookup (cv_sgn set, RGB on) returns it too and clears cv_sgn. A 2 x 2 blank in the first lookup alone left a
+    bit of the glyph; a red test picture showed the box lands exactly between "Pt" and the digit.
+  - om-emu: Mix and RGB headers as above through value changes and INFO (Red -> Green -> Blue); the 16-row sheet and
+    the screens outside Picture Mode identical to test 7's first build. ext11 60,752 / 65,536, ext12 260,736 / 262,144.
+- **Camera (2026-11-15), test 7 with the headers (E1479999.BIN `cfd4992752c2…df85d`, commit 3ba1355):** owner: "that looks
+  so good. like properly good." Camera-tested; the current line for RGB curves + colour mix + the colour menu.
+
 ## Films at start-up from the camera's memory: bp1 probe and L1 (2026-11-14; branch feature/early-load)
 - Goal (crombach): the films and our Picture Mode rows ready without a half-press, and the shooting screen showing
   "FILM N" from its first frame. Until now it read "COLOR k*" until the first half-press. This goes against the
@@ -4561,6 +4916,218 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   C1, and a Recall of C1 in video (films put back 0, camera settings written 0). Photo after video shows P's film at
   P and C1's film at C1. A video boot at P, a dial turn to C1, then photo and a half-press shows C1's film (FILM 3).
 
+## v0.30 test 8: issue #54 fixed on the merged build (2026-11-15; camera-tested)
+- **Test 8a camera-tested (owner, 2026-11-15):** 6fd2988 (colour menu test 7 + PR #55 + PR #56's early load + PR #57)
+  with only a build-name commit (`try/v0.30-8a`, "v0.30-dev (test 8a: early load)", E1479999.BIN 8ace7752…4245).
+  Owner: "This looks good and works well." CADLOG clean (10 shutter events, saves 1, card files match; copy kept
+  privately). So #56's early load with #55, #57 and the RGB curves / colour mix / colour menu is camera-tested. PRs #56
+  and #57 were merged on GitHub as written (heads fcfdb7e and e543f12, the same commits as here). Test 8 below adds only
+  the #54 fix, the suite adapted to this build, and notes.
+- **Build:** `try/v0.30` = colour menu test 7 (da8abbc) + main (PR #55, #53's video fix) + PR #56 (early load) + PR #57
+  (tests) + the #54 fix (770f40d) + the tests adapted (d9e797b). Build name "v0.30-dev (test 8: #54 fix, early load)".
+- **#54, cause (analysis from crombach's CADLOG + emulator simulation):** the camera writes 1440 only at mode-dial turns
+  (bp1), and a live turn closes twice: first with the settings object's code (+24) 0 at the new dial position, then
+  with the mode's code (C7 then 53, C9 then 4; at M -> C1 the first close can be at B, C8, which changes no group).
+  sx_set's 1440 ran rc_go at both. At the first, cm_gnow took the group from the dial position and cm_load switched
+  the films and wrote the picture mode (901) while the camera still had the old mode's settings in: M's picture mode
+  became C1's (log: "54 = COLOR 1" in M, which was on COLOR 2) and C1's camera values no longer matched its own.
+  ss_photo shows the first close's code was 0 (codes 6..52 and 58.. read "not photo" and stop rc_go before cm_go).
+- **Fix:** sx_set's 1440 calls `rc_turn`, which leaves a close at code 0 alone (counted: CADLOG "dial-turn closes at
+  code 0 left alone (#54): N") and runs rc_go at the close with the mode's code. The first look after a power-on
+  (code 0 too) is not a 1440 close, so gx_map's first look keeps the dial-position fallback (k5). ext12 +128 B
+  (261,568 / 262,144).
+- **Emulator:** om-emu closes a turn once, with the code, so the suite cannot show #54. `research/emulator/issue54_sim.py`
+  builds a simulation copy whose 897 write (the start of a dial change) runs the dial-turn code at code 0 first:
+  6fd2988 "BUG" (M ends on 54 = COLOR 1, FILM 5, C1's film; switch logged at C7; 22 camera values differ from C1's
+  own), 770f40d "ok" (M on 55 = COLOR 2, FILM 6; none differ; 2 closes left alone). Without the simulation the fixed
+  build behaves as before (M -> C1 -> M: switched 2 + 2, M back on its film).
+- **Suite (PR #57) on test 8:** 13 / 13 pass. Adapted for this build (d9e797b): hook sections read from the included
+  `.inc` files; hooks.json takes the RGB curves / colour mix hooks (hook_inf: INFO in Picture Mode; hook_rsi: held-OK
+  reset; hook_mx: the colour matrix, gated by cv_ok, so it does nothing before our data loads) and patch sites
+  (curve-layer palette 29 / 30, the RGB and Mix rows' switch-table entries, cm_rst's word); the video test sets the
+  movie switch (om-emu 0819080 reads an unset switch as photo; main + #55 failed the test that way too) and checks
+  "films switched: 0, record writes: 0" (with #56, el_ok reads the dial position in video, so group / code show it);
+  `--without` v0.29.5: caught. KNOWN_FAILURES emptied (the no-half-press pick passes with #56).
+- **Early load + RGB curves / mix (emulator):** Mix Sat +2 / Hue -1 and RGB Level +1 set and half-pressed in boot 1;
+  boot 2 shows them (with their '*') before any half-press and after it. The 16 rows and the RGB / Mix pages match
+  test 7 pixel for pixel, except FILM 15's Color wheel "Vivid" and H&S values on an old om-emu settings file
+  (nv0.json): test 8a (no #54 fix) shows the same, so it comes with #56's early load trusting the camera's own values
+  of that old file; the blank-camera tests pass.
+- **Test 8 camera-tested (owner, 2026-11-15; E1479999.BIN 5768c9e1…7d7d, built from b9eba89):** "that seemed to work",
+  the #54 round trips (M <-> C1 while on) included. The CADLOG kept (copy kept privately) covers only a later power-on
+  (2 shutter events, no dial turns, the #54 counter 0, saves 1, card files match), so the round trips are the owner's
+  word, not the log. Test 8 is the v0.30 candidate.
+
+## v0.30 test 9: CURVES.BIN, each film's built-in curves and mix (2026-11-15; emulator only)
+- **Owner's choice "New card file"** (how people updating to v0.30 get LookLab's 20 films regraded with curves + mix,
+  `webapp/scripts/films.py` CURVES_MIX): LOOKS.BIN has no room and the camera takes only a film set it never had, so a
+  file of its own. Format: `docs/FORMATS.md` "CURVES.BIN v1" (432 B, 'OM3K'); `card/mkcurves.py` writes it; sent to the
+  LookLab session for its export. Each entry carries the CRC-32 of the LOOKS record it was made for (as EDITS records).
+- **Firmware (`firmware/src/curvesfile.inc`, ext11; 63,872 / 65,536, ext12 261,488 / 262,144):**
+  - At the films' load (the early load or the first half-press), `ck_load` reads M only: the file's copy at M + 0x3BE20
+    (between 'OM3R', which ends at +0x3BE14, and +0x3C000, which film-rolls / screen-info use), when valid, gives
+    `ck_bi` (each film's 18 curve values and 6 mix values; zero when the entry's check does not match the film's
+    record). The check is about 1.7 KB of CRC-32, inside #56's early load.
+  - `ck_card` from lg_pr, at the first shutter event with the films in and a card, after el_card (new films first):
+    C:\OM3MOD\CURVES.BIN, taken when valid and not the copy in M. The write to M works as ub_wr: under LOCK, only
+    while the camera is not saving M, then the changed byte; else pending, retried at the next shutter event.
+  - A slot's byte 24 (the 'OM3R' slot's kept byte 6) holds flags: bit 0 the curves follow the film's built-in, bit 1
+    the mix, bit 7 set. Slots from test 8 or older have 0, and their all-zero parts follow. `ck_fix` fills following
+    parts whenever a slot becomes COLOR k's: cv_rec -> `ck_rec` (an EDITS record r < 20 = film r, a LOOKS record = the
+    film as built), cv_sget, the load, a new file.
+  - An edit on the RGB / Mix page (cv_ev, mx_ev -> `ck_own`) makes that part the user's. The rows' reset (cv_zk /
+    mx_zk -> `ck_zp`) makes it follow again.
+  - The '*'s compare with the built-in (cv_kset / cv_jset -> `ck_kset` / `ck_jset`, cv_star / mx_star -> `ck_star`).
+  - With no valid file in M (`ck_have` 0) none of it runs. 16 Picture Mode rows on the old om-emu settings file:
+    identical to test 8 pixel for pixel.
+  - A calling-convention slip found in om-emu: `ck_bik` first had frame 0 and called `ck_p`, whose return address
+    overwrote its own (an endless loop at the first half-press). Frame 4 since (research/NOTES.md "Picture-mode
+    sliders": a call writes its return address at (0,sp)).
+- **Emulator:**
+  - FILM 2 with fixture values: Mix "Sat +2 / Hue +1", RGB "Level +1", no '*' on the film or the rows.
+  - Reset on the RGB row: back to Level +1. One dial turn: '*' on the row and the film, kept over the half-press.
+  - Suite tests `curves-file-kept-in-camera`, `-new-values-follow-edits-stay`, `-none-or-not-valid` pass; on test 8
+    (`--without`) caught.
+  - `static:changed-bytes`: the same sites as test 8 (0x6061a468, a pointer into ext12, and the cm_rst word), their
+    targets moved; hooks.json updated after that review.
+- **Sample for test 9:** LookLab's camera 20 (om3films.json rgb + mix, recipes otherwise unchanged from main) against
+  releases/v0.29.5/LOOKS.BIN: sha256 4c009f9c…2291 (20 matched in om-emu).
+- **LookLab's export (LookLab session, 2026-11-15):** `webapp/src/curvesbin.ts` writes OM3MOD/CURVES.BIN with LOOKS.BIN
+  (Save to the SD card, the card zip, and a button of its own, for firmware "v0.28 or later"); for the standard 20 its
+  bytes equal the sample (4c009f9c…2291). Branch feature/looklab-rgb-curves 0cfcfc7 (local).
+
+## Debug log dl8: the report redone (2026-11-15; emulator only, camera test pending)
+Branch `feature/debug-log` (from main v0.29.5, c209b69), VERSION "v0.29.6-dev (debug log, dl8)". Owner (via cad): a
+clearer, complete `CADLOG.TXT` (lines had been added piecemeal, some as hex words and internal codes).
+- **Layout:** one writer, `lg_write` -> `lg_top` (build, START-UP, card files), `lg_now` (NOW), `lg_svt` (SAVES),
+  `cm_txt` (CUSTOM MODES, rewritten), `lg_evt` (the last 32 events, **newest first**); `ub_txt` / `ss_txt` and their
+  strings are gone. Still a fixed 5120 B (same fopen / fwrite / fclose, same bytes on the card). Newest first, so a full
+  report loses the oldest events; the fullest emulator case (all custom modes filled, 8 mode changes) is 4827 B with all
+  32 events.
+- **New facts, all read only:** the shooting mode now and per event (`lg_mode`: the code at rc_in + 24, the mode dial's
+  position 0xa32d9d0c, the photo / movie / S&Q switch 0xa32d9d0d; not cm_gnow, which writes cm_code); a custom mode's
+  Save Settings (sget 1880 + n); the film on each COLOR with its name (LOOKS +1312 + 16 j); the films with changes; each
+  group's films, choice and own copy (OM3C / OM3S); saves at shutter events (`lg_ns`); cm_pend, ss_dirty, rc_pend;
+  rc_tr and ss_ml decoded. Ring entry +12 is now u16 family, +14 the code, +15 dial position | switch << 4. Nothing of
+  the old report dropped (picture mode numbers 54 / 55 / 56 / 64 now read as COLOR 1..4).
+- **Mode codes (om-emu):** P 1, A 2, S 3, M 4, **B 62** (cm_gnow then goes by the dial position: P group, as intended),
+  C1..C5 53..57, video and S&Q 10. Camera logs so far showed P, A, C1..C5 and a 62 (k4); S / M / B emulator only.
+- **Films with changes:** the same answer as fl_fch (the camera's '*'), but fl_live (a film on its COLOR: the camera's
+  18 values through sget) costs up to ~16k instructions when nothing differs. `lg_chg` asks one COLOR per write
+  (lg_w & 3) and keeps the others' last answer for the same film (at most 3 events old; a film newly on a COLOR is asked
+  at once); a film not on its COLOR uses `lg_fc` (fl_fch's saved-record test, by words).
+- **Cost** (om-emu instructions from lg_write to its ret, same scripts, v0.29.5 -> dl8): P with an edit, Assign C1 and
+  dial turns, 43 events: average 210,800 -> 194,700, longest 223,711 -> 204,184; video / S&Q, 11 events: 194,159 ->
+  189,218, longest 199,322 -> 204,845 (one write +7.7k: the live check with nothing changed); power-on in C1: 191,774 ->
+  185,569; no films: 190,543 -> 180,834. First write of a power-on (with the card-file check): ~568.9k -> ~566k. The
+  card part (fopen, fwrite of 5120 B, fclose, ~92.5k) is unchanged. lg_d by divu, the padding by words.
+- **Settings manager calls** over the whole P run: 153, identical in ids, values and order on v0.29.5 and dl8: no
+  settings writes, nothing different before the first half-press.
+- **Bug found on the way** (a throwaway 1 KB-buffer build): past the buffer's end the first lg_s still wrote one
+  character per call, so a long enough report crept over lg_pon / lg_plog and the next fopen failed (no log). lg_s now
+  writes nothing once at lg_bend; the pad after it is 256 B (the longest string is 117 B). That variant writes 1024 B
+  ending in CR LF at every event. (v0.29.5's lg_s checked every character: no such bug there.)
+- Stack: lg_now -> lg_chg -> fl_live -> fl_isdef -> sget runs ~96 B deeper in the HLS_EVENT task than v0.29.5's
+  deepest log path. Only the camera can say if that matters (no sign in om-emu).
+- Emulator cases (scripts: video-sharp's s41v.mjs): P, a power-on in C1, video / S&Q, no films (stock NV, no
+  LOOKS.BIN), settings block missing (STATE poked 0xFFFF), every custom mode filled (cm_ram / ss_ram poked, emulator
+  only). All read right; the "missing" case prints the card files with "not checked" and skips NOW's film lines.
+
+### Debug log dl9: the camera's own state too (2026-11-15; camera-tested)
+Owner (via cad): "I want it to cover everything the camera does!" Read only (sget), never a settings write; no slower
+half-press, nothing at start-up. VERSION "v0.29.6-dev (debug log, dl9)"; report 8192 B (was 5120).
+- **Setting ids found (om-emu, E147):** the quick panel (OK in shooting) writes the highlighted item's own setting id
+  into **261** as its cursor moves, so walking it maps every cell: mode **24** (P 3, A 4, S 5), shutter **1699** and
+  aperture **1697** as set (APEX x 256), ISO **6** (0 Auto, else Sv x 256, ISO 100 = 1280), AF target **85**, exp comp
+  **2** (EV x 256), item **1714** (the "±0.0" with the curve icon; meaning not checked), picture mode **111**, WB **9**,
+  item 1414 (the cog), AF mode **289**, face / eye **1712**, flash **16**, flash comp **17**, drive **3265**, metering
+  **1**, aspect **269**, stabiliser **157**, image quality **861**, video quality **2236**. The exposure the AE worked
+  out: **4000** shutter, **4001** aperture (APEX x 256; 0 before the first metering), 4002 = their sum. WB mode
+  **1578** / movie **1579** and Custom WB **107** as in "Film WB". The debugger's getter call times out for 134 ids
+  (111, 901, 1578, 9, 289, 16, 3265, 1, 157, 861, 2236 among them) but the firmware's own sget reads them all.
+  Getter cost (firmware): ~300..900 instructions, but 111 ~2.5k, 289 ~2.2k, 861 ~1.9k, 107 ~1.3k.
+- **Screen:** the GUI state is the u16 at **0x62ce5864** (child << 8 | parent; the firmware loads that address as a
+  constant at 0x610fcf81 and keeps it in 0x603713a4, so it is the camera's too): parents 1 COMMON (child 8 = the
+  shooting screen), 2 REC (direct setting), 3 / 11 menus, 4 MENU_LV (3 / 4 the quick panel, 0x16 quality, 0x17 WB,
+  0x18 Picture Mode), 5..7 playback, 12 edit.
+- **Buttons / dials** (research/BUTTONS.md): photo Fn 47, REC 48, |o| 1292, CP 49, AF-ON 1964, ✥ mode 158, up 50,
+  left 52, right 53, down 51, Delete 570, L-Fn 56; video 1272, 1273, 1278, 1274, 1965, 1279, 1280, 1282, 1283, 1281,
+  1276, 1291; our Creative Dial rows 571 / 54 / 55 / 1966; dials P / A / S / M at Fn lever position 1 and 2 (70..77,
+  1302..1309); the Fn lever's state 534 (om-emu 4; 8 = position 2). As dial function codes 1697 = shutter and 1699 =
+  aperture (the opposite of the setting ids), 86 Ps, 2 exp comp, 17 flash comp, 1701 WB, 1578 ISO.
+- **Not found / not read:** battery level, card free space and shots left (the panel's "803" is not a setting id), the
+  Fn lever's function setting (Off / mode 1 / mode 2), names for drive / AF mode / quality / metering / flash /
+  stabiliser codes (shown as numbers), photo counts in om-emu (it takes no photo: `s2` and `hold:s2` change nothing).
+  Menu visits: only the screen at each event; a full menu history would need a counter in gx_map (not done).
+- **Photos:** `lg_np`, one increment in ex_fill (our EXIF hook, once per photo's EXIF; our RAM only). Not testable in
+  om-emu; whether RAW-only photos reach ex_fill is not known.
+- **Cost kept down:** per event 5 reads (4000, 4001, 6, 2, 1578 / 1579; 107 only for Custom WB) and one of drive / AF
+  mode / quality in turn (lg_fv); 4 of 63 other settings per event in turn (lg_cid -> lg_cv, -1 = "-" until read,
+  each at most 16 events old; BUTTONS AND DIALS shown after the first full round); each event's line made once
+  (lg_line -> lg_lines in ext11, LSLOT 100 B) and copied by words; START-UP, CUSTOM MODES and BUTTONS AND DIALS kept
+  as text and copied while their inputs (a key of words) are the same; the padding only over the last report's text.
+- **Cost** (om-emu instructions per write, v0.29.5 -> dl9): P run (edit, Assign, dial turns, 43 events) average
+  210,800 -> 194,100, longest 223,711 -> 203,663 (7 early writes up to +6.8k, when the custom-mode text changes);
+  video / S&Q (11 events) 194,159 -> 195,409, longest 199,322 -> 204,150; power-on in C1 (7) 191,774 -> 193,689;
+  no films (7) 190,543 -> 188,801; first write 568.9k -> ~588k. fopen ~48k and the write (~92.5k, the same for 8192 B
+  as for 5120 B in om-emu) unchanged. Settings manager calls over the P run: 153, identical to v0.29.5.
+- Space: ext12 259,280 of 262,144 (2.8 KB left), ext11 62,240 of 65,536 (3.2 KB left: the 32 lines, the kept texts
+  and keys).
+- Cases (om-emu): P, a power-on in C1, video / S&Q, no films, settings block missing, every custom mode filled (8,106 B
+  with all 32 events), a 1 KB-buffer variant (1024 B with CR LF at every event).
+- **Camera test (owner, 2026-11-15): passed.** Owner: half-presses "felt normal" (as quick as v0.29.5, no freeze).
+  The report (69 events, one power-on, A and S) read right against what was done: 20 photos counted = 20 RAW + JPG
+  pairs on the card (so ex_fill runs once per photo with RAW + JPG; RAW-only still not checked); aperture f/1.8 ->
+  f/22, S at 1/100, exp comp -1.3, WB Auto -> Cloudy -> Auto, FILM 1 -> FILM 4, screens menu / camera (settings) /
+  panel, the arrow pad's Direct Function, C2 assigned; "Look at: nothing unusual"; card files all match. Drive read
+  32 -> 30 (codes not named). Not in that power-on's report: P, M, a custom mode, video.
+- **Second camera run (owner, same day): passed.** One power-on, 26 events: P (f/2.0 -> f/1.8, the "set" screen), M
+  (1/2 f/11 as set), C1 (code 53; the camera's own C1 drive 0 and quality 15 read), a fast dial turn M -> S -> A, then
+  A video (code 10, the switch at 1), one clip recorded. Photos 3 = the 3 RAW + JPG pairs of that power-on on the card.
+  Drive at #18 (A) still showed C1's 0: the rotating read (lg_fv) is up to 2 events old, as designed; right at #19.
+  "Look at: nothing unusual". The camera's clock runs about an hour ahead of the Mac's (file times), not ours.
+
+## v0.30 test 10: test 9 + debug log dl9 (2026-11-15; emulator only, camera test pending)
+Owner: "merge dl9 in for one more test". Branch `try/v0.30-dl9` = try/v0.30 (test 9, 26a65d3) + `feature/debug-log`
+(dl9, camera-tested twice on v0.29.5). VERSION "v0.30-dev (test 10: test 9 + debug log dl9)".
+- **Merge:** conflicts in VERSION, README, NOTES and editor.s (test 9's lines in the old cm_txt). dl9's report taken;
+  `rc_nmid` (#54) kept with its counting in rc_turn. The old cm_txt's extra lines now sit in dl9's report: the #54
+  count in CUSTOM MODES ("dial-turn closes at code 0 left alone (#54)", also in the section's key); ss_txt's per-mode
+  lines were already there. test 9's `ck_txt` (CURVES.BIN) is replaced and removed from curvesfile.inc: START-UP has
+  its file line (in camera memory, this power-on's card, films it matches; ck_have / ck_st / ck_nm in START-UP's key),
+  SAVES its writes and held-back write (ck_nw / ck_pend), NOW one word per COLOR from the same comparisons as ck_txt
+  (ck_bik, cv_lk, ck_cmp, ck_nz: "none", "none (its film has some)", "its film's", "changed") and the picture mode's
+  COLOR's 15 curve values (R, G, B x 5 points, the slot bytes of ck_map), 6 mix values and its follow flags (lg_ckn).
+- **Space:** test 9 had ext11 63,872 / 65,536 and ext12 261,488 / 262,144; with dl9 both overflowed (by ~6.5 KB and
+  ~13.4 KB). The whole debug log (code, data, the 32 stored lines, the kept texts, the report buffer) is now `.ext13`
+  at 0x60fac000, right after the RGB work area (0x60fa3000 + 0x9000), in the GX4-proven reserve (to 0x6103f000):
+  editor.ld `.ext13`, build.py EXT13 (0x60fac000..0x60fbc000; written with ext11 / ext12, checked free, the loader's end
+  word raised to its end rounded to 4 KiB: **0x60fac000 -> 0x60fb5000**, so the camera's own boot copy takes 36 KB
+  more). Sizes: ext11 63,312, ext12 249,568, ext13 36,080. The report is **9216 B** (dl9 8192: the CURVES.BIN, curves
+  and #54 lines made the fullest case drop 4 events; 8,494 B with all 32 now).
+- **Tests (PR #57's suite, om-emu-new):** its log patterns follow dl9's wording now (emu_test.py: FILM_2_LINE,
+  C1_* / P_FILM_LINE, GROUP_C1_LINE, VIDEO_BOOT_LINES, boot-smoke, films-from-camera-memory; ck_line gives the START-UP
+  line and NOW's words from the same masks). `hooks.json`: one patch site's run moved (0x6061a469:2 -> 0x6061a468:3,
+  the ▼ / ▶ validator list pointer build.py writes: its target in ext12 moved when the log left).
+- **Write cost** (om-emu instructions per write, the P run: edit, Assign C1, dial turns; test 9 -> test 10): average
+  214,582 -> 199,431, longest 226,291 -> 219,705; 7 early writes higher (the most +18.9k, the live film check after the
+  menu Assign, as in dl9); first write 573.6k -> 597.0k (+4%).
+- **Plus the Mix / RGB page headers** (R, G, B; try/v0.30 7a92cd3, merged as 1f705bf; ext12 248,944). Package
+  `test-builds/2026-11-15-v030-test10`: E1479999.BIN **6c8e8b25…598e**, CURVES.BIN 4c009f9c…2291 (test 9's), go-back
+  v0.29.5 01ea3d14…bd59. Suite (om-emu-new) on that build: **16 of 16 pass** (static checks with hooks.json as it is).
+
+## v0.30 test 11: the header's R / G / B centred (2026-11-15; camera-tested)
+- Owner after test 10 (camera, 6c8e8b25…, log clean): "can we please please please!!!! center the r,g,b on the
+  curves and color mix. its off center".
+- om-emu: the middle label's box (the "Mid" layout record, 0x61466580) is x 655..704 on the Mix and RGB pages; the
+  page's middle is x 693.5 (the panel 542..845; also the midpoint of the left and right values). The letter was
+  centred in its box, at x 679.5: 14 px left (the words "Red" / "Green" / "Blue" of test 7 hid it). The box is the
+  layout record's, the same code on the camera.
+- rgbpics `name_label`: the letter centred at the box's column 38.5 (MID_CX), ink inside the box (cols 29..48 of 50).
+  om-emu: R / G / B at x 693..693.5 on both pages; the 16 Picture Mode rows otherwise identical to test 10.
+- Test 11 = test 10 + this (333523c): E1479999.BIN 0f690519…4951, `test-builds/2026-11-15-v030-test11/`; suite 16 / 16.
+- **Camera (owner, 2026-11-15; E1479999.BIN 0f690519…4951):** "It looks amazing". CADLOG clean ("Look at: nothing
+  unusual"; CURVES.BIN the same, 20 films match; saves 1; copy kept privately). Test 11 is the v0.30 candidate.
 ## Live dial turn between M and a custom mode (#54, 2026-11-15; emulator only)
 - **Fault (camera, v0.29.5 and later):** a dial turn with the camera on runs the custom-mode switch at an in-between
   code, `0xC0` plus the raw dial (such as `C7` at C1), before the camera's real mode code (53). The camera still holds
@@ -4610,3 +5177,224 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   stayed on under B's own camera settings. `ss_photo` also read om-emu's 62 as video.
 - **DS5:** `cm_gnow` counts code 62, or code 0 with the dial on B, as B's own code (group 5), and `ss_photo` counts 62
   as photo. Test `live-dial-turn-to-b-switches-the-films` fails on DS4 and passes on DS5.
+
+## v0.30 test 12: test 11 + PR #59, the #54 fix (2026-11-15; emulator only, camera test pending)
+Owner: "Build test 12 please" (after cad's read of crombach's PR #59). `try/v0.30-dl9` = test 11 (fab2e95) + pr-59
+(1039565, with main's #58) merged as written (ca4604f), then our own #54 fix taken out (5476eb7): sx_set's 1440 calls
+rc_go again, rc_turn / rc_nmid and its CADLOG line go (the word in CUSTOM MODES' key stays, 0). Why ours goes: rc_turn
+left every close at code 0 alone, and on the camera B's code reads 0 (crombach's DS4), so a live turn to B would not
+switch; #59 waits inside rc_go for the mode's code (gx_map retries) and counts B as a mode.
+- **Conflicts:** NOTES (both kept), TESTING (#59's #54 rows), `emu_test.py` (#59's file with #58, plus this line's
+  curves tests, card fixtures, PHOTO_SWITCH_VIDEO = 1 and dl9 wording). #59's two new checks in dl9's wording: a
+  switch line `after event N: ... (dial position N) -> ...` that is not a first look, and `Camera COLOR values that
+  differed from a Reset custom mode's own: 0`. Shared first boots key on their card files too.
+- **Firmware check:** test 11 -> 12 is exactly #59's editor.s / editor.ld lines minus rc_turn. No new hook sites; new
+  calls ds_get / ds_put (data item 38, written back as read, only after a held turn); nothing new before the first
+  look. `mx_photo` (mix / curves gate) keeps its own copy of the photo test: om-emu's B code 62 is not photo there,
+  the camera's B code 0 falls to the switch (photo), so on the camera mix / curves work in B as before.
+- **Build:** E1479999.BIN `0116c558…ee25`, rebuilt from 5476eb7 byte for byte. Package
+  `test-builds/2026-11-15-v030-test12` (private), with CURVES.BIN as test 11 and the v0.29.5 go-back.
+- **Suite:** 20 of 20 pass (`Pass recorded on 5476eb7514dd`). `--without` test 11 (rebuilt, 0f690519…): `caught`
+  live-dial-turn-waits-for-the-mode-code and live-dial-turn-back-keeps-the-mode-choice; live-dial-turn-to-b-switches-
+  the-films passes on test 11 (expected: it guards #59's own wait, which test 11 does not have).
+
+### Test 12 camera, first report (owner, 2026-11-16)
+- **One quick reboot** "when switching between film sims in a mode" (which screen and mode not known yet). The card's
+  CADLOG.TXT (16 shutter events, 30 mode changes, "nothing unusual") is written at shutter events, so it may be the
+  power-on before or after the reboot. om-emu (test 12 build): repeated film / COLOR picks in Picture Mode in P, in B
+  and in C1 right after a held live turn: no crash, no FAIL. Not reproduced; cause unknown.
+  Owner: it was the Super Control Panel's picture-mode cell, in a shooting mode, once. om-emu: the SCP cell turned
+  with the front dial (one step at a time, and bursts of 2..9 steps) in P, A, B and C1, 24..42 film / COLOR switches
+  each: no crash. The only #59 code on that path is sx_set 901's cm_gnow read and compare (same group: cm_gpm as in
+  test 11); lv_due runs only when the dial's group is not the films' group. So most likely not #59; an older rare one
+  is possible. If it happens again: switch off without a half-press (the next half-press overwrites CADLOG.TXT) and
+  bring the card.
+- **Noise Filter's '*' on COLOR 1-4 (no film), camera's own Noise Filter set to Off:** the row shows '*' at Off and
+  none at Std, while the profile shows none at Off and '*' at Std. Cause (code; matches the owner's report): the row's
+  "is at default" (stock_isdef -> GetValue vs GetDefault) has no default for NRB + k, so `vf_def` falls to
+  `stock_default` (0 = Std); the profile's '*' (`ed_isd0`) counts slot +51 != 0, and the setter stores 0 when the
+  choice equals the camera's own Noise Filter (`nf_get`, #46). Films are not affected (`fl_isdef` compares +51 with
+  the film's record). In since v0.29.4 (#46), not new in test 12; shows only when the camera's own Noise Filter is not
+  Std. Possible fix: `vf_def` answers NRB + k with `nf_get`, so row and profile both compare with the camera's own.
+  Not built (owner's call).
+
+## v0.30 test 13: test 12 + the Noise Filter row '*' fix (2026-11-16; emulator only, camera test pending)
+Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own Noise Filter, as the profile's does).
+- **Fix (18a7a33):** `vf_def` (ed_default's miss, the facade's GetDefault) answers NRB + k with the camera's own Noise
+  Filter (`nf_get`, key 0x9719, as sl_get's label 94 reads it; MDR kept as sl_gb keeps it). Row and profile now both
+  compare with it: camera on Off, a COLOR without a film shows no '*' at Off and one on both at Std. Films unchanged
+  (`fl_isdef` compares +51 with the film's record). Left as it is: if the camera's own Noise Filter is changed in the
+  menu after a choice was stored (+51 != 0) and the new setting equals that choice, the row shows no '*' while the
+  profile keeps its own until the row is set again.
+- **Test:** `noise-filter-row-follows-the-camera-setting` with a new driver token `expect:isdef:FN:ID=V` (calls
+  `ed_isdef` as the camera's "is at default" calls do). The camera's own Noise Filter is poked into its byte,
+  0x6295942d in om-emu (traced with a mem probe on the getter 0x60063380: entry a32ae498 -> (4) -> that byte); a write
+  through the settings manager 0x60bb528f from the driver did not return (5M steps), so no `set:` token. Test 12:
+  `caught` (`expect:isdef 7e11: 0, not 1`); test 13: pass.
+- **Build:** E1479999.BIN `d3ab5d4f…04f1` (rebuilt from 18a7a33 byte for byte). Package
+  `test-builds/2026-11-16-v030-test13` (private), CURVES.BIN and the v0.29.5 go-back as test 12.
+- **Suite:** 21 of 21 pass (`Pass recorded on 18a7a33bf01c`).
+- **Camera-tested (owner, 2026-11-16): "this looks good and works as it should."** Debug log (test 13, 62 shutter
+  events, 98 photos, 23 shooting-mode changes, custom modes C1-C5 with films): "nothing unusual", no film with changes,
+  no reboot. Test 13 (`d3ab5d4f…04f1`) is the v0.30 candidate: test 11 + PR #59 (#54) + the Noise Filter row fix.
+
+### PR #59 merged into main (owner, 2026-11-16: "can we merge and close pr #59")
+- #59's head had moved to 2a21c56 since test 12 (1039565): the firmware differs only by a named constant (`UI_DIAL`
+  for 0xa32d9d0c, the same instruction); emu_test.py was tidied (`build_symbols`). main had moved too (#60 om-emu pin,
+  #62 commit identity, #63). Merged locally onto main (d7336d0), one conflict in emu_test.py (both import lists;
+  #59's MODE_DIAL_B / UI_MODE_DIAL beside main's PHOTO_SWITCH_VIDEO = 1), built (E1479999.BIN `f4eed931…`), suite 17
+  of 17 pass, pushed. GitHub marked #59 merged; its "Fix #54" closed issue #54. No release.
+- This branch (`try/v0.30-dl9`) still has #59 as 1039565 and lacks #60 / #62 / #63: merge main into it before the
+  v0.30 release.
+
+## Issue #50: photos not saved with Film Grain (2026-11-16; analysis only, not reproduced)
+- Report (User1211-per, v0.29.4, then v0.29.5): Grain changed on a film (FILM 13 Pro 160S, FILM 10 Velvia 50 and
+  others: the standard films, none with grain built in) -> the film gets its '*', the camera seems to take the photo,
+  but nothing is on the card or in playback. Grain back to the film's own (Off) -> photos save. Noise Filter changed:
+  photos save. With or without a half-press before the change.
+- Their CADLOG (v0.29.5, 53 shutter events, COLOR 3 FILM 15 throughout): card files all match, films from camera
+  memory, saves 1, nothing unusual. v0.29.5's log has no camera settings and no photo count, so it cannot show the
+  cause. (Events 26-35 read save result 0: STATUS is cleared at the editor's first use after a load.)
+- Owner's camera: grain has saved in every test since v0.25 (single, bursts, RAW+JPEG, Glow / Clarity, Shading,
+  Halation). So their camera settings likely differ. Guess: fast grain swaps a COLOR still to Grainy Film's work list
+  (the camera's Art Filter route), so a mode where the camera allows no Art Filter (Hi Res Shot, Live ND, focus
+  bracketing / stacking, HDR, multiple exposure, Pro Capture?, digital tele-converter) or RAW only may lose the photo.
+  Next: their image quality, aspect, drive / shutter and computational modes (a photo with Grain off, same settings:
+  its EXIF), or the owner tries those modes with grain.
+- **Owner's camera, test 13, grain test for #50 (2026-11-16; camera-tested): not reproduced.** FILM 10 Velvia 50 with
+  Grain High (COLOR 2), then FILM 15 on COLOR 3: 54 shots PB162816..869, numbers with no gap, every one saved (102
+  files: 54 JPG, 47 ORF, 1 ORI). Saved: JPEG LF and M (3200 x 2400), RAW+JPEG, aspects 4:3 / 16:9 / 3:2 / 6:6 / 3:4,
+  anti-shock, sequential (3 and 6), silent sequential SH1 (4), Pro Capture (13), hand-held High Res (8160 x 6120 + ORI),
+  Live GND (GND8), HDR2 (the camera switches to Natural there: no film, no grain), focus bracketing (9), digital
+  tele-converter (x2), COLOR 3 FILM 15 single. Not in the files: RAW only, Live ND, multiple exposure, focus stacking,
+  silent single. CADLOG: "nothing unusual", photos counted 87 (counted once per EXIF fill; the 33 above the 54 saved
+  shots are likely the multi-frame modes' frames: guess).
+
+
+## LookLab: RGB curves and colour mix (2026-11-15; feature/looklab-rgb-curves; browser-checked, not live)
+- Owner: RGB curves are camera-tested (feature/rgb-curves test 4), colour mix is coming: update LookLab, as a private
+  test page (claude.ai artifact) first.
+- `webapp/src/curves.ts`: the camera's curve maths (research/rgbcurves/model.py, test 4: 5 points at 0 / 25 / 50 / 75 /
+  100 %, step 48), bit for bit (vitest against the model's values). The preview adds it in split toning's pass
+  (`bendSplit`), then the clamp and running max, as st_run. Looks keep `rgb: {r, g, b}` (5 values each; absent = flat),
+  in saved lists and share links.
+- Editor: an "RGB curves" panel under Highlight & Shadow (as the camera's row): R / G / B, the three curves on the
+  camera-style grid, drag a point or use its slider; Reset.
+- Not in `LOOKS.BIN` or the photo code (the camera does not read curves from the card yet): the panel says to set the
+  same numbers on the camera's RGB row.
+- **Colour mix (2026-11-15, after mix test 6 camera-tested):** `curves.ts` `mixMatrix` = research/colourmix/model.py
+  (vitest against its five cases); looks keep `mix: [h R, s R, h G, s G, h B, s B]` (-7..7; absent = none). The preview
+  applies it in the WB step, in linear light after the WB gains (the camera: ours x its colour matrix, before the gamma
+  stage), so greys stay grey. Editor: a "Color Mix" panel before RGB curves: R / G / B (shared with the RGB panel, as the
+  camera's INFO), the ring with three dots (angle = hue, distance = strength), Sat and Hue sliders; Reset. Not in
+  `LOOKS.BIN` either: the panel says to set it on the camera's Mix row. Firmware older than v0.28: mix not previewed.
+- **The 20 films regraded with curves + mix (2026-11-15; preview only, not camera-tested, not in the films).** Owner:
+  "recolor grade the default 20 film sims using the new tools". Each film keeps its v0.29 settings; a search over the
+  15 curve points and 6 mix values (the camera's limits) in this preview fits the film to its colour-chart reference,
+  the same reference and target as the 2026-11-13 grading (each film relative to its session's average; numbers kept
+  outside the repo). Grey patches keep the film's tone; strong mixes are penalised (colour noise). Mean colour error
+  over the chart (Lab, exposure taken out), 18 films: 7.9 -> 4.7; on a third of the patches left out of the fit: 8.6
+  -> 6.2 (17 of 18 better; Portra 160 5.1 -> 5.8, so its change is doubtful). Velvia 50 14.3 -> 9.0 and Ektachrome
+  E100 14.6 -> 7.5 stay the furthest off (the mix reaches its limit on their greens). Kodachrome 64 and CineStill
+  800T: no chart reference, unchanged (their reference-photo numbers gave the washed-out v6 looks). Limits: the preview,
+  not the camera (it runs the 12 colours before the curves, the camera after); one chart under one light. The fitted
+  numbers and the comparison pictures are in the owner's private notes; shipping them needs the firmware's built-in
+  films to carry curves and mix (owner's call).
+- **Kodachrome 64 and CineStill 800T from internet photos (2026-11-15; preview only).** Owner: "can you regrade
+  kodachrome and cinestill based on pictures found on the internet". The reference-photo statistics already measured
+  (2026-11-09; HSV 30-degree bins: mean saturation and hue per bin; numbers kept outside the repo) against the same
+  numbers on the preview of the 13 sample photos, each film relative to the average of the same nine reference films on
+  both sides. Check first: on the 11 films that have both, the chart-scan regrade moves the photo numbers' colour
+  strength the right way for 7 (not Ektar, Velvia, C200, Provia) and their lean the wrong way slightly (< 1.2 deg): a
+  rough guide for strength, little for lean. So only the mix was fitted (tone and casts in such photos follow their scans
+  and edits), lean weighted lightly. Kodachrome 64: mix G Hue +1, Sat -1; colour strength off 10.2 -> 9.1 %. CineStill
+  800T: R Hue +1, Sat -1; G Sat -2; B Sat +1; 13.4 -> 7.5 % (its photos are mostly night scenes under lamps).
+- **In LookLab (owner: "these look great ... updating the looklab with these new sims and the new camera profile tools
+  ... use the new menu order and design"; 2026-11-15, private test page only):** `scripts/films.py` `CURVES_MIX` carries
+  the 20 films' curves and mix into `om3films.json` (`rgb`, `mix`), and `filmLook` into the look, so the camera's 20
+  preview with their new grades (not in `LOOKS.BIN`: on the camera they need the test firmware's RGB / Mix rows, and to
+  ship, the firmware's built-in films must carry them). Saved banks keep their old values until Reset look. The OM-3
+  editor follows colour menu test 7 (camera-tested): page 1 Color Mix, RGB curves, Color wheel (HSL), Split Tone
+  Balance; page 2 WB Compensation, Highlight & Shadow, Blacks / Whites, Contrast, Sharpness; page 3 Noise Filter,
+  Vignette Correction, Shading Effect, Glow Effect, Halation Effect; page 4 Film Grain Effect; small versions of the
+  camera's new row pictures in the headings (Mix ring, RGB curve box, colour pie, tone bar, black / white squares, glow
+  dot, halation ring); the camera's new titles.
+- **Owner's feedback on the test page (2026-11-15):** "notes should be at the very top" (now right under the name) and
+  "the color mix wheel does not line up with what is on camera": the Mix ring now draws as the firmware's (mx_pre /
+  mx_line, rgbpics.py MX_ANG): a 300 x 300 box with its centre cross, ring r 90, red at the top, green lower right, blue
+  lower left (-90 / 30 / 150 deg, screen y down), + Hue clockwise 5 deg a step, radius 90 + 4 per Saturation step,
+  start marks, the chosen dot r 13 on a white r 16, the others r 8 dim; header "Saturation / colour / Hue" as test 7.
+- Owner: "the looklab doesnt need to have page 1, 2, 3, 4 on it": the page headings are gone; the rows keep the
+  camera's order.
+- The Mix header and slider say "Sat", as the camera's page does (om-emu on the v0.30 build: "Sat ±0  Red  Hue ±0").
+- **CURVES.BIN (2026-11-15; owner's choice "New card file", format from the RGB Curves session, docs/FORMATS.md
+  "CURVES.BIN v1" on try/v0.30 c33dc42):** `webapp/src/curvesbin.ts` writes it from the bank and the LOOKS.BIN bytes it
+  goes with (each entry's check = CRC-32 of that film's 64-byte record). Export: Save to the SD card and the card zip
+  add OM3MOD/CURVES.BIN when the firmware choice is "v0.28 or later" (older firmware never reads it), plus a single-file
+  button. The RGB / Mix panels now say it goes to the camera this way (v0.30). vitest `curvesbin.test.ts`: the standard
+  20's LOOKS.BIN equals releases/v0.29.5/LOOKS.BIN and CURVES.BIN equals the reference build (card/mkcurves.py) byte for
+  byte (sha256 4c009f9c…2291; Portra 400's entry 1c8fb44b 00f0000000001201 0000ffffff00 0000). Not camera-tested
+  (firmware reads it from test 9).
+- The camera's Mix / RGB headers show R / G / B in the middle (try/v0.30 7a92cd3, owner): LookLab's Mix and RGB
+  readouts do the same (the letter in its colour, a little bigger).
+- Test 11 (try/v0.30-dl9 333523c, owner: "please center the r,g,b"): the Mix readout's letter centred over the ring
+  (a three-column header; measured in the browser: within 1 px of the ring's centre).
+
+
+## The tour for v0.30 (2026-11-15; feature/tour-v030; emulator screens + LookLab preview, browser-checked, not live)
+- Owner: "update the tour with all the new screens, info, ect." Branch `feature/tour-v030` from `try/v0.30` (0c1a80e)
+  with `feature/looklab-rgb-curves` merged (owner: v0.30 includes the new LookLab).
+- `research/showcase/make.sh` on that build (IMG = its main.bin; E1479999.BIN 5768c9e1…), in v0.30's Picture Mode order
+  (keys in make.sh and the showcase README): every Picture Mode screen re-shot (the new row pictures); new screens
+  `row-mix` (Red Sat +3, Hue +4) and `row-rgb` (Blue point 2 +5, point 4 −4) and their before / after photos (demos.ts:
+  taxi, meadow); the star shot now on page 1 (FILM 1*, Mix*, Split Tone Balance*); the Creative Dial shot one row lower
+  (v0.29.3's Delete row had moved it: the old picture predated that row). om-emu keys found on the way: on Mix, `main` =
+  Sat, `sub-1` = Hue +1; on RGB, `sub-1` = the next point, `main` = its level (one token = one step); INFO's colour is
+  shared and starts on Red. The film photos and the earlier demos are byte-identical to before: `mklooks.ts` leaves out
+  LookLab's curves + mix regrade, which the camera's built-in films don't carry.
+- `index.html`: a "New in v0.30" section (Color Mix, RGB curves and the new Picture Mode with their screens; ready at
+  switch-on, #56 by crombach; fixes #53 / #55 and #54), its nav link, "15 settings per film", the editor's rows in
+  v0.30's order with the camera's titles (the wheel's page buttons now find its row), v0.29.5's custom modes and v0.29.4's
+  stars under "Your changes stay with each film", LookLab's Mix / RGB curves in its card. Private preview for the owner:
+  a claude.ai artifact (links to LookLab / install don't work there).
+- Left for the release: USING.md / CHANGELOG etc. (cad).
+- **The colour profile menu, shown and explained (owner: "show off the new color profil menu and explain it"):** first as
+  its own walk-through section (FILM 1 with the cursor on each of 16 rows); then (owner: "combine the new picture mode
+  rows you made with the following and only keep one") folded into "A colour editor on the camera": a Film row first
+  (FILM 1's screen, the meadow before / after Portra 400), the camera's groups as labels in the row list (the film and
+  its colour, white balance and tone, lens and effects, grain), the intro on the order and the five-row pages, and for
+  each row what its picture in the camera's list shows. The walk-through section, its 16 menu screens and their make.sh
+  lines are gone.
+- Owner: "removes the fixes block, and remove combachs name. I don't want it blasted on the front page": the Fixes card
+  is gone and the tour names no contributor (the Ready at switch-on, stars and Delete button captions included); credits
+  stay in CHANGELOG and the release notes.
+- Owner: "separate them by pages instead of what they do": the row list's group labels read Page 1 to Page 4.
+- Owner: "callout the more robust debuglog that is coming in the .30 update. maybe include a prettified example": a
+  "A fuller debug log" card in New in v0.30, and in the Help section (anchor #debuglog) what the dl9 log covers
+  (feature/debug-log, camera-tested) with a styled, shortened example built from the emulator sample (the film names
+  changed to today's standard 20; drive / AF / quality shown as the camera's codes, as the log does). The tour's Help
+  steps still say OM3MOD/CADLOG.TXT (dl9 keeps the name). This assumes cad merges feature/debug-log into v0.30.
+- try/v0.30 merged in (to 7a92cd3: test 9's CURVES.BIN reading and the Mix / RGB headers' R / G / B, owner) and make.sh
+  re-run on that build (E1479999.BIN 9b9ae1a2…): only row-mix, row-rgb and kept-star changed (the header letter); every
+  other picture byte-identical. The emulator card has no CURVES.BIN, so the film screens and photos show the films without
+  their curves + mix regrade.
+- Owner: "Yes, show new grades": the tour's films keep their curves + mix (mklooks.ts), and make.sh puts CURVES.BIN (made
+  by LookLab's curvesbin.ts against the same LOOKS.BIN) on the emulator card with LOOKS.BIN. Changed: the 80 film photos,
+  the two halation photos, kept-star (om-emu read CURVES.BIN: FILM 1's Mix page shows Portra 400's built-in green / blue,
+  the RGB row unstarred); the film screens and the rest byte-identical. Text: New in v0.30 and the films section say the
+  films are regraded and that the camera takes the grades from CURVES.BIN once; the release has to carry the standard
+  CURVES.BIN for that (cad).
+- try/v0.30-dl9 merged in (test 11, 333523c: the debug log dl9 and the Mix / RGB headers' R / G / B centred) and make.sh
+  re-run on that build (E1479999.BIN 0f690519…, the same as the test 11 package): only row-mix, row-rgb and kept-star
+  changed (the centred letter).
+
+## v0.30 release (2026-11-16; owner: "lets launch v0.30 ... post v.30 on github, and push the lablook and tour updates")
+- `try/v0.30-dl9` = test 13 + main (PR #59 as merged, #60 pin via #63, #62) + `feature/tour-v030` (LookLab curves / mix
+  and the tour). The merge of main doubled #59's lv_* block (both sides added it from the same base); editor.s was put
+  back to test 13's source plus #59's later `UI_DIAL` name (9d186e5).
+- `firmware/VERSION` "v0.30 (colour mix and RGB curves, camera-tested t13)", 52 characters as test 13's: main.bin differs
+  from test 13 only in that string, the code-block tag (twice) and the built-in GUIDES CRC (53 bytes). E1479999.BIN
+  481f3678…7a54; `patch.py --release v0.30` makes it byte for byte, `--release v0.29.5` still 01ea3d14….
+- `releases/v0.30`: patch.json, CURVES.BIN (4c009f9c…, test 9's sample, all 20 entries match v0.29.5's LOOKS.BIN
+  records), LOOKS.BIN / DEBUG.TXT / photo code kit as v0.29.5, SHA256SUMS, NOTES.md. The release workflow now attaches
+  CURVES.BIN. LookLab rebuilt into looklab/ (tsc clean, 68 tests pass; samples and fonts unchanged).
