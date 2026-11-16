@@ -5096,3 +5096,7 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   (feature/debug-log, camera-tested) with a styled, shortened example built from the emulator sample (the film names
   changed to today's standard 20; drive / AF / quality shown as the camera's codes, as the log does). The tour's Help
   steps still say OM3MOD/CADLOG.TXT (dl9 keeps the name). This assumes cad merges feature/debug-log into v0.30.
+- try/v0.30 merged in (to 7a92cd3: test 9's CURVES.BIN reading and the Mix / RGB headers' R / G / B, owner) and make.sh
+  re-run on that build (E1479999.BIN 9b9ae1a2…): only row-mix, row-rgb and kept-star changed (the header letter); every
+  other picture byte-identical. The emulator card has no CURVES.BIN, so the film screens and photos show the films without
+  their curves + mix regrade.
