@@ -4435,4 +4435,9 @@ picks) changes Cn's copy. Plan and earlier findings: `research/per-mode-settings
   Vignette Correction, Shading Effect, Glow Effect, Halation Effect; page 4 Film Grain Effect; small versions of the
   camera's new row pictures in the headings (Mix ring, RGB curve box, colour pie, tone bar, black / white squares, glow
   dot, halation ring); the camera's new titles.
+- **Owner's feedback on the test page (2026-11-15):** "notes should be at the very top" (now right under the name) and
+  "the color mix wheel does not line up with what is on camera": the Mix ring now draws as the firmware's (mx_pre /
+  mx_line, rgbpics.py MX_ANG): a 300 x 300 box with its centre cross, ring r 90, red at the top, green lower right, blue
+  lower left (-90 / 30 / 150 deg, screen y down), + Hue clockwise 5 deg a step, radius 90 + 4 per Saturation step,
+  start marks, the chosen dot r 13 on a white r 16, the others r 8 dim; header "Saturation / colour / Hue" as test 7.
 

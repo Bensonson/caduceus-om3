@@ -433,17 +433,8 @@ dialog.modal:has(.replace-grid) { width: min(780px, calc(100vw - 32px)); }
 .grade-name input { flex: 1; max-width: 220px; }
 @media (max-width: 600px) { .grade-pv { grid-template-columns: 1fr; } }
 
-/* Colour mix ring (the camera's Mix page) */
-.mix-ring .mx-ring { fill: none; stroke: var(--muted, #888); stroke-width: 1.5; opacity: .7; }
-.mix-ring .mx-c { fill: var(--muted, #888); }
-.mix-ring .mx-mark { stroke: var(--muted, #888); stroke-width: 1.5; }
-.mix-ring .mx-spoke { stroke-width: 1; opacity: .5; }
-.mix-ring .mx-spoke.mx-r { stroke: #e5484d; } .mix-ring .mx-spoke.mx-g { stroke: #30a46c; } .mix-ring .mx-spoke.mx-b { stroke: #3e8ef7; }
+/* Colour mix ring (the camera's Mix page; colours set in main.ts mixPanel, as the camera draws them) */
 .mix-ring .mx-dot { cursor: pointer; }
-.mix-ring .mx-dot .hit { fill: transparent; }
-.mix-ring .mx-dot .pip { opacity: .55; }
-.mix-ring .mx-dot.mx-r .pip { fill: #e5484d; } .mix-ring .mx-dot.mx-g .pip { fill: #30a46c; } .mix-ring .mx-dot.mx-b .pip { fill: #3e8ef7; }
-.mix-ring .mx-dot.sel .pip { opacity: 1; r: 8.5; stroke: #fff; stroke-width: 2.5; }
 
 /* The camera's Picture Mode pages and row pictures (colour menu, test 7) */
 .pm-page { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin: 18px 0 2px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }

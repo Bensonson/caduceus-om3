@@ -711,36 +711,47 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
     if (!hasMix(l)) delete l.mix;
     return true;
   };
-  const S0 = 200, C = S0 / 2, R = 62;
-  const svg = svgEl('svg', { viewBox: `0 0 ${S0} ${S0}`, width: S0, height: S0, class: 'mix-ring cam-screen', role: 'img', 'aria-label': 'Colour mix: each colour as a dot, turned by its hue, out or in by its strength' });
-  svg.append(svgEl('circle', { cx: C, cy: C, r: R, class: 'mx-ring' }), svgEl('circle', { cx: C, cy: C, r: 2.5, class: 'mx-c' }));
-  const START = [0, 120, 240];                 // red, green, blue; + hue turns toward the next (counter-clockwise here)
-  const at = (deg: number, r: number) => [C + r * Math.cos((deg * Math.PI) / 180), C - r * Math.sin((deg * Math.PI) / 180)];
-  START.forEach((a) => { const [x1, y1] = at(a, R - 7), [x2, y2] = at(a, R + 7); svg.append(svgEl('line', { x1, y1, x2, y2, class: 'mx-mark' })); });
-  const spokes = CHANNELS.map((c) => svgEl('line', { class: `mx-spoke mx-${c}` }));
+  // the camera's page (firmware mx_pre / mx_line, rgbpics.py MX_ANG): a 300 x 300 box with its centre cross, a ring r 90,
+  // red at the top, green lower right, blue lower left (screen y down: -90, 30, 150 deg); each colour's dot at its start
+  // + 5 deg per Hue step (+ = clockwise, toward the next colour) and radius 90 + 4 per Saturation step; start marks,
+  // spokes from the centre; the chosen dot r 13 in its bright colour on a white r 16, the others r 8, dim.
+  const S0 = 300, C = 150, R = 90, START = [-90, 30, 150];
+  const BRIGHT: Record<Channel, string> = { r: '#ff6a2a', g: '#22e83a', b: '#4d7dff' }, DIM: Record<Channel, string> = { r: '#b3470f', g: '#1f8f2a', b: '#2e4f9f' };
+  const svg = svgEl('svg', { viewBox: `0 0 ${S0} ${S0}`, width: 200, height: 200, class: 'mix-ring cam-screen', role: 'img', 'aria-label': 'Colour mix, as on the camera: each colour as a dot, turned by its hue, out or in by its saturation' });
+  svg.append(svgEl('rect', { x: 0.5, y: 0.5, width: S0 - 1, height: S0 - 1, fill: '#1e1e1e', stroke: '#8a8a8a', 'stroke-width': 1.5 }),
+    svgEl('line', { x1: C, y1: 0, x2: C, y2: S0, stroke: '#6a6a6a', 'stroke-width': 1 }),
+    svgEl('line', { x1: 0, y1: C, x2: S0, y2: C, stroke: '#6a6a6a', 'stroke-width': 1 }),
+    svgEl('circle', { cx: C, cy: C, r: R, fill: 'none', stroke: '#8a8a8a', 'stroke-width': 3 }));
+  const at = (deg: number, r: number) => [C + r * Math.cos((deg * Math.PI) / 180), C + r * Math.sin((deg * Math.PI) / 180)];
+  START.forEach((a) => { const [x1, y1] = at(a, R - 9), [x2, y2] = at(a, R + 9); svg.append(svgEl('line', { x1, y1, x2, y2, stroke: '#8a8a8a', 'stroke-width': 2 })); });
+  const spokes = CHANNELS.map((c) => svgEl('line', { x1: C, y1: C, stroke: BRIGHT[c], 'stroke-width': 1.5, 'stroke-opacity': 0.8 }));
+  spokes.forEach((sp) => svg.append(sp));
+  svg.append(svgEl('circle', { cx: C, cy: C, r: 2.5, fill: '#8a8a8a' }));
   const dots = CHANNELS.map((c) => {
-    const g = svgEl('g', { class: `mx-dot mx-${c}` });
-    g.append(svgEl('circle', { r: 11, class: 'hit' }), svgEl('circle', { r: 6, class: 'pip' }));
-    g.addEventListener('click', () => { S.rgb = c; draw(); });
-    return g;
+    const g = svgEl('g', { class: 'mx-dot' });
+    const ring = svgEl('circle', { r: 16, fill: '#fff' }), pip = svgEl('circle', { r: 8, fill: DIM[c] });
+    g.append(svgEl('circle', { r: 20, fill: 'transparent' }), ring, pip);
+    g.addEventListener('click', () => { S.rgb = c; buildRows(); draw(); });
+    return { g, ring, pip };
   });
-  spokes.forEach((s) => svg.append(s));
   const top = h('div', { class: 'tc-top' });
   const chips = h('div', { class: 'seg rgb-ch', role: 'radiogroup', 'aria-label': 'Mix colour' });
   const rowsBox = h('div', {});
   const syncs: (() => void)[] = [];
   function draw() {
     CHANNELS.forEach((c, i) => {
-      const [x, y] = at(START[i] + 5 * get(c, 0), R + 3.4 * get(c, 1));
-      spokes[i].setAttribute('x1', String(C)); spokes[i].setAttribute('y1', String(C));
+      const [x, y] = at(START[i] + 5 * get(c, 0), R + 4 * get(c, 1)), sel = c === ch();
       spokes[i].setAttribute('x2', x.toFixed(1)); spokes[i].setAttribute('y2', y.toFixed(1));
-      dots[i].setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
-      dots[i].classList.toggle('sel', c === ch());
+      spokes[i].setAttribute('stroke', sel ? BRIGHT[c] : DIM[c]);
+      dots[i].g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+      dots[i].ring.setAttribute('visibility', sel ? 'visible' : 'hidden');
+      dots[i].pip.setAttribute('r', sel ? '13' : '8'); dots[i].pip.setAttribute('fill', sel ? BRIGHT[c] : DIM[c]);
     });
-    svg.append(...dots.filter((_, i) => CHANNELS[i] !== ch()), dots[j(ch())]);
-    top.replaceChildren(h('span', { class: 'on' }, RGB_NAME[ch()]),
-      h('span', { class: get(ch(), 1) ? 'on' : '' }, 'Sat ', get(ch(), 1) ? signed(get(ch(), 1)) : '±0'),
-      h('span', { class: get(ch(), 0) ? 'on' : '' }, 'Hue ', get(ch(), 0) ? signed(get(ch(), 0)) : '±0'));
+    svg.append(...dots.filter((_, i) => CHANNELS[i] !== ch()).map((d) => d.g), dots[j(ch())].g);
+    const val = (v: number) => (v ? signed(v) : '±0');
+    top.replaceChildren(h('span', { class: get(ch(), 1) ? 'on' : '' }, 'Saturation ', val(get(ch(), 1))),
+      h('span', { class: 'on', style: `color:${BRIGHT[ch()]}` }, RGB_NAME[ch()]),
+      h('span', { class: get(ch(), 0) ? 'on' : '' }, 'Hue ', val(get(ch(), 0))));
     const changedC = (c: Channel) => !!(get(c, 0) || get(c, 1));
     chips.replaceChildren(...CHANNELS.map((c) => h('button', {
       role: 'radio', 'aria-checked': String(c === ch()), class: `rc-chip rc-${c}${c === ch() ? ' on' : ''}`, title: `${RGB_NAME[c]}${changedC(c) ? ' (changed)' : ''}`,
@@ -756,7 +767,7 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
       return h('div', { class: 'crow', title: tip }, h('span', { class: 'cname' }, name), steps(inp), o);
     };
     rowsBox.replaceChildren(
-      row(1, 'Sat', `Rear dial on the camera: + makes ${RGB_NAME[ch()].toLowerCase()} stronger, − weaker`),
+      row(1, 'Saturation', `Rear dial on the camera: + makes ${RGB_NAME[ch()].toLowerCase()} stronger, − weaker`),
       row(0, 'Hue', `Front dial on the camera: + turns ${RGB_NAME[ch()].toLowerCase()} toward ${MIX_TOWARD[ch()]}, − the other way`));
   }
   buildRows(); draw();
@@ -765,8 +776,8 @@ function mixPanel(l: Look, changed: () => void): HTMLElement {
       hasMix(l) ? h('button', { class: 'link', onclick: () => { delete l.mix; renderEditor(); changed(); } }, 'Reset') : null),
     chips,
     h('div', { class: 'cam-screen-wrap' }, top, svg), rowsBox,
-    h('p', { class: 'help' }, 'Mixes the camera\'s red, green and blue into each other, before the curves and the colour wheel: Sat makes a colour stronger or weaker, Hue turns it (red toward yellow, green toward cyan, blue toward purple). Greys stay grey.'),
-    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'the colour mix is not released yet and LookLab can\'t send it to the camera yet. Set the same numbers on the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Sat.'));
+    h('p', { class: 'help' }, 'Mixes the camera\'s red, green and blue into each other, before the curves and the colour wheel: Saturation makes a colour stronger or weaker (its dot moves out or in), Hue turns it (red toward yellow, green toward cyan, blue toward purple; clockwise on the ring). Greys stay grey.'),
+    h('p', { class: 'warn' }, h('b', {}, 'Test firmware only: '), 'the colour mix is not released yet and LookLab can\'t send it to the camera yet. Set the same numbers on the camera: Picture Mode › Mix: INFO picks R / G / B, the front dial Hue, the rear dial Saturation.'));
 }
 
 /** Blacks / Whites (v0.28, as the camera's grid row): Blacks across (− left, + right), Whites up (+) and down (−),
@@ -1383,6 +1394,18 @@ function renderOm3Editor(l: Look) {
           },
         }, 'Reset look'),
         h('button', { class: 'share-btn', onclick: () => om3ShareProfile(l), title: 'Share this look as a link' }, 'Share'))),
+    h('label', { class: 'field' }, h('span', { class: 'lbl' }, 'Notes'),
+      h('textarea', {
+        rows: 3, maxlength: 400, placeholder: 'What the look is for…', onchange: checkpoint,
+        oninput: (e: Event) => draft(() => {
+          l.notes = (e.target as HTMLTextAreaElement).value;
+          const b = notesBytes();
+          $('#notes-help').textContent = `${b} / ${NOTE_MAX} bytes · kept in the looks file (not on the card)`;
+          $('#notes-help').className = b > NOTE_MAX ? 'help err' : 'help';
+          changed();
+        }),
+      }, l.notes),
+      h('span', { id: 'notes-help', class: notesBytes() > NOTE_MAX ? 'help err' : 'help' }, `${notesBytes()} / ${NOTE_MAX} bytes · kept in the looks file (not on the card)`)),
     pmPage(1, 'The film and its colour', film?.name),
     mixPanel(l, changed),
     rgbPanel(l, changed),
@@ -1449,18 +1472,6 @@ function renderOm3Editor(l: Look) {
         renderEditor(); changed();
       }, 'Colour film grain, made by the camera as the photo develops'),
       grainWarn),
-    h('label', { class: 'field' }, h('span', { class: 'lbl' }, 'Notes'),
-      h('textarea', {
-        rows: 3, maxlength: 400, placeholder: 'What the look is for…', onchange: checkpoint,
-        oninput: (e: Event) => draft(() => {
-          l.notes = (e.target as HTMLTextAreaElement).value;
-          const b = notesBytes();
-          $('#notes-help').textContent = `${b} / ${NOTE_MAX} bytes · kept in the looks file (not on the card)`;
-          $('#notes-help').className = b > NOTE_MAX ? 'help err' : 'help';
-          changed();
-        }),
-      }, l.notes),
-      h('span', { id: 'notes-help', class: notesBytes() > NOTE_MAX ? 'help err' : 'help' }, `${notesBytes()} / ${NOTE_MAX} bytes · kept in the looks file (not on the card)`)),
     h('div', { id: 'problems' }));
   refreshProblems();
 }
