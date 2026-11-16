@@ -5217,3 +5217,20 @@ switch; #59 waits inside rc_go for the mode's code (gx_map retries) and counts B
   the film's record). In since v0.29.4 (#46), not new in test 12; shows only when the camera's own Noise Filter is not
   Std. Possible fix: `vf_def` answers NRB + k with `nf_get`, so row and profile both compare with the camera's own.
   Not built (owner's call).
+
+## v0.30 test 13: test 12 + the Noise Filter row '*' fix (2026-11-16; emulator only, camera test pending)
+Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own Noise Filter, as the profile's does).
+- **Fix (18a7a33):** `vf_def` (ed_default's miss, the facade's GetDefault) answers NRB + k with the camera's own Noise
+  Filter (`nf_get`, key 0x9719, as sl_get's label 94 reads it; MDR kept as sl_gb keeps it). Row and profile now both
+  compare with it: camera on Off, a COLOR without a film shows no '*' at Off and one on both at Std. Films unchanged
+  (`fl_isdef` compares +51 with the film's record). Left as it is: if the camera's own Noise Filter is changed in the
+  menu after a choice was stored (+51 != 0) and the new setting equals that choice, the row shows no '*' while the
+  profile keeps its own until the row is set again.
+- **Test:** `noise-filter-row-follows-the-camera-setting` with a new driver token `expect:isdef:FN:ID=V` (calls
+  `ed_isdef` as the camera's "is at default" calls do). The camera's own Noise Filter is poked into its byte,
+  0x6295942d in om-emu (traced with a mem probe on the getter 0x60063380: entry a32ae498 -> (4) -> that byte); a write
+  through the settings manager 0x60bb528f from the driver did not return (5M steps), so no `set:` token. Test 12:
+  `caught` (`expect:isdef 7e11: 0, not 1`); test 13: pass.
+- **Build:** E1479999.BIN `d3ab5d4f…04f1` (rebuilt from 18a7a33 byte for byte). Package
+  `test-builds/2026-11-16-v030-test13` (private), CURVES.BIN and the v0.29.5 go-back as test 12.
+- **Suite:** 21 of 21 pass (`Pass recorded on 18a7a33bf01c`).
