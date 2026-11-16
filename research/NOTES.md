@@ -5397,4 +5397,6 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   481f3678…7a54; `patch.py --release v0.30` makes it byte for byte, `--release v0.29.5` still 01ea3d14….
 - `releases/v0.30`: patch.json, CURVES.BIN (4c009f9c…, test 9's sample, all 20 entries match v0.29.5's LOOKS.BIN
   records), LOOKS.BIN / DEBUG.TXT / photo code kit as v0.29.5, SHA256SUMS, NOTES.md. The release workflow now attaches
-  CURVES.BIN. LookLab rebuilt into looklab/ (tsc clean, 68 tests pass; samples and fonts unchanged).
+  CURVES.BIN by hand: the push that also listed it in `.github/workflows/releases.yml` was refused (gh's token has no
+  `workflow` scope), so the workflow is unchanged. CURVES.BIN needs `git add -f` (`.gitignore` *.bin). LookLab rebuilt
+  into looklab/ (tsc clean, 68 tests pass; samples and fonts unchanged).
