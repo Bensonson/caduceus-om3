@@ -5102,3 +5102,9 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
   re-run on that build (E1479999.BIN 9b9ae1a2…): only row-mix, row-rgb and kept-star changed (the header letter); every
   other picture byte-identical. The emulator card has no CURVES.BIN, so the film screens and photos show the films without
   their curves + mix regrade.
+- Owner: "Yes, show new grades": the tour's films keep their curves + mix (mklooks.ts), and make.sh puts CURVES.BIN (made
+  by LookLab's curvesbin.ts against the same LOOKS.BIN) on the emulator card with LOOKS.BIN. Changed: the 80 film photos,
+  the two halation photos, kept-star (om-emu read CURVES.BIN: FILM 1's Mix page shows Portra 400's built-in green / blue,
+  the RGB row unstarred); the film screens and the rest byte-identical. Text: New in v0.30 and the films section say the
+  films are regraded and that the camera takes the grades from CURVES.BIN once; the release has to carry the standard
+  CURVES.BIN for that (cad).

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Every picture of the show-and-tell page (pages/showcase/img/), from scratch, in about three minutes:
-#   1. the standard 20 films (LookLab's, webapp/src/data/om3films.json) as LOOKS.BIN on a blank card;
+#   1. the standard 20 films (LookLab's, webapp/src/data/om3films.json) as LOOKS.BIN + CURVES.BIN on a blank card;
 #   2. the camera screens: emulator runs on that card (shoot.sh), the HSL wheels drawn in (wheel.py), quantized;
 #   3. the photos: each film and each setting on CC0 / public-domain samples with LookLab's own preview
 #      (films.ts, demos.ts); Noise Filter and Vignette Correction as illustrations (illus.py).
@@ -19,7 +19,8 @@ r() { local s=""; for i in $(seq 1 $2); do s="$s $1"; done; echo $s; }
 
 # 1. the standard 20 on a blank card (+ img/films/films.js for the page)
 (cd "$OM3_REPO/webapp" && npx vite-node ../research/showcase/mklooks.ts -- "$W" "$OUT" > /dev/null)
-python3 "$OM3_REPO/tools/emulator/card_add_file.py" "$OM3_WORK/card-blank.omsd" "$W/card.omsd" "$W/LOOKS.BIN" OM3MOD LOOKS.BIN > /dev/null
+python3 "$OM3_REPO/tools/emulator/card_add_file.py" "$OM3_WORK/card-blank.omsd" "$W/card1.omsd" "$W/LOOKS.BIN" OM3MOD LOOKS.BIN > /dev/null
+python3 "$OM3_REPO/tools/emulator/card_add_file.py" "$W/card1.omsd" "$W/card.omsd" "$W/CURVES.BIN" OM3MOD CURVES.BIN > /dev/null   # v0.30: the films' curves + mix
 
 # 2. camera screens. Keys: s1 ok ok = Picture Mode on COLOR 1; right = next COLOR / FILM; down = next row; on the
 # wheel, info = next page, sub-1 = next colour clockwise from Yellow, one main+1 / main-1 per step. On Mix and RGB, info =
