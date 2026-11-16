@@ -5505,3 +5505,14 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
   the E-P7 finding gave the exact rule.
 - Build "v0.30.2-dev (test 1: #65 fix, Glow route off review)", E1479999.BIN `6cb4dfe8…35ae` (rebuilt byte for byte),
   suite 22 of 22. om-emu develops no photos: camera-only ("Past regressions").
+
+### Caduceus for the E-P7's faster halation h6 (read only, 2026-11-17; owner: "they seem to have made it faster")
+- cakelesscoder/caduceus-ep7 `docs/HALATION_RED.md` §23 (v0.33, camera-tested on the E-P7): the same photo bit for bit
+  as their h2, 46-74 % fewer instructions (night scene with lights 108 M -> 28 M), no malloc. How: pass A ORs eight Y
+  samples and compares once, skips saturated cells; pass B blurs in place; pass C walks each row in 32-pair strips
+  between cell centres, skips strips and cell columns with no glow, walks only from the first to the last pair with
+  g >= 1, computes g * dY once per pair, eight pairs a loop turn; several rows per lock up to a cap of ~120 K
+  instructions masked (fewer flushes); the cell grid in a spare block tail instead of three mallocs.
+- Ours (`hl_run`) started from their h2 design but has its own changes (h2: chroma weight from a smoothed cell mean;
+  h4: the broad layer), so the same ideas would have to be applied to our code and checked bit for bit against our
+  model (`research/halation`). Not started.
