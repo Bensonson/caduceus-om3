@@ -6,7 +6,9 @@ import fs from 'node:fs';
 import { CAMERA_FILMS, filmLook } from '../../webapp/src/om3films';
 import { profilesBin, emptyBank, PER } from '../../webapp/src/om3';
 const [work, img] = process.argv.slice(-2);
-const looks = CAMERA_FILMS.map((f) => filmLook(f));
+// v0.30: LookLab's films carry their RGB curves + colour mix regrade (preview only); the camera's built-in films and
+// LOOKS.BIN don't yet, so the tour shows the films as the camera makes them: without curves and mix.
+const looks = CAMERA_FILMS.map((f) => { const l = filmLook(f); delete l.rgb; delete l.mix; return l; });
 const bank = emptyBank();
 looks.forEach((l, i) => { bank[Math.floor(i / PER)][i % PER] = l; });
 fs.writeFileSync(`${work}/LOOKS.BIN`, profilesBin(bank, 28));

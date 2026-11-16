@@ -230,7 +230,7 @@ footer a { color: var(--muted); }
   <a class="brand" href="./">Caduceus for OM-3</a>
   <a class="tab opt" href="#films">Films</a>
   <a class="tab opt" href="#editor">Colour editor</a>
-  <a class="tab opt" href="#v029">New in v0.29</a>
+  <a class="tab opt" href="#v030">New in v0.30</a>
   <a class="tab opt" href="#help">Help</a>
   <a class="tab" href="pages/install/">Install</a>
   <a class="tab" href="looklab/">LookLab</a>
@@ -250,7 +250,7 @@ footer a { color: var(--muted); }
         <a class="btn" href="looklab/">Open LookLab</a>
         <a class="btn" href="pages/install/">How to install</a>
       </div>
-      <div class="facts"><span><b>20</b> film looks, 18 colour matched</span><span><b>13</b> settings per film</span><span><b>Any</b> SD card (v0.29)</span><span><b>Free</b> and open source</span></div>
+      <div class="facts"><span><b>20</b> film looks, 18 colour matched</span><span><b>15</b> settings per film</span><span><b>Any</b> SD card (v0.29)</span><span><b>Free</b> and open source</span></div>
     </div>
     <div class="hero-visual" aria-label="The camera's Picture Mode list stepping through the films, with a photo in each film's look">
       <div class="hero-photo fade" id="heroPhoto">
@@ -265,6 +265,41 @@ footer a { color: var(--muted); }
 </header>
 
 <main>
+
+<section id="v030">
+  <div class="in">
+    <div class="head">
+      <div class="eyebrow">New in v0.30</div>
+      <h2>Shape each film’s colour, right on the camera.</h2>
+      <p>Two new rows for each film, Color Mix and RGB curves, and a Picture Mode laid out in the order the camera works on a photo, with a picture for every row.</p>
+    </div>
+    <div class="three">
+      <div>
+        <div class="lcd"><div class="screen"><img alt="Camera screen: the Color Mix page, a ring with red, green and blue as dots; red is chosen, Sat +3, Hue +4" src="pages/showcase/img/screens/row-mix.png" loading="lazy"></div></div>
+        <p class="cap"><b>Color Mix.</b> Make red, green or blue stronger or weaker, or turn it toward its neighbour. Each colour is a dot on the ring: the front dial turns it, the rear dial moves it out or in. Greys stay grey.</p>
+      </div>
+      <div>
+        <div class="lcd"><div class="screen"><img alt="Camera screen: the RGB curves page with the blue curve raised at point 2 and lowered at point 4" src="pages/showcase/img/screens/row-rgb.png" loading="lazy"></div></div>
+        <p class="cap"><b>RGB curves.</b> A tone curve for each of red, green and blue, with five points from black to white: add a colour to the shadows, take it out of the highlights, cross-process.</p>
+      </div>
+      <div>
+        <div class="lcd"><div class="screen"><img alt="Camera screen: Picture Mode on FILM 1, the rows down the left with their new pictures" src="pages/showcase/img/screens/film-01.png" loading="lazy"></div></div>
+        <p class="cap"><b>A new Picture Mode.</b> The film and its colour first, then white balance and tone, then lens and effects, five rows a page, each with its own picture.</p>
+      </div>
+    </div>
+    <div class="cards" style="margin-top:22px">
+      <div class="card">
+        <h3>Ready at switch-on</h3>
+        <p>The right film and your changes are there as soon as you switch on, in every mode, before the first half-press. By <a href="https://github.com/crombach">crombach</a>.</p>
+      </div>
+      <div class="card">
+        <h3>Fixes</h3>
+        <p>No freeze at the first half-press in video (by crombach), and turning the mode dial no longer mixes up a custom mode’s films.</p>
+      </div>
+    </div>
+    <p style="margin-top:14px"><a class="more" href="#editor">See every row and what it does to a photo →</a></p>
+  </div>
+</section>
 
 <section id="films">
   <div class="in">
@@ -311,7 +346,7 @@ footer a { color: var(--muted); }
     <div class="head">
       <div class="eyebrow">Picture Mode rows</div>
       <h2>A colour editor on the camera.</h2>
-      <p>Below the film list, each film gets a column of settings. Change any of them on the camera and the photo follows at once. Pick a setting to see its screen on the camera and what it does to a photo.</p>
+      <p>Below the film list, each film gets a column of settings, in the order the camera works on a photo: the film’s colour first, then white balance and tone, then lens and effects. Change any of them on the camera and the photo follows at once. Pick a setting to see its screen on the camera and what it does to a photo.</p>
     </div>
     <div class="editor">
       <div class="rows" id="rows" role="tablist" aria-label="Settings"></div>
@@ -390,6 +425,16 @@ footer a { color: var(--muted); }
       <div>
         <div class="lcd"><div class="screen"><img alt="Camera screen: the shooting screen with FILM 1 in the side column" src="pages/showcase/img/screens/liveview.png"></div></div>
         <p class="cap"><b>On the shooting screen</b> and in the viewfinder. <b>Hold OK</b> on a film to put it back as it was built.</p>
+      </div>
+    </div>
+    <div class="cards" style="margin-top:22px">
+      <div class="card">
+        <h3>Each custom mode keeps its own</h3>
+        <p>Assign › Set copies the films, every change you made to them and the camera’s own picture settings into that custom mode. Nothing you do in another mode changes it. Changes made inside it follow its Save Settings, like the camera’s own, and Assign › Reset puts it back to the films as built. (v0.29.5)</p>
+      </div>
+      <div class="card">
+        <h3>A star only for a real change</h3>
+        <p>A row gets its star only when it differs from the film as built, a changed film shows FILM 1* on the shooting screen, and leaving Picture Mode saves at once. (v0.29.4, by crombach)</p>
       </div>
     </div>
   </div>
@@ -472,7 +517,7 @@ footer a { color: var(--muted); }
       <div class="card">
         <div class="ico">🖥️</div>
         <h3>Make films on your computer</h3>
-        <p>LookLab is a web page for making and changing films with a live preview, on sample photos or your own. It has 67 films to start from (18 colour matched), and can turn your own LUT or Lightroom preset into a film. Nothing is uploaded.</p>
+        <p>LookLab is a web page for making and changing films with a live preview, on sample photos or your own. It has 67 films to start from (18 colour matched), edits Color Mix and RGB curves with the camera’s own maths, and can turn your own LUT or Lightroom preset into a film. Nothing is uploaded.</p>
         <a class="more" href="looklab/">Open LookLab →</a>
       </div>
       <div class="card">
@@ -665,27 +710,31 @@ footer a { color: var(--muted); }
       title: 'Highlights (split toning)', text: 'Tints the bright parts toward one colour, 0 to 10. Here Orange at 10: warm light on the clouds and rocks. Use Shadows and Highlights together for a classic split tone.' },
   ];
   const ROWS = [
-    { id: 'hsl', name: 'HSL', pages: HSL_PAGES },
-    { id: 'tone-balance', name: 'Tone Balance', tag: 'v0.28', labs: ['Tone Balance −5', 'Tone Balance +5'],
+    { id: 'mix', name: 'Color Mix', tag: 'v0.30', labs: ['Original', 'Red: Sat +3, Hue +4'],
+      text: 'Mixes the camera’s red, green and blue into each other, before everything else, −7 to +7 each: Sat makes a colour stronger or weaker, Hue turns it toward the next one (red toward yellow, green toward cyan, blue toward purple). Greys stay grey. The page is a ring with each colour as a dot; INFO picks the colour. Here red turns toward orange and gets stronger.' },
+    { id: 'rgb', name: 'RGB curves', tag: 'v0.30', labs: ['Original', 'Blue: point 2 +5, point 4 −4'],
+      text: 'A tone curve for each of red, green and blue, with five points from black to white, −7 to +7 each: raise a colour where you want more of it. Here blue goes up in the shadows and down in the highlights, for cool shadows and warm light. INFO picks the colour, the front dial the point, the rear dial its level.' },
+    { id: 'hsl', name: 'Color wheel (HSL)', pages: HSL_PAGES },
+    { id: 'tone-balance', name: 'Split Tone Balance', tag: 'v0.28', labs: ['Split Tone Balance −5', 'Split Tone Balance +5'],
       text: 'Where the split toning’s two colours meet, −5 to +5: minus lets the shadow colour reach further up, plus the highlight colour further down. Here with cyan shadows and orange highlights.' },
-    { id: 'contrast', name: 'Contrast', labs: ['Contrast −2', 'Contrast +2'], text: 'The camera’s own contrast, kept with each film.' },
+    { id: 'wb', name: 'WB Compensation', labs: ['B 7 (blue)', 'A 7 (amber)'],
+      text: 'Shifts the colour balance from blue to amber (and green to magenta), −7 to +7, in every white balance mode. Each film also remembers the white balance you last used with it.' },
     { id: 'curve', name: 'Highlight & Shadow', labs: ['Original', 'Shadows +7, Highlights −7'],
       text: 'The camera’s own tone curve: brighter or darker shadows, midtones and highlights, −7 to +7. Here the shadows open up and the bright clouds come down.' },
     { id: 'blacks-whites', name: 'Blacks / Whites', tag: 'v0.28', labs: ['Original', 'Blacks +7'],
       text: 'Blacks and Whites on one grid, −7 to +7 each: left / right for Blacks, up / down for Whites. Plus lifts the blacks or brightens the whites; minus deepens or softens them. Blacks +7 gives the faded look of a print.' },
-    { id: 'wb', name: 'WB shift', labs: ['B 7 (blue)', 'A 7 (amber)'],
-      text: 'Shifts the colour balance from blue to amber (and green to magenta), −7 to +7, in every white balance mode. Each film also remembers the white balance you last used with it.' },
+    { id: 'contrast', name: 'Contrast', labs: ['Contrast −2', 'Contrast +2'], text: 'The camera’s own contrast, kept with each film.' },
     { id: 'sharpness', name: 'Sharpness', labs: ['Off (−5)', '+2'], note: CROP,
       text: '−5 is off, −4 to −1 softer, 0 the camera’s normal, +1 and +2 crisper.' },
     { id: 'noise', name: 'Noise Filter', labs: ['Off', 'High'], note: ILL, text: 'Off, Low, Std or High, set per film: from all the grit of a high ISO to smooth.' },
     { id: 'vignette', name: 'Vignette Correction', labs: ['Off', 'On'], note: ILL,
       text: 'Off keeps the lens’s natural darker corners; On lets the camera correct them.' },
-    { id: 'shading', name: 'Shading', labs: ['Original', 'Shading −5'], text: 'Darker or lighter corners, as an effect, −5 to +5.' },
-    { id: 'glow', name: 'Glow', labs: ['Original', 'Glow +5'],
+    { id: 'shading', name: 'Shading Effect', labs: ['Original', 'Shading −5'], text: 'Darker or lighter corners, as an effect, −5 to +5.' },
+    { id: 'glow', name: 'Glow Effect', labs: ['Original', 'Glow +5'],
       text: '+1 to +5 adds a soft glow around the light; −1 to −5 adds Clarity (crisper local contrast) instead.' },
-    { id: 'halation', name: 'Halation', tag: 'v0.28', labs: ['Halation 0', 'Halation 5'], before: 'pages/showcase/img/halation/neon-0.jpg', after: 'pages/showcase/img/halation/neon-5.jpg',
+    { id: 'halation', name: 'Halation Effect', tag: 'v0.28', labs: ['Halation 0', 'Halation 5'], before: 'pages/showcase/img/halation/neon-0.jpg', after: 'pages/showcase/img/halation/neon-5.jpg',
       text: 'A red-orange glow around bright lights, as on cinema film, 0 to 5. Works with or without Glow.' },
-    { id: 'grain', name: 'Film Grain', labs: ['Off', 'High'], note: CROP, text: 'Off, Low, Med or High. Added in colour, with no extra wait after the photo.' },
+    { id: 'grain', name: 'Film Grain Effect', labs: ['Off', 'High'], note: CROP, text: 'Off, Low, Med or High. Added in colour, with no extra wait after the photo.' },
   ];
   const rowsBox = $('rows'), pagesBox = $('hslPages');
   let curRow = 0, curPage = 0;
@@ -700,7 +749,7 @@ footer a { color: var(--muted); }
   HSL_PAGES.forEach((p, k) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'chip'; b.textContent = p.name;
-    b.addEventListener('click', () => { curPage = k; showRow(0, false, false); });
+    b.addEventListener('click', () => { curPage = k; showRow(ROWS.findIndex((r) => r.pages), false, false); });
     pagesBox.appendChild(b);
   });
   rowsBox.addEventListener('keydown', (e) => {
