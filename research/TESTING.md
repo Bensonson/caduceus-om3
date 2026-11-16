@@ -30,8 +30,10 @@ Use host paths for `OM3_EMU` and the build folder. A workspace made inside Docke
 
 The runner makes an emulator card from the build's `GUIDES.BIN` and `LABELS.BIN`, the newest release's `LOOKS.BIN`,
 and `debug-log/DEBUG.TXT`. Each test then boots the build one or more times on a blank camera, carrying the card and
-the camera's settings from boot to boot. It checks the debug log the firmware writes at each half-press. Two tests
-run side by side, and the whole suite takes about a minute. It prints `pass`, `known`, or `FAIL` per test, with the
+the camera's settings from boot to boot. It checks the debug log the firmware writes at each half-press. A first
+boot that two or more tests share runs once, and each of those tests starts from its card and settings. Four tests
+run side by side (`--jobs`), and the whole suite takes about a minute and a half: 85 s on a 32 GB Mac, against 153 s with
+two jobs and no shared boots. It prints `pass`, `known`, or `FAIL` per test, with the
 reason, and exits 1 on any `FAIL`. Each test's boots, logs, and cards stay in the `--out` folder.
 
 Options:
@@ -111,9 +113,10 @@ neither fails on any build tried. `video-boot-after-photo-boot` does catch its b
 
 - `dial-turn-before-first-half-press` passes on C10, which has the camera bug it targets, so om-emu does not
   reproduce that bug.
-- `video-boot-after-photo-boot` checks the custom-mode line `group now ...: 0, mode code 0; ... record writes: 0`.
-  With the fix, video never reaches the custom-mode code. v0.29.5 reads mode code 194 and writes the record. The
-  test shows the code path the fix removes, not the freeze itself, which only the camera shows.
+- `video-boot-after-photo-boot` checks the custom-mode line for `record writes: 0`. With the fix, video does no
+  custom-mode work. v0.29.5 writes the record. The early load reads the mode code in video, so the line shows mode
+  code 194 on either build. The test shows the code path the fix removes, not the freeze itself, which only the
+  camera shows.
 - The film numbers (`COLOR 1, FILM 1` for C1, `COLOR 2, FILM 6` for P) break when `BOOT1_ASSIGN_C1` or the newest
   `LOOKS.BIN` changes. `BOOT1_ASSIGN_C1` is a constant in `tools/test/emu_test.py`.
 
@@ -206,7 +209,7 @@ release. `--all-releases` rebuilt all 23 releases byte for byte in 44 s. All pas
 
 | Check | Catches | Limit |
 |---|---|---|
-| `static:changed-bytes`: every byte that differs from stock lies in a hook section, an `.ext*` section, the loader end word, the built-in files region (0x60f99800 up to the loader end word), or a patch site in `hooks.json` | A stray write anywhere in the image | The 322 patch sites are a reviewed snapshot from the v0.29.5 build, not derived from source. A new stray write is caught. A byte changed inside an existing site's run is not. |
+| `static:changed-bytes`: every byte that differs from stock lies in a hook section, an `.ext*` section, the loader end word, the built-in files region (0x60f99800 up to the loader end word), or a patch site in `hooks.json` | A stray write anywhere in the image | The 322 patch sites are a reviewed snapshot from the v0.29.5 build, not derived from source. A new stray write is caught. A byte changed inside an existing site's run is not, and a run may shrink when a patched pointer into our code moves and one of its bytes matches stock. |
 | `static:hook-list`: the build's hooks equal `tools/test/hooks.json` | A new hook nobody reviewed, such as one on the start-up path | `hooks.json` holds names, addresses, and lengths for 40 hooks, and no firmware bytes. |
 | `static:hook-sections`: every `.hook_*` section in `firmware/src/editor.s` has a hook entry, and the reverse | A hook assembled but not placed, or placed but not built | |
 | `static:loader-end`: the loader's end word, read back from the image, covers every section that uses it | Code past the loaded end, such as `.ext11` beyond 0x60f99800 | |
