@@ -4992,3 +4992,6 @@ pictures `firmware/rgbpics.py`, exact model `research/rgbcurves/model.py`.
     targets moved; hooks.json updated after that review.
 - **Sample for test 9:** LookLab's camera 20 (om3films.json rgb + mix, recipes otherwise unchanged from main) against
   releases/v0.29.5/LOOKS.BIN: sha256 4c009f9c…2291 (20 matched in om-emu).
+- **LookLab's export (LookLab session, 2026-11-15):** `webapp/src/curvesbin.ts` writes OM3MOD/CURVES.BIN with LOOKS.BIN
+  (Save to the SD card, the card zip, and a button of its own, for firmware "v0.28 or later"); for the standard 20 its
+  bytes equal the sample (4c009f9c…2291). Branch feature/looklab-rgb-curves 0cfcfc7 (local).
