@@ -10,7 +10,7 @@ stock firmware (--stock, else $OM3_STOCK, else $OM3_WORK/stock). --repeat N runs
 --without BUILD_DIR (needs --only) runs those tests on a build without the fix and exits 1 if any passes.
 Exit 0 when every test passes, 1 otherwise.
 """
-import argparse, concurrent.futures, json, os, pathlib, re, shutil, struct, subprocess, sys, tempfile
+import argparse, concurrent.futures, datetime, functools, json, os, pathlib, re, shutil, struct, subprocess, sys, tempfile
 from dataclasses import dataclass, field
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -32,6 +32,9 @@ LOG_PATH = 'OM3MOD/CADLOG.TXT'
 # A branch that changes these needs a suite pass on its HEAD before a pull request (tools/test/pr_gate.py).
 TESTED_PATHS = ('firmware/', 'card/', 'tools/emulator/', 'tools/test/')
 PASS_FILE = 'emu-test-pass.json'
+EMU_PIN = REPO / 'tools/emulator/om-emu.pin'   # the om-emu commit the tests expect (research/TESTING.md)
+EMU_PIN_LINE = re.compile(r'([0-9a-f]{40}) (\d{4}-\d{2}-\d{2})')
+EMU_MAX_AGE_DAYS = 7                           # as tools/emulator/om_emu.sh
 # Each session peaks at about 1.3 GB. 4 side by side ran clean on a 32 GB Mac. Runs killed with exit 137 had
 # screenshots in them (research/TESTING.md).
 DEFAULT_JOBS = 4
@@ -236,6 +239,21 @@ KNOWN_FAILURES = {}   # v0.30 test 8: 'film-kept-with-no-half-press-after-pick' 
 RUNNER_ERRORS = (subprocess.TimeoutExpired, RuntimeError, OSError, ValueError, KeyError, IndexError)
 
 
+def check_emu_pin(emu):
+    """Exits unless om-emu is at the pinned commit. Warns when the pin is older than EMU_MAX_AGE_DAYS."""
+    pin = EMU_PIN.relative_to(REPO)
+    m = EMU_PIN_LINE.fullmatch(EMU_PIN.read_text().strip())
+    if not m:
+        sys.exit(f"{pin}: expected one line, 'COMMIT YYYY-MM-DD' with the full 40-character commit")
+    pinned, checked = m.groups()
+    emu_rev = git('rev-parse', 'HEAD', cwd=pathlib.Path(emu).parent) or '?'
+    if emu_rev != pinned:
+        sys.exit(f'om-emu is at {emu_rev[:7]}, but {pin} names {pinned[:7]}: run research/setup.sh')
+    age = (datetime.date.today() - datetime.date.fromisoformat(checked)).days
+    if age > EMU_MAX_AGE_DAYS:
+        print(f'om-emu: the pin was last checked {age} days ago. Run tools/emulator/bump_om_emu.sh.', file=sys.stderr)
+
+
 def git(*args, cwd=REPO):
     r = subprocess.run(['git', *args], cwd=cwd, capture_output=True, text=True)
     return r.stdout.strip() if r.returncode == 0 else None
@@ -352,7 +370,7 @@ def run_boot(emu, build, d, i, boot, card, syms, fixtures=None):
             syms.update({k: f'{v:x}' for k, v in elf_symbols(build / 'p.elf').items()})
         tokens = tokens.format_map(syms)
     env = {**os.environ, 'OM_EMU_MODEL': MODEL, 'NV_FILE': str(d / 'nv.bin'), 'MODE0': str(boot.mode_dial),
-           **({} if boot.photo_switch is None else {'PSET0': str(boot.photo_switch)})}
+           'PSET0': str(boot.photo_switch)}
     try:
         r = node(DRIVER, emu, build / 'main.bin', card, d / f'boot{i}.json', nxt, tokens, env=env)
     except subprocess.TimeoutExpired:
@@ -448,6 +466,7 @@ def main():
     emu = os.environ.get('OM3_EMU')
     if not emu or not pathlib.Path(emu, 'bin/card.mjs').exists():
         sys.exit('OM3_EMU is not set to an om-emu emu/ folder: run research/setup.sh, then . $OM3_WORK/env.sh')
+    check_emu_pin(emu)
     build = (a.without or a.build).resolve()
     if not (build / 'main.bin').exists():
         sys.exit(f'{build}: no main.bin (a firmware/build.py --out folder)')
