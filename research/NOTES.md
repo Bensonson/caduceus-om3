@@ -5552,3 +5552,7 @@ Owner: "yes, build the noise filter fix" (the row's '*' follows the camera's own
 - **Test:** `tools/test/emu_test.py` gains `halation-matches-the-model` (emu_check.py on ten small frames, ~10 s): passes
   on v0.30.1 and on h7 (the same bytes); a build with a deliberate bug (Y1's shift 21 -> 20) is caught on 3 of the 10
   frames (`--without`: "caught").
+- **Package h7 test 1** (commit 11385dc; the full suite, 23 tests, passes on it): E1479999.BIN `7efe76bf…70f3` (GUIDES
+  / LABELS / TONES built in, as v0.29); VERSION "v0.30.1 + faster halation (h7 test 1)". No #65 fix in it (that is
+  feature/fix-65-review; merging the two conflicts only in VERSION and these notes). Camera test: the same night scene
+  at Halation 5 with this and with v0.30.1, the halo compared by eye and the save time counted.
