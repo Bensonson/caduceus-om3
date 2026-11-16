@@ -439,3 +439,5 @@ dialog.modal:has(.replace-grid) { width: min(780px, calc(100vw - 32px)); }
 /* The camera's Picture Mode row pictures (colour menu, test 7) */
 .pm-ic { vertical-align: -4px; margin-right: 6px; flex: none; color: var(--ink); }
 .cname .pm-ic { margin-right: 5px; }
+.tc-top .rgb-letter { font-weight: 700; font-size: 1.15em; }
+.tc-top .rgb-letter.rc-r { color: #ff6a2a; } .tc-top .rgb-letter.rc-g { color: #22e83a; } .tc-top .rgb-letter.rc-b { color: #4d7dff; }
