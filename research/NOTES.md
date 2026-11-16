@@ -5177,3 +5177,23 @@ Owner: "merge dl9 in for one more test". Branch `try/v0.30-dl9` = try/v0.30 (tes
   stayed on under B's own camera settings. `ss_photo` also read om-emu's 62 as video.
 - **DS5:** `cm_gnow` counts code 62, or code 0 with the dial on B, as B's own code (group 5), and `ss_photo` counts 62
   as photo. Test `live-dial-turn-to-b-switches-the-films` fails on DS4 and passes on DS5.
+
+## v0.30 test 12: test 11 + PR #59, the #54 fix (2026-11-15; emulator only, camera test pending)
+Owner: "Build test 12 please" (after cad's read of crombach's PR #59). `try/v0.30-dl9` = test 11 (fab2e95) + pr-59
+(1039565, with main's #58) merged as written (ca4604f), then our own #54 fix taken out (5476eb7): sx_set's 1440 calls
+rc_go again, rc_turn / rc_nmid and its CADLOG line go (the word in CUSTOM MODES' key stays, 0). Why ours goes: rc_turn
+left every close at code 0 alone, and on the camera B's code reads 0 (crombach's DS4), so a live turn to B would not
+switch; #59 waits inside rc_go for the mode's code (gx_map retries) and counts B as a mode.
+- **Conflicts:** NOTES (both kept), TESTING (#59's #54 rows), `emu_test.py` (#59's file with #58, plus this line's
+  curves tests, card fixtures, PHOTO_SWITCH_VIDEO = 1 and dl9 wording). #59's two new checks in dl9's wording: a
+  switch line `after event N: ... (dial position N) -> ...` that is not a first look, and `Camera COLOR values that
+  differed from a Reset custom mode's own: 0`. Shared first boots key on their card files too.
+- **Firmware check:** test 11 -> 12 is exactly #59's editor.s / editor.ld lines minus rc_turn. No new hook sites; new
+  calls ds_get / ds_put (data item 38, written back as read, only after a held turn); nothing new before the first
+  look. `mx_photo` (mix / curves gate) keeps its own copy of the photo test: om-emu's B code 62 is not photo there,
+  the camera's B code 0 falls to the switch (photo), so on the camera mix / curves work in B as before.
+- **Build:** E1479999.BIN `0116c558…ee25`, rebuilt from 5476eb7 byte for byte. Package
+  `test-builds/2026-11-15-v030-test12` (private), with CURVES.BIN as test 11 and the v0.29.5 go-back.
+- **Suite:** 20 of 20 pass (`Pass recorded on 5476eb7514dd`). `--without` test 11 (rebuilt, 0f690519…): `caught`
+  live-dial-turn-waits-for-the-mode-code and live-dial-turn-back-keeps-the-mode-choice; live-dial-turn-to-b-switches-
+  the-films passes on test 11 (expected: it guards #59's own wait, which test 11 does not have).
