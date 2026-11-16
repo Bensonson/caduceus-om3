@@ -12,7 +12,8 @@
   <a href="https://androidfanman.github.io/caduceus-om3/looklab/"><b>LookLab</b></a> &nbsp;·&nbsp;
   <a href="https://androidfanman.github.io/caduceus-om3/pages/faq/"><b>FAQ</b></a> &nbsp;·&nbsp;
   <a href="https://androidfanman.github.io/caduceus-om3/pages/roadmap/"><b>Roadmap</b></a> &nbsp;·&nbsp;
-  <a href="https://github.com/androidfanman/caduceus-om3/tree/main/devkit/photo-code"><b>Developers</b></a>
+  <a href="https://github.com/androidfanman/caduceus-om3/tree/main/devkit/photo-code"><b>Developers</b></a> &nbsp;·&nbsp;
+  <a href="https://discord.gg/fKpcKGsNPY"><b>Discord</b></a>
 </p>
 
 <p align="center">
