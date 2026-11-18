@@ -14,7 +14,7 @@ python3 firmware/build.py --stock "$OM3_STOCK" --toolchain "$OM3_TOOLCHAIN" --ou
 OM_EMU_MODEL=E147 python3 tools/test/emu_test.py "$OM3_WORK/out-fs1" --stock "$OM3_STOCK"
 ```
 
-The build identifies itself in `CADLOG.TXT` as `v0.30.3-fs1 (experimental focus stacking lens unlock; not camera-tested)`. `firmware/patch.py` still makes the upstream release; it does not build this branch's change.
+The build identifies itself in `CADLOG.TXT` as `v0.30.3-fs1 (focus stacking; not camera-tested)`. `firmware/patch.py` still makes the upstream release; it does not build this branch's change.
 
 ## Camera test (pending)
 
